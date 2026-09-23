@@ -20,12 +20,14 @@ packages/db/        schéma Drizzle, migrations, seed, fonctions de transition d
 ios/                projet Xcode
 supabase/           config.toml de la CLI Supabase
 docker-compose.yml  Redis (dev)
-docs/               cahier des charges et ADR
+.env.example        variables sans valeurs (ADR-009)
+CLAUDE.md           conventions globales pour l'IA
+docs/               cahier des charges, ADR, plans de phase, méthode (ia-workflow.md)
 ```
 
 - Commandes racine : `pnpm dev`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm contract:generate`, `pnpm db:migrate`, `pnpm db:seed`.
-- Le worker n'importe que `packages/db` et ses propres adapters, jamais `apps/api`.
-- Un fichier `CLAUDE.md` par app et package (`apps/api`, `apps/worker`, `apps/backoffice`, `ios`, `packages/contract`), sans répéter le fichier racine.
+- Le domaine et les use cases vivent dans `apps/api`. Le worker n'importe que `packages/db` et ses propres adapters, jamais `apps/api`.
+- Un fichier `CLAUDE.md` par app et package (`apps/api`, `apps/worker`, `apps/backoffice`, `ios`, `packages/contract`), sans répéter le fichier racine (contenu : ADR-014).
 
 ## Alternatives
 - Un dépôt par produit : isolation plus forte, mais le contrat et le schéma devraient être publiés et synchronisés entre dépôts, et une tranche verticale serait répartie sur plusieurs commits. Non retenu.
@@ -39,7 +41,7 @@ docs/               cahier des charges et ADR
 
 ### Négatives
 - Configuration initiale plus lourde (workspaces, TypeScript par package, CI).
-- Le projet Xcode n'est pas un package pnpm : la génération du client Swift passe par une copie de `openapi.yaml` (`05` § 5).
+- Le projet Xcode n'est pas un package pnpm : la génération du client Swift passe par une copie de `openapi.yaml` (ADR-010).
 
 ## Liens
 - ADR-003 (package `contract`)
@@ -47,3 +49,4 @@ docs/               cahier des charges et ADR
 - ADR-008 (worker et `packages/db`)
 - ADR-010 (projet iOS)
 - ADR-011 (backoffice)
+- ADR-014 (fichiers `CLAUDE.md`)

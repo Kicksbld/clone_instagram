@@ -15,12 +15,17 @@ Décision source : D5.
 ## Décision
 - **L'API est la seule porte d'entrée vers les données.** Supabase sert d'infrastructure : Postgres, Auth, Storage.
 - Deux exceptions encadrées côté clients :
-  - la **connexion** via Supabase Auth (module `Auth` de `supabase-swift` dans l'app, `@supabase/ssr` dans le backoffice) ;
-  - le **transfert de fichiers** via des URL d'upload présignées et des URL publiques ou signées délivrées par l'API.
+  - la **connexion** via Supabase Auth (module `Auth` de `supabase-swift` et `AuthenticationServices` pour Sign in with Apple dans l'app, `@supabase/ssr` dans le backoffice) ;
+  - le **transfert de fichiers** via des URL d'upload présignées et des URL publiques ou signées délivrées par l'API (ADR-008).
 - Pas de PostgREST côté client, pas de Supabase Realtime, pas de RLS comme mécanisme d'autorisation.
-- Sur toutes nos tables : **RLS activé sans aucune policy** (refus total) ou exposition du schéma `public` désactivée. Un test vérifie qu'on ne peut rien lire avec la clé publique.
-- L'API vérifie elle-même la signature des JWT Supabase.
-- `profiles.id` = identifiant Supabase Auth ; le profil est créé par `POST /v1/me/onboarding`, pas par un trigger. Le schéma `auth` n'est jamais modifié.
+- Sur toutes nos tables : **RLS activé sans aucune policy** (refus total) ou exposition du schéma `public` désactivée. Toute migration qui crée une table applique cette protection. Un test automatisé vérifie qu'on ne peut rien lire avec la clé publique.
+- **Flux de connexion** :
+  1. le client se connecte à Supabase Auth (email + mot de passe ou jeton Sign in with Apple) et reçoit un JWT (access + refresh) ;
+  2. il appelle `GET /v1/me` avec `Authorization: Bearer <JWT>` ;
+  3. l'API vérifie elle-même la signature du JWT ; si le profil n'existe pas, elle répond `404 profile_not_found` ;
+  4. le client termine l'onboarding par `POST /v1/me/onboarding`, qui crée le profil (`201`).
+- `profiles.id` = identifiant Supabase Auth ; le profil est créé par `POST /v1/me/onboarding`, pas par un trigger. Deux identités distinctes : `auth.users` (géré par Supabase, schéma `auth` jamais modifié) et `profiles` (notre table).
+- Les jetons restent dans le Keychain côté iOS (via le SDK Auth) et dans un cookie httpOnly côté backoffice ; jamais dans `UserDefaults` ni exposés au JavaScript du navigateur.
 - La clé `service_role` n'est présente que dans l'API et le worker.
 - La configuration Supabase (exposition du schéma, buckets, fournisseur Apple) est identique entre la CLI et le Cloud.
 
@@ -43,3 +48,4 @@ Décision source : D5.
 - ADR-005 (l'API porte toute la logique)
 - ADR-008 (upload présigné vers Storage)
 - ADR-009 (Supabase CLI en local, Cloud en démo)
+- ADR-011 (session du backoffice)

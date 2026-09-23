@@ -17,7 +17,7 @@ Ce document liste les endpoints et conventions. La référence exécutable est `
 | Visibilité | Un contenu invisible pour l'appelant renvoie **404** (pas 403), pour ne pas révéler son existence |
 | Rate limiting | Réponse `429` avec en-tête `Retry-After` |
 
-Codes HTTP : `200`, `201`, `204`, `400` (validation), `401` (non authentifié), `403` (compte suspendu, rôle manquant, abonnement Plus requis : code `plus_required`), `404`, `409` (conflit : username pris, transition invalide), `422` (règle métier), `429`.
+Codes HTTP : `200`, `201`, `204`, `400` (validation), `401` (non authentifié), `403` (compte suspendu ou banni : code `account_suspended` ; rôle manquant ; abonnement Plus requis : code `plus_required`), `404`, `409` (conflit : username pris, transition invalide), `422` (règle métier), `429`.
 
 ## 2. Endpoints
 

@@ -54,7 +54,7 @@ L'utilisateur est l'acteur principal. Ses actions se répartissent en trois axes
 **`admin_roles`** : `user_id`, `role` (`admin`), `created_at`.
 
 Règles :
-- Un compte `suspended` ou `banned` ne peut plus écrire ; son contenu n'est plus visible des autres.
+- Un compte `suspended` ou `banned` ne peut plus utiliser l'app : l'API refuse toutes ses requêtes (`403 account_suspended`) sauf la lecture de son profil (`GET /v1/me`) et la suppression de son compte (`DELETE /v1/me`) ; son contenu n'est plus visible des autres.
 - Passer un compte de privé à public **accepte automatiquement** les demandes d'abonnement en attente.
 - Suppression de compte : suppression immédiate de l'accès, puis purge des données et fichiers par un job.
 

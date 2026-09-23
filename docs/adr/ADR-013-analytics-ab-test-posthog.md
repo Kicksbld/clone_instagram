@@ -11,13 +11,21 @@ Contraintes : aucune donnée personnelle dans les événements, analytics jamais
 Décisions sources : D26, D27.
 
 ## Décision
-- **PostHog Cloud** pour les événements, les feature flags et les expériences.
-- **App** : SDK `posthog-ios`, utilisé uniquement via le protocole `AnalyticsService`. `identify(profileId)` dès la création du profil, avant le paywall.
-- **API** : port `AnalyticsTracker` (`posthog-node`) pour les faits métier confirmés (`profile_created`, `post_created`, `subscription_activated`), envoyés après la validation de la transaction ; un échec est journalisé, jamais propagé.
-- **Règles** : `distinct_id` = identifiant de profil ; événements `objet_action` en `snake_case` au passé ; aucune donnée personnelle (ni email, ni nom, ni contenu).
-- **A/B test** : expérience PostHog sur un feature flag à plusieurs variantes, lue par le `PaywallViewModel`, qui choisit l'offre RevenueCat ou la présentation correspondante. Métrique principale : `purchase_completed`. Variante par défaut si PostHog est injoignable.
-- **Backoffice** : jamais d'appel direct à PostHog. Il passe par `GET /v1/admin/analytics/*` ; l'API interroge l'API de requêtes PostHog (port `AnalyticsReader`, clé personnelle côté serveur) et ajoute le nombre d'abonnés actifs lu en base.
-- Suppression de compte propagée à PostHog par le job de purge.
+- **PostHog Cloud** (région UE de préférence) pour les événements, les feature flags et les expériences.
+- **Règles** : `distinct_id` = identifiant de profil ; événements `objet_action` en `snake_case` au passé ; aucune donnée personnelle dans les propriétés (ni email, ni nom, ni contenu). Un échec d'envoi n'est jamais bloquant.
+- **Événements** :
+
+| Source | Événements |
+|---|---|
+| App (`posthog-ios`) | `onboarding_step_completed { step }` à chaque étape de l'onboarding, `paywall_viewed`, `purchase_started`, `purchase_completed`, `purchase_cancelled`, actions principales (post, like, abonnement) |
+| API (port `AnalyticsTracker`, `posthog-node`) | Faits métier confirmés : `profile_created`, `post_created`, `subscription_activated` |
+
+- **App** : SDK `posthog-ios` utilisé uniquement via le protocole `AnalyticsService` (`Core/Analytics`, remplaçable par un faux dans les tests et les previews) ; noms d'événements centralisés dans `Core/Analytics` ; `identify(profileId)` dès la création du profil, avant le paywall (la variante reste la même pour l'utilisateur) ; `reset()` à la déconnexion.
+- **API** : les événements serveur sont envoyés **après** la validation de la transaction ; un échec est journalisé, jamais propagé.
+- **A/B test** : expérience PostHog sur un feature flag à plusieurs variantes, lue par le `PaywallViewModel`, qui choisit l'offre RevenueCat ou la présentation correspondante. PostHog enregistre l'exposition. Métrique principale : `purchase_completed`. Variante par défaut si PostHog est injoignable.
+- **Backoffice** : jamais d'appel direct à PostHog. Il passe par `GET /v1/admin/analytics/overview` (entonnoir, inscriptions, abonnés Plus actifs, `?from=&to=`) et `GET /v1/admin/analytics/experiments` (variantes, expositions, conversions). L'API interroge l'API de requêtes PostHog (port `AnalyticsReader` du module `analytics`, clé personnelle côté serveur, use cases `GetAnalyticsOverview` et `GetExperimentResults`) et ajoute le nombre d'abonnés actifs lu en base. La page Analytics propose un lien « Ouvrir dans PostHog ».
+- Suppression de compte propagée à PostHog (suppression de la personne) par le job `purge-account` (ADR-008).
+- En test, `AnalyticsTracker` et `AnalyticsReader` sont remplacés par des adapters en mémoire : aucun appel à PostHog.
 
 ## Alternatives
 - Analytics faits maison : contrôle total, mais entonnoirs et expériences à construire. Écarté (D26).
@@ -29,15 +37,16 @@ Décisions sources : D26, D27.
 ### Positives
 - Un seul outil pour les événements, les flags et les expériences.
 - Faits métier fiables envoyés par le serveur, indépendamment de l'app.
-- Clé personnelle PostHog confinée à l'API.
+- Clé personnelle PostHog confinée au serveur (API, worker pour la purge).
 
 ### Négatives
-- Dépendance à un SaaS et à son API de requêtes (endpoints à vérifier au démarrage).
+- Dépendance à un SaaS et à son API de requêtes (endpoints de l'entonnoir, des résultats d'expérience et de suppression d'une personne à vérifier au démarrage).
 - Endpoints admin supplémentaires à maintenir dans le contrat.
-- Déclaration App Privacy à remplir pour les données d'analytics.
+- Déclaration App Privacy à remplir pour les données d'analytics et d'achat.
 
 ## Liens
 - ADR-005 (ports `AnalyticsTracker` et `AnalyticsReader`)
+- ADR-008 (job `purge-account`)
 - ADR-010 (protocole `AnalyticsService`)
 - ADR-011 (backoffice client de l'API)
 - ADR-012 (offre RevenueCat choisie selon la variante)

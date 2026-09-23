@@ -13,11 +13,27 @@ Décision source : D18.
 ## Décision
 - `packages/contract/openapi.yaml` est **l'unique source de vérité** des échanges : endpoints REST **et** schémas des événements WebSocket.
 - Workflow **contract-first** : modifier la spec → la valider (Redocly CLI) → régénérer (`pnpm contract:generate`) → implémenter.
+- La spec grandit tranche par tranche : la fiche de la tranche liste les endpoints à ajouter ; leur forme exacte est écrite dans `openapi.yaml` et relue par le lead dev avant l'implémentation.
 - Génération :
-  - client Swift : `swift-openapi-generator` (plugin de build, à partir d'une copie de la spec) ;
+  - client Swift : `swift-openapi-generator` (plugin de build, à partir d'une copie de la spec, transport `URLSession`) ;
   - types de l'API : `openapi-typescript` ;
   - client du backoffice : `openapi-typescript` + `openapi-fetch`.
-- Conventions communes (`04` § 1) : préfixe `/v1`, erreurs *Problem Details* (RFC 9457) avec un `code` stable, pagination `{ items, nextCursor }`, champs inconnus rejetés, contenu invisible → 404.
+- **Conventions communes** :
+
+| Sujet | Règle |
+|---|---|
+| Base | `/v1`, JSON, UTF-8 |
+| Authentification | `Authorization: Bearer <JWT Supabase>` sur tous les endpoints sauf `GET /health` |
+| Identifiants | UUID v7 |
+| Dates | ISO 8601 UTC |
+| Pagination | `?cursor=<opaque>&limit=<1..50>` (défaut 20) → `{ items: [...], nextCursor: string \| null }` ; curseur défini dans ADR-007 |
+| Erreurs | *Problem Details* (RFC 9457) : `{ type, title, status, detail, code }`, avec un `code` stable (ex. `username_taken`, `profile_not_found`, `media_not_ready`, `plus_required`, `account_suspended`) |
+| Validation | Toute entrée est validée contre le schéma ; les champs inconnus sont rejetés |
+| Idempotence | Like, save, follow, block : `PUT` / `DELETE`, naturellement idempotents ; envoi de message (P1) : `clientId` |
+| Visibilité | Un contenu invisible pour l'appelant renvoie **404**, pas 403 (ADR-006) |
+| Rate limiting | `429` avec en-tête `Retry-After` (limites : ADR-005) |
+
+- Codes HTTP : `200`, `201`, `204`, `400` (validation), `401` (non authentifié), `403` (compte suspendu ou banni : `account_suspended` ; rôle manquant ; abonnement Plus requis : `plus_required`), `404`, `409` (conflit : username pris, transition invalide), `422` (règle métier), `429`.
 - Il est interdit d'inventer un endpoint ou un champ absent de la spec.
 - La CI valide la spec à chaque push.
 
@@ -37,6 +53,8 @@ Décision source : D18.
 
 ## Liens
 - ADR-001 (le contrat est la première étape de chaque tranche)
-- ADR-005 (validation des entrées de l'API)
+- ADR-005 (validation des entrées, rate limiting)
+- ADR-006 (404 pour un contenu invisible)
+- ADR-007 (curseur de pagination)
 - ADR-010 (conversion DTO → modèles dans l'app)
 - ADR-011 (client `openapi-fetch` du backoffice)

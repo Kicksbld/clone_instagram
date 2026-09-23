@@ -14,12 +14,20 @@ Décisions sources : D24, D25.
 
 ## Décision
 - **RevenueCat** gère l'achat dans l'app (SDK `purchases-ios` + StoreKit) : offres, achat, restauration, reçus. L'identifiant client RevenueCat est l'identifiant de profil ; aucun email n'est transmis.
-- **L'API fait foi** pour les droits : module `billing`, table `subscriptions` (copie locale de l'état RevenueCat), écrite uniquement par le use case `RefreshSubscription`.
-- `RefreshSubscription` lit le client via la **REST API v2 de RevenueCat** (clé secrète côté API, port `SubscriptionProvider`). Il est déclenché par `POST /v1/me/subscription/refresh` après un achat, une restauration et au lancement de l'app ; pas de rappel si la dernière vérification date de moins de 5 minutes.
+- **L'API fait foi** pour les droits : module `billing`, table `subscriptions` — `user_id` (PK), `entitlement` (`plus`), `status` (`active` | `expired`), `product_id`, `expires_at`, `refreshed_at`, `updated_at` — copie locale de l'état RevenueCat, écrite uniquement par le use case `RefreshSubscription`. RevenueCat reste la source de vérité des achats.
+- `RefreshSubscription` lit le client via la **REST API v2 de RevenueCat** (`GET /projects/{project_id}/customers/{customer_id}`, endpoint exact à vérifier au démarrage ; clé secrète côté serveur, port `SubscriptionProvider`, adapter `fetch` sans SDK serveur). Il est déclenché par `POST /v1/me/subscription/refresh` → `{ plan, expiresAt }`, après un achat, une restauration et au lancement de l'app. Pas d'appel à RevenueCat si `refreshed_at` date de moins de 5 minutes. Si RevenueCat est injoignable, le dernier statut connu est conservé.
+- `GET /v1/me` renvoie aussi `plan` (`free` | `plus`) et `plusExpiresAt`.
 - **Pas de webhooks RevenueCat.**
-- Règle unique `isPlus(user)` = `status = active` et `expires_at > now()`. Refus : `403 plus_required`.
-- Avantage P0 : icône d'app personnalisée (appliquée par l'app uniquement).
-- Suppression de compte : ligne supprimée et client RevenueCat supprimé par le job de purge ; l'app rappelle que l'abonnement Apple doit être résilié par l'utilisateur.
+- Règle unique `isPlus(user)` = `status = active` et `expires_at > now()`, dans le module `billing`. Tout avantage côté API passe par elle. Refus : `403 plus_required`. Un avantage acquis reste acquis (une story publiée à 48 h garde sa durée si l'abonnement expire ensuite).
+- **Avantages** : icône d'app personnalisée en P0 (appliquée par l'app uniquement, `setAlternateIconName`, choix dans Paramètres > Clone Plus) ; story 48 h, vue anonyme et recherche dans les vues en P1 (ADR à rédiger, D28).
+- **Côté app** (`Core/Billing`, feature `Paywall`) :
+  - `Purchases.logIn(profileId)` juste après la création du profil ; déconnexion RevenueCat à la déconnexion de l'app ;
+  - paywall SwiftUI maison, fidèle au style Instagram, alimenté par les offres RevenueCat (prix localisés fournis par StoreKit) ; affiché en fin d'onboarding (bouton « Plus tard ») et depuis Paramètres > Clone Plus ;
+  - boutons **Restaurer les achats** et **Gérer l'abonnement** (exigences App Store) ;
+  - l'interface ne débloque un avantage que selon le `plan` renvoyé par l'API ; le statut du SDK ne sert qu'à l'affichage ;
+  - fichier de configuration StoreKit pour tester dans le simulateur sans App Store Connect.
+- **Suppression de compte** : ligne supprimée et client RevenueCat supprimé par le job `purge-account` (ADR-008) ; l'app rappelle avant la suppression que l'abonnement Apple doit être résilié par l'utilisateur.
+- En test, `SubscriptionProvider` est remplacé par un adapter en mémoire : aucun appel à RevenueCat.
 
 ## Alternatives
 - StoreKit 2 seul : pas de dépendance SaaS, mais offres codées en dur, et restauration et vérification des reçus à écrire à la main. Écarté (D24).
@@ -34,10 +42,12 @@ Décisions sources : D24, D25.
 
 ### Négatives
 - Statut potentiellement désynchronisé entre deux rafraîchissements (renouvellement, résiliation) ; `expires_at` coupe tout de même les avantages.
-- Configuration App Store Connect et sandbox longue, à lancer au début du projet ; un fichier de configuration StoreKit permet d'avancer en attendant.
-- Dépendance à un service SaaS ; le dernier statut connu est conservé s'il est injoignable.
+- Configuration App Store Connect et sandbox longue (produit, contrat, compte de test), à lancer au début du projet ; le fichier de configuration StoreKit permet d'avancer en attendant.
+- Dépendance à un service SaaS.
+- Supprimer un compte ne résilie pas l'abonnement Apple (limite assumée).
 
 ## Liens
 - ADR-005 (port `SubscriptionProvider`, module `billing`)
+- ADR-008 (job `purge-account`)
 - ADR-010 (SDK dans l'app)
 - ADR-013 (variante A/B du paywall)

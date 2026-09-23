@@ -11,13 +11,29 @@ Il manipule des actions sensibles, et toute la logique métier vit déjà dans l
 Décision source : D17.
 
 ## Décision
-- **Next.js (App Router)**, TypeScript `strict`, Tailwind CSS, shadcn/ui, react-hook-form + Zod ; hébergé sur Vercel.
+- **Stack** : Next.js (App Router, dernière version stable à vérifier au démarrage), TypeScript `strict`, Tailwind CSS, shadcn/ui (tables, formulaires, dialogues, toasts), shadcn DataTable (TanStack Table) avec pagination et filtres côté serveur, react-hook-form + Zod, Vitest et Playwright ; hébergé sur Vercel. `hls.js` pour la lecture vidéo à partir de la P1.
 - **Client de l'API uniquement** (`/v1/admin/*`) via `openapi-fetch` et les types générés ; jamais d'accès direct à la base ni à PostHog.
-- **Organisation par feature** : `app/` ne contient que les routes ; `features/*/{components,data,schemas}`. Seuls les fichiers `features/*/data/` importent `lib/api` (vérifié par le lint).
-- **Aucun appel API depuis le navigateur** : tout passe par le serveur Next.js ; jeton en cookie httpOnly (`@supabase/ssr`).
-- **Chaque Server Action revérifie la session** ; le middleware n'est qu'un confort.
-- L'API reste l'autorité pour le rôle `admin` ; chaque action admin est écrite dans `admin_audit_log`. Actions destructives confirmées avec un motif obligatoire.
-- Pagination et filtres dans l'URL.
+- **Organisation par feature** :
+
+```
+apps/backoffice/src/
+├── app/                   # routes uniquement : (auth)/login, (admin)/users, reports, analytics…
+├── features/<feature>/
+│   ├── components/        # présentation, sans logique métier ni requête
+│   ├── data/              # queries.ts (lectures), actions.ts (Server Actions)
+│   └── schemas/           # Zod (formulaires)
+├── lib/
+│   ├── api/               # client openapi-fetch, injection du jeton côté serveur
+│   └── auth/              # session Supabase côté serveur
+├── components/ui/         # composants shadcn
+└── middleware.ts          # redirection des non-connectés (confort) ; nom du fichier à vérifier selon la version (proxy.ts)
+```
+
+- Règles vérifiées par le lint : seuls les fichiers `features/*/data/` importent `lib/api` ; les composants n'effectuent jamais de requête.
+- **Aucun appel API depuis le navigateur** : tout passe par le serveur Next.js ; jeton en cookie httpOnly (`@supabase/ssr`), jamais transmis au client.
+- **Chaque Server Action revérifie la session** avant d'appeler l'API (ce sont des endpoints POST publics) ; le middleware n'est qu'un confort.
+- L'API reste l'autorité pour le rôle `admin` (vérifié dans chaque use case d'administration) ; la connexion d'un compte sans rôle `admin` est refusée. Chaque action admin qui modifie des données est écrite par l'API dans `admin_audit_log`. Actions destructives (bannissement, suppression) confirmées par un dialogue avec motif obligatoire.
+- **Conventions d'interface** : pagination, tri et filtres dans l'URL ; états vides, de chargement et d'erreur explicites sur chaque écran ; toast de confirmation après chaque action et revalidation de la page concernée.
 - Création des admins par script ou seed, sans écran d'inscription.
 
 ## Alternatives
@@ -39,3 +55,4 @@ Décision source : D17.
 - ADR-003 (client `openapi-fetch`)
 - ADR-004 (l'API est la seule porte d'entrée)
 - ADR-013 (analytics lus via l'API)
+- ADR-014 (tests Vitest et Playwright)

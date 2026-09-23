@@ -3,6 +3,8 @@
 > Exercice de cours : reproduire au plus proche l'app iOS d'Instagram, son backend et un backoffice, en développement assisté par IA.
 > Statut : **v1 — validé en brainstorming, à relire**. Lead dev : Killian (seul + IA).
 
+> **Usage** : ce cahier décrit le périmètre et le contexte. Il sert **uniquement à préparer une phase** : rédiger ses ADR (`docs/adr/`) et son plan (`docs/plan/`). Il n'est pas lu pendant le développement d'une tranche : la fiche du plan et les ADR qu'elle cite sont alors la seule source de contexte (ADR-001). En cas de divergence, l'ADR fait foi.
+
 ## Sommaire
 
 | Fichier | Contenu |

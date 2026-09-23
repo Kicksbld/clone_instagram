@@ -95,7 +95,7 @@ sequenceDiagram
 ```
 
 - Le profil applicatif est créé par un **endpoint d'onboarding explicite**, pas par un trigger en base.
-- L'API refuse toute requête d'un compte `suspended` ou `banned` (sauf lecture de son statut).
+- L'API refuse toute requête d'un compte `suspended` ou `banned` (`403 account_suspended`), sauf la lecture de son statut (`GET /v1/me`) et la suppression du compte (`DELETE /v1/me`).
 - Backoffice : même principe, session stockée en **cookie httpOnly** (`@supabase/ssr`), rôle admin vérifié par l'API.
 
 ### 3.2 Publication d'un média
@@ -169,7 +169,7 @@ sequenceDiagram
 | Job | Fréquence | Rôle |
 |---|---|---|
 | `purge-orphan-media` | Toutes les heures | Supprime les médias jamais attachés après 24 h (uploads abandonnés) |
-| `purge-deleted-accounts` | À la demande + quotidien | Purge les données et fichiers d'un compte supprimé |
+| `purge-account` | À la demande + quotidien | Purge les données et fichiers d'un compte supprimé |
 | `purge-instants` (P3) | Toutes les heures | Supprime les fichiers des instants ouverts par tous ou expirés |
 
 Les stories expirées ne sont **pas** supprimées : elles sont archivées (filtre `expires_at`), ce qui permet les stories à la une.
@@ -283,4 +283,4 @@ Deux environnements, même code, même architecture. Seule la configuration chan
 - La clé `service_role` de Supabase n'est présente **que** dans l'API et le worker.
 - L'app iOS et le navigateur ne reçoivent que la clé publique et les URL.
 - Les clés APNs (P2) et la configuration Sign in with Apple restent hors du repo.
-- La clé secrète RevenueCat et la clé personnelle PostHog ne sont présentes **que** dans l'API. L'app ne reçoit que la clé publique RevenueCat et la clé projet PostHog, qui sont faites pour être embarquées.
+- La clé secrète RevenueCat et la clé personnelle PostHog ne sont présentes **que** côté serveur : l'API, et le worker pour le job de purge. L'app ne reçoit que la clé publique RevenueCat et la clé projet PostHog, qui sont faites pour être embarquées.

@@ -2,6 +2,8 @@
 
 Décisions d'architecture du projet, rédigées selon [Agent ADR Architecte.md](Agent%20ADR%20Architecte.md). Seul le lead dev accepte ou remplace un ADR.
 
+**Pendant le développement d'une tranche, la fiche du plan et les ADR qu'elle cite sont la seule source de contexte** (ADR-001). Le cahier des charges ne sert qu'à rédiger les ADR et le plan d'une nouvelle phase ; en cas de divergence, l'ADR fait foi.
+
 | ADR | Titre | Statut |
 |---|---|---|
 | [ADR-001](ADR-001-decoupage-phases-tranches-verticales.md) | Découpage en phases P0 → P3 et livraison par tranches verticales | Proposé |
@@ -17,8 +19,11 @@ Décisions d'architecture du projet, rédigées selon [Agent ADR Architecte.md](
 | [ADR-011](ADR-011-backoffice-nextjs-client-api.md) | Backoffice Next.js organisé par feature, client de l'API uniquement | Proposé |
 | [ADR-012](ADR-012-abonnement-clone-plus-revenuecat.md) | Abonnement Clone Plus : RevenueCat, statut vérifié par l'API | Proposé |
 | [ADR-013](ADR-013-analytics-ab-test-posthog.md) | Analytics et A/B test avec PostHog, backoffice passant par l'API | Proposé |
+| [ADR-014](ADR-014-qualite-ci-definition-of-done.md) | Qualité, CI, tests et definition of done | Proposé |
 
-## À rédiger à l'arrivée de leur tranche (P1 et plus)
+## À rédiger avant le plan de leur phase (P1 et plus)
+
+À partir du cahier des charges, avec tout le contenu dont les tranches auront besoin.
 
 - Messagerie : envoi REST, réception WebSocket (D16)
 - Vidéo en HLS via ffmpeg (D10)

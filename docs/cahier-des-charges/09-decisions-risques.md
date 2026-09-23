@@ -36,6 +36,8 @@
 | D30 | App iOS ciblant iOS 26 (compilée avec le SDK iOS 27) | iOS 27 exclusivement | Choix du lead dev, plus simple ; Liquid Glass disponible depuis iOS 26, les API propres à iOS 27 passent par `#available` (ADR-010) |
 | D31 | Migrations Drizzle appliquées sur Supabase Cloud par une étape de pré-déploiement Railway du service `api` | Commande manuelle | Choix du lead dev ; schéma toujours aligné sur la version déployée, pas d'oubli (ADR-009) |
 | D32 | En P0, suivre un compte privé est refusé ; les demandes d'abonnement arrivent en P1 | Créer directement l'abonnement | Choix du lead dev ; pas de contournement du compte privé avant les demandes d'abonnement (P1) |
+| D33 | Pendant le développement d'une tranche, la fiche du plan et les ADR sont la seule source de contexte ; le cahier des charges sert à rédiger les ADR et les plans de phase | Cahier des charges lu pendant le développement | Choix du lead dev ; une seule source évite que l'IA suive deux versions d'une même règle (ADR-001) |
+| D34 | Compte suspendu ou banni : toutes ses requêtes refusées (`403 account_suspended`) sauf `GET /v1/me` et `DELETE /v1/me`, par un contrôle unique dans la vérification d'authentification | Refuser seulement les écritures, use case par use case | Choix du lead dev ; un compte sanctionné ne voit plus les contenus des autres, un seul point de contrôle impossible à oublier, suppression du compte toujours possible (ADR-005) |
 
 ## 2. Risques
 
