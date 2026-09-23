@@ -1,0 +1,21 @@
+{
+  "name": "@clone/contract",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./openapi.json": "./generated/openapi.json"
+  },
+  "scripts": {
+    "generate": "redocly lint openapi.yaml && redocly bundle openapi.yaml --dereferenced --ext json -o generated/openapi.json && openapi-typescript openapi.yaml -o generated/schema.d.ts",
+    "lint": "redocly lint openapi.yaml",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "echo \"@clone/contract : pas de test (validé par redocly lint)\"",
+    "build": "echo \"@clone/contract : consommé depuis les sources\""
+  },
+  "devDependencies": {
+    "@redocly/cli": "^2.54.2",
+    "openapi-typescript": "^7.13.0"
+  }
+}

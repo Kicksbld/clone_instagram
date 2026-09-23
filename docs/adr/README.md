@@ -21,6 +21,7 @@ Décisions d'architecture du projet, rédigées selon [Agent ADR Architecte.md](
 | [ADR-013](ADR-013-analytics-ab-test-posthog.md) | Analytics et A/B test avec PostHog, backoffice sans duplication | Proposé |
 | [ADR-014](ADR-014-qualite-ci-definition-of-done.md) | Qualité, CI, tests et definition of done | Proposé |
 | [ADR-015](ADR-015-contrat-jobs-api-worker.md) | Contrat des jobs entre l'API et le worker : package `packages/jobs` | Proposé |
+| [ADR-016](ADR-016-chaine-outils-monorepo.md) | Chaîne d'outils du monorepo : packages internes consommés depuis leurs sources, versions épinglées | Proposé |
 
 ## À rédiger avant le plan de leur phase (P1 et plus)
 

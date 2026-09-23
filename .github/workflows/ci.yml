@@ -1,0 +1,67 @@
+# CI (ADR-014) : contrat, lint, typecheck, tests et build des parties TypeScript.
+# L'app iOS est vérifiée en local (`xcodebuild test`). Railway et Vercel déploient `main` après CI verte (T1).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      REDIS_URL: redis://localhost:6379
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Contrat (Redocly + génération à jour)
+        run: |
+          pnpm contract:generate
+          git diff --exit-code -- packages/contract/generated
+
+      - name: Lint (dont dependency-cruiser et règles d'import)
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

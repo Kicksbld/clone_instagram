@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Projet de cours : clone d'Instagram iOS + backend + backoffice, développé par un seul lead dev (Killian) avec l'IA. **Dev en local** (Supabase CLI, Redis Docker) et **démo hébergée** (Supabase Cloud, Railway pour API + worker + Redis, Vercel pour le backoffice), plus les SaaS RevenueCat et PostHog Cloud. P0 est l'objectif ; P1 à P3 viennent ensuite, dans l'ordre. Onboarding, paywall, analytics et A/B test sont imposés et font partie de P0.
 
-À ce stade, le dépôt ne contient que la documentation : cahier des charges, ADR, méthode et plan P0. **Aucun code n'existe encore.** L'arborescence, les commandes et les outils ci-dessous sont la cible : vérifier qu'ils existent avant de les utiliser, et mettre à jour ce fichier au fur et à mesure du scaffolding.
+Le socle TypeScript existe (T0a) : `apps/api`, `apps/worker`, `apps/backoffice`, `packages/contract`, `packages/db`, `packages/jobs`, sans table ni authentification. **Le projet iOS (`ios/`) n'existe pas encore** (T0b). Mettre à jour ce fichier au fur et à mesure du scaffolding.
 
 ## Sources de contexte (ADR-001)
 
@@ -20,7 +20,7 @@ Projet de cours : clone d'Instagram iOS + backend + backoffice, développé par 
 - Si une information manque dans la fiche et les ADR : s'arrêter et le signaler au lead dev, ne pas inventer ni aller la chercher ailleurs.
 - En cas de divergence, l'ADR fait foi. Le résumé ci-dessous n'est qu'un rappel : le détail est dans l'ADR indiqué.
 
-## Monorepo cible (pnpm, ADR-002)
+## Monorepo (pnpm, ADR-002)
 
 ```
 apps/api/          Fastify + TypeScript strict, architecture hexagonale, Drizzle
@@ -33,16 +33,19 @@ ios/               projet Xcode SwiftUI (Swift 6 strict, cible iOS 26 / SDK iOS 
 supabase/          config.toml de la CLI Supabase
 ```
 
-## Commandes (prévues)
+## Commandes
+
+Node 24 (`.nvmrc`), pnpm via `corepack enable` (version épinglée dans `package.json`). Copier `.env.example` en `.env` et le compléter.
 
 ```bash
 supabase start              # Postgres, Auth, Storage, Studio
 docker compose up -d        # Redis (file BullMQ uniquement)
-pnpm dev                    # API + worker + backoffice
+pnpm install
+pnpm dev                    # API (:3000) + worker + backoffice (:3001)
 pnpm lint | pnpm typecheck | pnpm test | pnpm build
 pnpm contract:generate      # régénère les clients depuis openapi.yaml
 pnpm db:migrate | pnpm db:seed
-xcodebuild test             # app iOS, lancé en local (pas de CI macOS)
+xcodebuild test             # app iOS (à partir de T0b), lancé en local (pas de CI macOS)
 ```
 
 Outils de qualité et tests par niveau : ADR-014.

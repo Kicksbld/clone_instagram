@@ -18,7 +18,7 @@ Décision source : D5.
   - la **connexion** via Supabase Auth (module `Auth` de `supabase-swift` et `AuthenticationServices` pour Sign in with Apple dans l'app, `@supabase/ssr` dans le backoffice) ;
   - le **transfert de fichiers** via des URL d'upload présignées et des URL publiques ou signées délivrées par l'API (ADR-008).
 - Pas de PostgREST côté client, pas de Supabase Realtime, pas de RLS comme mécanisme d'autorisation.
-- Sur toutes nos tables : **RLS activé sans aucune policy** (refus total) ou exposition du schéma `public` désactivée. Toute migration qui crée une table applique cette protection. Un test automatisé vérifie qu'on ne peut rien lire avec la clé publique.
+- **API de données Supabase (PostgREST) désactivée** : `[api] enabled = false` dans `supabase/config.toml`, « Data API » désactivée sur Supabase Cloud. Une liste `schemas` vide ne suffit pas : PostgREST expose alors `public` par défaut. En plus, **RLS activé sans aucune policy** (refus total) sur toutes nos tables : toute migration qui crée une table applique cette protection. Un test automatisé vérifie qu'on ne peut rien lire avec la clé publique.
 - **Flux de connexion** :
   1. le client se connecte à Supabase Auth (email + mot de passe ou jeton Sign in with Apple) et reçoit un JWT (access + refresh) ;
   2. il appelle `GET /v1/me` avec `Authorization: Bearer <JWT>` ;
@@ -27,7 +27,7 @@ Décision source : D5.
 - `profiles.id` = identifiant Supabase Auth ; le profil est créé par `POST /v1/me/onboarding`, pas par un trigger. Deux identités distinctes : `auth.users` (géré par Supabase, schéma `auth` jamais modifié) et `profiles` (notre table).
 - Les jetons restent dans le Keychain côté iOS (via le SDK Auth) et dans un cookie httpOnly côté backoffice ; jamais dans `UserDefaults` ni exposés au JavaScript du navigateur.
 - La clé `service_role` n'est présente que dans l'API et le worker.
-- La configuration Supabase (exposition du schéma, buckets, fournisseur Apple) est identique entre la CLI et le Cloud.
+- La configuration Supabase (API de données désactivée, buckets, fournisseur Apple) est identique entre la CLI et le Cloud.
 
 ## Alternatives
 - Clients connectés directement à Supabase (PostgREST, RLS, Realtime) : moins de code serveur, mais logique métier répartie entre policies SQL et clients, difficile à tester et contraire à l'architecture hexagonale. Écarté (D5).

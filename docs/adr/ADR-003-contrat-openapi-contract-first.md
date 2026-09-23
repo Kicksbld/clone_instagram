@@ -22,8 +22,9 @@ Décision source : D18.
 
 | Sujet | Règle |
 |---|---|
-| Base | `/v1`, JSON, UTF-8 |
+| Base | `/v1`, JSON, UTF-8 ; dans `openapi.yaml`, chemins écrits en entier (`/v1/…`) et `servers` à `/`, car le client `openapi-fetch` (une seule `baseUrl`) et `swift-openapi-generator` (qui ignore les `servers` par route) ne gèrent pas une route hors `/v1` autrement |
 | Authentification | `Authorization: Bearer <JWT Supabase>` sur tous les endpoints sauf `GET /health` |
+| Santé | `GET /health`, hors `/v1`, sans authentification : liveness `200 { status: "ok" }`, sans interroger Postgres ni Redis |
 | Identifiants | UUID v7 |
 | Dates | ISO 8601 UTC |
 | Pagination | `?cursor=<opaque>&limit=<1..50>` (défaut 20) → `{ items: [...], nextCursor: string \| null }` ; curseur défini dans ADR-007 |

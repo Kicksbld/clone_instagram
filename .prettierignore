@@ -1,0 +1,8 @@
+docs/
+pnpm-lock.yaml
+packages/contract/generated/
+**/migrations/
+.next/
+dist/
+coverage/
+**/*.md

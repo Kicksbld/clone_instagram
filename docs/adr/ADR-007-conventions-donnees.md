@@ -13,7 +13,7 @@ Décisions sources : D12, D13, D15.
 ## Décision
 - **Migrations uniquement via drizzle-kit**, versionnées ; jamais de modification d'une migration appliquée (on en ajoute une nouvelle), ni du schéma depuis le Studio ; jamais de modification du schéma `auth`. Le schéma Drizzle de `packages/db` est la référence ; la fiche de tranche indique les tables et colonnes à ajouter.
 - **Identifiants** : UUID v7 générés par l'application (triés dans le temps, favorables aux index).
-- **Dates** : `timestamptz` en UTC.
+- **Dates** : `timestamptz` en UTC. Les colonnes qui servent de curseur de pagination (`created_at`) sont en précision milliseconde (`timestamptz(3)`, `precision: 3` dans Drizzle), la précision des dates JavaScript : avec la précision microseconde par défaut de Postgres, le curseur, arrondi à la milliseconde, sauterait ou dupliquerait des éléments.
 - **Énumérations** : `text` + contrainte `CHECK` (pas d'`enum` Postgres).
 - **Username** : 1 à 30 caractères `[a-z0-9._]`, stocké en minuscules, unique.
 - **Pas de clé étrangère polymorphe** : une table de like par cible (`post_likes`, `comment_likes`) ; colonnes nullables + `CHECK` « exactement une » quand une ligne vise plusieurs types (ex. `reports`, `mentions`).
@@ -70,6 +70,7 @@ LIMIT 20;
 - Compteurs dénormalisés à maintenir avec soin dans chaque use case d'écriture.
 - Plus de tables (une par cible de like).
 - Toutes les lectures doivent filtrer `deleted_at`.
+- Dates des colonnes de curseur limitées à la milliseconde ; toute nouvelle colonne de curseur doit déclarer cette précision.
 - Republications (P2) : le feed devra devenir l'union de deux sources triée sur une date d'activité.
 
 ## Liens
