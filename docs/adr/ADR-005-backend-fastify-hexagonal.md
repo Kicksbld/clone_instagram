@@ -13,7 +13,7 @@ Le langage doit être maîtrisé par le lead dev et partagé avec le backoffice.
 Décisions sources : D6, D7, D8, D34.
 
 ## Décision
-- **Stack** : Node.js LTS + TypeScript `strict`, Fastify, Drizzle ORM + drizzle-kit, Postgres avec l'extension `pg_trgm`, Vitest. Validation des entrées à partir des schémas de la spec (ou Zod). `@fastify/rate-limit`, logs pino. `@fastify/websocket` à partir de la P1.
+- **Stack** : Node.js LTS + TypeScript `strict`, Fastify, Drizzle ORM + drizzle-kit, Postgres avec l'extension `pg_trgm`, Vitest. Validation des entrées par les schémas de la spec : `openapi.yaml` bundlé et déréférencé par `pnpm contract:generate`, compilé par Ajv (JSON Schema 2020-12), sans suppression des champs inconnus. `@fastify/rate-limit`, logs pino. `@fastify/websocket` à partir de la P1.
 - **Modules et tables** : l'utilisateur n'est qu'un identifiant référencé par des modules indépendants ; aucune entité `User` ne porte tout (« god entity »).
 
 | Module | Responsabilité | Tables principales |
@@ -62,7 +62,7 @@ apps/api/src/
 | Transactions | Port `UnitOfWork` : `uow.run(async (tx) => …)` pour tout use case qui écrit dans plusieurs tables (ligne + compteur + notification) |
 | Erreurs | Erreurs typées (`NotFound`, `Forbidden`, `Conflict`, `BusinessRule`) converties en *Problem Details* (ADR-003) par un gestionnaire unique |
 | Pas de domaine riche sans raison | Un like n'a pas besoin d'entité ni de mapper ; un post, un média ou une conversation, oui |
-| Logs | pino, JSON structuré, identifiant de requête ; jamais de jeton ni de donnée personnelle |
+| Logs | pino, JSON structuré, identifiant de requête ; jamais de jeton ni de donnée personnelle (requête journalisée : méthode et chemin, sans en-têtes, IP ni query string) |
 | Configuration | Validée au démarrage : l'API refuse de démarrer si une variable manque (liste : ADR-009) |
 
 - **Use case de référence : liker un post.**
@@ -80,7 +80,7 @@ apps/api/src/
 | `POST …/messages` | 60 / minute |
 | `POST /reports` | 10 / heure |
 
-- **dependency-cruiser** fait échouer la CI si `domain/` importe `application/` ou `infrastructure/`, ou si `application/` importe `infrastructure/`.
+- **dependency-cruiser** fait échouer la CI si `domain/` importe `application/` ou `infrastructure/`, si `application/` importe `infrastructure/`, ou si `packages/jobs` est importé hors de `infrastructure/` (ADR-015).
 - Tests : ADR-014.
 
 ## Alternatives
@@ -110,3 +110,4 @@ apps/api/src/
 - ADR-007 (conventions de données)
 - ADR-009 (variables d'environnement)
 - ADR-014 (tests)
+- ADR-015 (contrat des jobs derrière le port `JobQueue`)

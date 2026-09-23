@@ -27,7 +27,7 @@ Décisions sources : D29 (remplace D19), D31.
 - Le **squelette** (API `/health`, worker, backoffice, app connectée) est déployé **dès le début**, puis chaque tranche est validée sur la démo.
 - Railway et Vercel déploient automatiquement `main` une fois la CI verte (ADR-014).
 - **Les migrations Drizzle sont appliquées sur Supabase Cloud par une étape de pré-déploiement Railway** du service `api`, exécutée avant le démarrage de la nouvelle version. Si la migration échoue, la nouvelle version ne démarre pas. Aucune migration n'est appliquée à la main sur la démo.
-- Supabase Cloud est configuré comme le local : exposition du schéma `public` désactivée ou RLS sans policy (ADR-004), mêmes buckets (ADR-008), fournisseur Apple.
+- Supabase Cloud est configuré comme le local : API de données (PostgREST) désactivée et RLS sans policy (ADR-004), mêmes buckets (ADR-008), fournisseur Apple.
 - **Variables d'environnement** de l'API et du worker (valeurs dans `.env` en local, dans Railway en démo) :
 
 | Variable | Utilisée par |

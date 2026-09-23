@@ -44,6 +44,8 @@ Décisions sources : D8, D9, D11.
 | `maintenance` | `purge-account` (à la demande) | Données et fichiers d'un compte supprimé ; client RevenueCat (ADR-012) et personne PostHog (ADR-013), appels idempotents |
 | `maintenance` | `purge-content-files` | Fichiers d'un contenu supprimé par modération |
 
+- **Contrat des jobs** : noms des files et des jobs, payloads et valeurs de retour dans `packages/jobs`, validés par le worker à la réception (ADR-015).
+
 - **Côté app, `UploadManager`** : file d'uploads persistée (une publication survit à la fermeture de l'écran et à la mise en arrière-plan), `URLSession` en configuration background, préparation avant envoi (image : HEIC → JPEG, 2 160 px maximum), enchaînement intention → envoi → `complete` → attente du statut → création du contenu, bandeau « Publication en cours » avec progression et état d'échec avec relance.
 
 ## Alternatives
@@ -68,3 +70,4 @@ Décisions sources : D8, D9, D11.
 - ADR-007 (conventions de données)
 - ADR-009 (worker sur Railway, image avec ffmpeg)
 - ADR-010 (`UploadManager` dans `Core/Media`)
+- ADR-015 (contrat des jobs)

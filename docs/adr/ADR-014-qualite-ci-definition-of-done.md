@@ -48,7 +48,7 @@ Source : cahier des charges, `08-qualite-conventions-ia.md`.
 - **Interdits** : accès direct à la base depuis un client, `any` en TypeScript, force unwrap en Swift, secret dans le code, `--no-verify`, test désactivé pour faire passer la CI, `eslint-disable` / `swiftlint:disable` sans commentaire justificatif.
 - **Conventions pour l'IA** uniquement dans des fichiers `CLAUDE.md` (jamais d'`AGENTS.md`) : le fichier racine, plus un par app et package, créé au scaffolding, sans répéter le fichier racine ni recopier les ADR (il y renvoie) :
   - `apps/api` : emplacement de chaque type de fichier, use case de référence (ADR-005) ;
-  - `apps/worker` : pas de logique métier, idempotence, transitions de statut (ADR-008) ;
+  - `apps/worker` : pas de logique métier, idempotence, transitions de statut (ADR-008), ajout d'un job et validation des payloads (ADR-015) ;
   - `apps/backoffice` : organisation par feature, règles d'import, sécurité des Server Actions (ADR-011) ;
   - `ios` : MVVM, organisation par feature, concurrence, Liquid Glass (ADR-010) ;
   - `packages/contract` : conventions et procédure de régénération (ADR-003).
@@ -78,3 +78,4 @@ Source : cahier des charges, `08-qualite-conventions-ia.md`.
 - ADR-006 (cas limites de visibilité)
 - ADR-009 (déploiement après CI verte)
 - ADR-011 (règles d'import du backoffice)
+- ADR-015 (validation des payloads de jobs)
