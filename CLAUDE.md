@@ -70,6 +70,7 @@ Outils de qualité et tests par niveau : ADR-014.
 - **Méthode** : [`docs/ia-workflow.md`](docs/ia-workflow.md). On prend la première tranche non cochée du plan courant, on reste dans sa fiche (ligne « Hors tranche »), on la coche une fois la definition of done validée.
 - **Ordre dans une tranche** : contrat → migration → backend (domaine → use case → adapters → route + tests) → iOS (service → ViewModel → vues + tests) → backoffice.
 - **Definition of done, cas limites obligatoires, interdits, commits** : ADR-014.
+- **README.md = guide de démarrage** (pour le lead dev et le professeur) : à chaque tranche qui change l'installation, les commandes, les services, les ports ou les variables d'environnement, mettre à jour `README.md` (prérequis, installation, lancement, arrêt / relance, problèmes fréquents, avancement). Clair et concis.
 - Conventions pour l'IA uniquement dans des fichiers `CLAUDE.md` (jamais d'`AGENTS.md`) : ce fichier, plus un par app/package (`apps/api`, `apps/worker`, `apps/backoffice`, `ios`, `packages/contract`), créé au scaffolding, qui renvoie aux ADR sans les recopier.
 
 ## Décisions d'architecture (ADR)
