@@ -123,6 +123,7 @@ apps/api/src/
 
 - Processus séparé (`apps/worker`), même monorepo.
 - **Pas de logique métier** : il traite des fichiers et met à jour les statuts via les fonctions de transition partagées de `packages/db` (mises à jour conditionnelles, voir 03 § 4.4).
+- **Contrat des jobs** dans `packages/jobs` : noms des files et des jobs, schémas Zod des payloads (identifiants uniquement) et des valeurs de retour, validés par le worker à la réception (D35).
 
 | File | Job | Rôle |
 |---|---|---|

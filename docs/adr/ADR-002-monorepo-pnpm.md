@@ -1,10 +1,10 @@
-# ADR-002 — Monorepo pnpm : trois produits et deux packages partagés
+# ADR-002 — Monorepo pnpm : trois produits et trois packages partagés
 
 ## Statut
 Proposé
 
 ## Contexte
-Le projet comprend trois produits (app iOS, backend, backoffice) et un backend lui-même découpé en API et worker. L'API et le worker partagent le schéma de base et les fonctions de transition de statut ; les trois produits partagent le contrat d'API.
+Le projet comprend trois produits (app iOS, backend, backoffice) et un backend lui-même découpé en API et worker. L'API et le worker partagent le schéma de base, les fonctions de transition de statut et le contrat des jobs ; les trois produits partagent le contrat d'API.
 
 Un seul développeur travaille sur l'ensemble, avec l'IA, qui doit pouvoir modifier une tranche verticale complète d'un seul tenant.
 
@@ -17,6 +17,7 @@ apps/worker/        consommateurs BullMQ (+ Dockerfile avec ffmpeg)
 apps/backoffice/    Next.js
 packages/contract/  openapi.yaml + types générés
 packages/db/        schéma Drizzle, migrations, seed, fonctions de transition de statut
+packages/jobs/      noms des files et des jobs, schémas Zod des payloads (ADR-015)
 ios/                projet Xcode
 supabase/           config.toml de la CLI Supabase
 docker-compose.yml  Redis (dev)
@@ -26,7 +27,7 @@ docs/               cahier des charges, ADR, plans de phase, méthode (ia-workfl
 ```
 
 - Commandes racine : `pnpm dev`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm contract:generate`, `pnpm db:migrate`, `pnpm db:seed`.
-- Le domaine et les use cases vivent dans `apps/api`. Le worker n'importe que `packages/db` et ses propres adapters, jamais `apps/api`.
+- Le domaine et les use cases vivent dans `apps/api`. Le worker n'importe que `packages/db`, `packages/jobs` et ses propres adapters, jamais `apps/api`.
 - Un fichier `CLAUDE.md` par app et package (`apps/api`, `apps/worker`, `apps/backoffice`, `ios`, `packages/contract`), sans répéter le fichier racine (contenu : ADR-014).
 
 ## Alternatives
@@ -36,7 +37,7 @@ docs/               cahier des charges, ADR, plans de phase, méthode (ia-workfl
 ## Conséquences
 ### Positives
 - Une tranche verticale tient dans une seule branche et un seul commit.
-- Contrat et schéma à un seul endroit, importés par ceux qui en ont besoin.
+- Contrat, schéma et contrat des jobs à un seul endroit, importés par ceux qui en ont besoin.
 - L'IA voit l'ensemble du code et les conventions par dossier.
 
 ### Négatives
@@ -50,3 +51,4 @@ docs/               cahier des charges, ADR, plans de phase, méthode (ia-workfl
 - ADR-010 (projet iOS)
 - ADR-011 (backoffice)
 - ADR-014 (fichiers `CLAUDE.md`)
+- ADR-015 (package `jobs`)

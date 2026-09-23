@@ -80,7 +80,7 @@ apps/api/src/
 | `POST …/messages` | 60 / minute |
 | `POST /reports` | 10 / heure |
 
-- **dependency-cruiser** fait échouer la CI si `domain/` importe `application/` ou `infrastructure/`, ou si `application/` importe `infrastructure/`.
+- **dependency-cruiser** fait échouer la CI si `domain/` importe `application/` ou `infrastructure/`, si `application/` importe `infrastructure/`, ou si `packages/jobs` est importé hors de `infrastructure/` (ADR-015).
 - Tests : ADR-014.
 
 ## Alternatives
@@ -110,3 +110,4 @@ apps/api/src/
 - ADR-007 (conventions de données)
 - ADR-009 (variables d'environnement)
 - ADR-014 (tests)
+- ADR-015 (contrat des jobs derrière le port `JobQueue`)

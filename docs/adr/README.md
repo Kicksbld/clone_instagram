@@ -7,7 +7,7 @@ Décisions d'architecture du projet, rédigées selon [Agent ADR Architecte.md](
 | ADR | Titre | Statut |
 |---|---|---|
 | [ADR-001](ADR-001-decoupage-phases-tranches-verticales.md) | Découpage en phases P0 → P3 et livraison par tranches verticales | Proposé |
-| [ADR-002](ADR-002-monorepo-pnpm.md) | Monorepo pnpm : trois produits et deux packages partagés | Proposé |
+| [ADR-002](ADR-002-monorepo-pnpm.md) | Monorepo pnpm : trois produits et trois packages partagés | Proposé |
 | [ADR-003](ADR-003-contrat-openapi-contract-first.md) | Contrat OpenAPI unique, contract-first, clients générés | Proposé |
 | [ADR-004](ADR-004-supabase-infrastructure-derriere-api.md) | Supabase comme infrastructure derrière l'API | Proposé |
 | [ADR-005](ADR-005-backend-fastify-hexagonal.md) | Backend Fastify + TypeScript + Drizzle, architecture hexagonale par module | Proposé |
@@ -20,6 +20,7 @@ Décisions d'architecture du projet, rédigées selon [Agent ADR Architecte.md](
 | [ADR-012](ADR-012-abonnement-clone-plus-revenuecat.md) | Abonnement Clone Plus : RevenueCat, statut vérifié par l'API | Proposé |
 | [ADR-013](ADR-013-analytics-ab-test-posthog.md) | Analytics et A/B test avec PostHog, backoffice sans duplication | Proposé |
 | [ADR-014](ADR-014-qualite-ci-definition-of-done.md) | Qualité, CI, tests et definition of done | Proposé |
+| [ADR-015](ADR-015-contrat-jobs-api-worker.md) | Contrat des jobs entre l'API et le worker : package `packages/jobs` | Proposé |
 
 ## À rédiger avant le plan de leur phase (P1 et plus)
 

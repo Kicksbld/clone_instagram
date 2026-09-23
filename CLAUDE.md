@@ -28,6 +28,7 @@ apps/worker/       consommateurs BullMQ (sharp, ffmpeg → HLS), SANS logique m�
 apps/backoffice/   Next.js App Router, Tailwind, shadcn/ui ; client de l'API uniquement
 packages/contract/ openapi.yaml (source de vérité) + types générés
 packages/db/       schéma Drizzle, migrations, seed, fonctions de transition de statut
+packages/jobs/     contrat API ↔ worker : files, jobs, schémas Zod des payloads (ADR-015)
 ios/               projet Xcode SwiftUI (Swift 6 strict, cible iOS 26 / SDK iOS 27, Liquid Glass)
 supabase/          config.toml de la CLI Supabase
 ```
@@ -53,7 +54,7 @@ Outils de qualité et tests par niveau : ADR-014.
 3. **Hexagonal par module** (ADR-005) : `domain/` sans import externe → `application/{ports,use-cases}` → `infrastructure/{http,persistence}` ; composition manuelle dans `main.ts`. Le contrôleur authentifie, **le use case autorise**. Écritures multi-tables via `UnitOfWork`. Erreurs typées → Problem Details.
 4. **Visibilité unique** (ADR-006) : toute lecture passe par `shared/domain/visibility`. Contenu invisible → **404**, jamais 403.
 5. **Données** (ADR-007) : migrations drizzle-kit uniquement, jamais le schéma `auth`, UUID v7, `timestamptz` UTC, `text` + `CHECK`, pas de FK polymorphe, pagination par curseur `(created_at, id)`, jamais `OFFSET`.
-6. **Rien de lourd dans l'API** (ADR-008) : traitement par job BullMQ dans le worker, sans logique métier ; Redis = file de jobs uniquement. Machine à états des médias par `UPDATE … WHERE status = '<attendu>'`.
+6. **Rien de lourd dans l'API** (ADR-008) : traitement par job BullMQ dans le worker, sans logique métier ; Redis = file de jobs uniquement. Machine à états des médias par `UPDATE … WHERE status = '<attendu>'`. Payloads de jobs définis dans `packages/jobs` (identifiants uniquement), validés par le worker (ADR-015).
 7. **Abonnement vérifié par l'API** (ADR-012) : règle unique `isPlus`, `POST /v1/me/subscription/refresh`, pas de webhooks. Refus : `403 plus_required`.
 8. **Analytics jamais bloquants, sans donnée personnelle** (ADR-013) : `distinct_id` = id de profil ; l'app passe par `AnalyticsService` ; le backoffice ne duplique rien, simple lien « Ouvrir dans PostHog ».
 9. **iOS** (ADR-010) : MVVM `@Observable` / `@MainActor`, services injectés par protocole, une feature n'importe jamais une autre, Nuke (jamais `AsyncImage`), Liquid Glass jamais sur le contenu.

@@ -237,7 +237,8 @@ clone-instagram/
 │   └── backoffice/     # Next.js
 ├── packages/
 │   ├── contract/       # openapi.yaml + types générés
-│   └── db/             # schéma Drizzle, migrations, seed (partagé API + worker)
+│   ├── db/             # schéma Drizzle, migrations, seed (partagé API + worker)
+│   └── jobs/           # files, jobs et schémas Zod des payloads (partagé API + worker)
 ├── ios/                # projet Xcode
 ├── supabase/           # config.toml de la CLI Supabase
 ├── docker-compose.yml  # Redis (dev)
@@ -248,7 +249,7 @@ clone-instagram/
     └── adr/                 # décisions d'architecture (ADR) et agent ADR
 ```
 
-Le domaine et les use cases vivent dans `apps/api`. Le worker importe uniquement `packages/db` et ses propres adapters : il ne porte pas de logique métier (voir 06).
+Le domaine et les use cases vivent dans `apps/api`. Le worker importe uniquement `packages/db`, `packages/jobs` et ses propres adapters : il ne porte pas de logique métier (voir 06).
 
 ## 6. Environnements
 

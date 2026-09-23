@@ -38,6 +38,7 @@
 | D32 | En P0, suivre un compte privé est refusé ; les demandes d'abonnement arrivent en P1 | Créer directement l'abonnement | Choix du lead dev ; pas de contournement du compte privé avant les demandes d'abonnement (P1) |
 | D33 | Pendant le développement d'une tranche, la fiche du plan et les ADR sont la seule source de contexte ; le cahier des charges sert à rédiger les ADR et les plans de phase | Cahier des charges lu pendant le développement | Choix du lead dev ; une seule source évite que l'IA suive deux versions d'une même règle (ADR-001) |
 | D34 | Compte suspendu ou banni : toutes ses requêtes refusées (`403 account_suspended`) sauf `GET /v1/me` et `DELETE /v1/me`, par un contrôle unique dans la vérification d'authentification | Refuser seulement les écritures, use case par use case | Choix du lead dev ; un compte sanctionné ne voit plus les contenus des autres, un seul point de contrôle impossible à oublier, suppression du compte toujours possible (ADR-005) |
+| D35 | Contrat des jobs API ↔ worker dans un package partagé `packages/jobs` (schémas Zod des payloads, validés par le worker) | Contrat dans `packages/db` ; jobs décrits dans `openapi.yaml` ; types écrits de chaque côté ; types TypeScript sans validation | Choix du lead dev ; une dérive de payload casse la compilation au lieu d'un job en échec, et un job enfilé par une ancienne version pendant un déploiement est vérifié (ADR-015) |
 
 ## 2. Risques
 
