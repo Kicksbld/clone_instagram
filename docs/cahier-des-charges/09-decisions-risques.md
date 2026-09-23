@@ -25,20 +25,23 @@
 | D19 | ~~Tout en local~~ Remplacée par D29 | Déploiement cloud | Suffisant pour l'exercice |
 | D20 | Priorités P0 → P3 au lieu d'un planning en semaines | Planning hebdomadaire | Demande du lead dev ; ordre de réalisation clair |
 | D21 | Notification de fin de traitement média par QueueEvents plutôt que polling | Polling seul ; pub/sub Redis dédié | Pas de brique supplémentaire ; Redis reste limité à la file de jobs (D8) |
-| D22 | Délai ramené à 8 jours, priorités conservées | Recadrage complet du périmètre | Demande du lead dev ; P0 devient l'objectif, P1 à P3 ne sont faits que s'il reste du temps |
+| D22 | P0 est l'objectif, priorités conservées | Recadrage complet du périmètre | Demande du lead dev ; P1 à P3 viennent ensuite, dans l'ordre |
 | D23 | Onboarding, paywall, analytics et A/B test imposés, intégrés en P0 | Les traiter en P1 ou plus tard | Exigence du projet |
 | D24 | Paywall avec RevenueCat, abonnement « Clone Plus » inspiré d'Instagram Plus | StoreKit 2 seul | Imposé ; offres configurables sans nouvelle version de l'app, restauration et reçus gérés |
 | D25 | Statut d'abonnement lu par l'API via la REST API RevenueCat, copié dans `subscriptions` | Faire confiance au SDK de l'app ; webhooks RevenueCat | Les avantages sont appliqués côté serveur ; le rafraîchissement à la demande marche aussi en dev local, sans URL publique (webhooks possibles plus tard sur la démo) |
-| D26 | Analytics et A/B test avec PostHog Cloud | Analytics fait maison ; PostHog auto-hébergé ; RevenueCat Experiments | Choix du lead dev ; un seul outil pour événements, flags et expériences. L'auto-hébergement est trop lourd pour 8 jours |
+| D26 | Analytics et A/B test avec PostHog Cloud | Analytics fait maison ; PostHog auto-hébergé ; RevenueCat Experiments | Choix du lead dev ; un seul outil pour événements, flags et expériences. L'auto-hébergement est trop lourd à mettre en place |
 | D27 | Le backoffice lit les analytics via l'API (`/v1/admin/analytics/*`) | Appels directs du backoffice à PostHog ; tableaux PostHog intégrés | Conserve la règle « le backoffice est un client de l'API uniquement » (D17) ; clé PostHog confinée à l'API |
 | D28 | Avantages Plus limités à 4 (icône, story 48 h, vue anonyme, recherche dans les vues) | Reprendre tous les avantages d'Instagram Plus | Seuls ceux compatibles avec le périmètre ; la mise en avant d'une story suppose un algorithme de diffusion (hors périmètre) |
 | D29 | Dev en local, démo hébergée : Supabase Cloud, Railway (API, worker, Redis), Vercel (backoffice) | Tout en local (D19) ; Render ou Fly.io | Démo fiable devant n'importe quel réseau (un wifi d'école peut bloquer la communication entre appareils), HTTPS sans exception iOS, plus de problème d'IP locale ; Railway accepte les processus longs et une image avec ffmpeg |
+| D30 | App iOS ciblant iOS 26 (compilée avec le SDK iOS 27) | iOS 27 exclusivement | Choix du lead dev, plus simple ; Liquid Glass disponible depuis iOS 26, les API propres à iOS 27 passent par `#available` (ADR-010) |
+| D31 | Migrations Drizzle appliquées sur Supabase Cloud par une étape de pré-déploiement Railway du service `api` | Commande manuelle | Choix du lead dev ; schéma toujours aligné sur la version déployée, pas d'oubli (ADR-009) |
+| D32 | En P0, suivre un compte privé est refusé ; les demandes d'abonnement arrivent en P1 | Créer directement l'abonnement | Choix du lead dev ; pas de contournement du compte privé avant les demandes d'abonnement (P1) |
 
 ## 2. Risques
 
 | Risque | Probabilité | Impact | Mitigation |
 |---|---|---|---|
-| Périmètre trop large pour le délai (8 jours, P0 déjà dense) | Très élevée | Élevé | Phases strictes ; une phase n'est commencée que si la précédente est stable ; P1 à P3 sont sacrifiables ; chaque feature P0 a une version simplifiée |
+| Périmètre trop large (P0 déjà dense) | Très élevée | Élevé | Phases strictes ; une phase n'est commencée que si la précédente est stable ; chaque feature P0 a une version simplifiée |
 | Pipeline vidéo HLS plus long que prévu | Élevée | Moyen | Reels en P1 après les stories et DM ; repli possible sur MP4 progressif sans changer le contrat (le champ `variants` porte l'URL de lecture) |
 | Médias inaccessibles depuis l'iPhone en dev (URL en `localhost`) | Moyenne | Faible | Tester sur iPhone via la démo ; en dev, configurer l'IP du Mac ou utiliser le simulateur |
 | Problèmes de déploiement découverts tard | Moyenne | Élevé | Squelette déployé dès le début, déploiement automatique de `main` |
@@ -50,7 +53,7 @@
 | Performance du scroll avec Liquid Glass | Moyenne | Moyen | Verre réservé à la navigation, profilage Instruments |
 | Nouveautés d'iOS 27 mal connues | Moyenne | Faible | Lecture de la documentation Apple avant l'UI |
 | Perte d'un événement `media.ready` / `media.failed` si le WebSocket est fermé | Élevée | Faible | Repli REST : `GET /v1/media/{id}` au retour au premier plan et après un délai sans événement |
-| Configuration App Store Connect / sandbox longue (produit, contrat, compte de test) | Moyenne | Élevé | À lancer dès le jour 1 ; fichier de configuration StoreKit pour avancer sans attendre |
+| Configuration App Store Connect / sandbox longue (produit, contrat, compte de test) | Moyenne | Élevé | À lancer au début du projet ; fichier de configuration StoreKit pour avancer sans attendre |
 | Statut d'abonnement désynchronisé (renouvellement, résiliation) faute de webhooks | Moyenne | Faible | Rafraîchissement au lancement de l'app ; `expires_at` coupe les avantages même sans rafraîchissement |
 | RevenueCat ou PostHog injoignable | Faible | Moyen | Analytics jamais bloquants ; dernier statut d'abonnement connu conservé ; variante A/B par défaut |
 
@@ -65,12 +68,12 @@
 
 ## 4. Points à vérifier au démarrage
 
-- [ ] Version minimale : iOS 27 exclusivement, ou iOS 26 (première version avec Liquid Glass) ? Dépend de la version installée sur l'iPhone de test.
+- [x] Version minimale : iOS 26 (D30).
 - [ ] Nouveautés d'iOS 27 et du Xcode correspondant (Liquid Glass, réglage d'isolation `@MainActor` par défaut, dossiers synchronisés).
 - [ ] Dernière version stable de Next.js et nom du fichier de middleware.
 - [ ] Supabase (CLI et Cloud) : configuration des URL publiques de Storage, désactivation de l'exposition du schéma `public`, vérification des JWT (clés de signature), fournisseur Apple.
 - [ ] Railway : connexion à Supabase Cloud (connexion directe ou pooler selon le support IPv6), WebSocket derrière le proxy Railway, taille de l'image du worker avec ffmpeg, coût de l'offre.
-- [ ] Application des migrations Drizzle sur Supabase Cloud au déploiement (étape de pré-déploiement Railway ou commande manuelle).
+- [x] Application des migrations Drizzle sur Supabase Cloud au déploiement : étape de pré-déploiement Railway (D31).
 - [ ] Onglets de l'app : alignement sur l'app Instagram actuelle analysée.
 - [ ] Comportement exact des instants : durée d'affichage après ouverture.
 - [ ] Limite de collaborateurs par post.

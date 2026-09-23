@@ -13,7 +13,6 @@ Projet réalisé dans le cadre d'un cours. Objectif pédagogique double :
 | Contrainte             | Valeur                            | Conséquence                                                                       |
 | ---------------------- | --------------------------------- | --------------------------------------------------------------------------------- |
 | Équipe                 | 1 développeur + IA                | Architecture simple et homogène, peu de dépendances                               |
-| Délai                  | 8 jours                           | Périmètre découpé en phases de priorité ; chaque feature a une version simplifiée ; P0 est l'objectif, P1 à P3 ne sont faits que s'il reste du temps |
 | Plateforme             | iOS uniquement                    | SwiftUI natif, pas de cross-platform                                              |
 | Exécution              | Dev en local, démo hébergée       | Supabase Cloud, Railway (API, worker, Redis), Vercel (backoffice) ; démo sur iPhone physique, en HTTPS, depuis n'importe quel réseau |
 | Compte Apple Developer | Payant                            | Sign in with Apple et notifications push possibles                                |
@@ -27,7 +26,7 @@ Projet réalisé dans le cadre d'un cours. Objectif pédagogique double :
 
 - Développement par **tranches verticales** : chaque feature est livrée de bout en bout (contrat → backend → app → backoffice si concerné) avant de passer à la suivante.
 - Les phases se suivent dans l'ordre de priorité. **Une phase n'est commencée que lorsque la précédente est fonctionnelle et testée.**
-- La dernière partie du temps disponible est réservée à la stabilisation (finitions, tests, corrections), pas à de nouvelles features.
+- Chaque phase se termine par une stabilisation (finitions, tests, corrections), sans nouvelle feature.
 
 
 

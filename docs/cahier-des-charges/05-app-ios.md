@@ -6,7 +6,7 @@
 |---|---|---|
 | Langage | Swift 6, mode de concurrence strict | Sécurité des données partagées dès le départ ; isolation `@MainActor` par défaut si le réglage des nouveaux projets Xcode le propose (à vérifier) |
 | UI | SwiftUI | Natif, Liquid Glass intégré aux composants système |
-| Version minimale | iOS 27 (à confirmer, voir 09) | Exercice : pas de rétrocompatibilité à maintenir |
+| Version minimale | iOS 26, compilée avec le SDK iOS 27 (D30, ADR-010) | Liquid Glass disponible depuis iOS 26 ; les API propres à iOS 27 passent par `#available` |
 | Style | Liquid Glass | Composants système (tab bar, toolbars, sheets) ; `.glassEffect()` réservé aux contrôles personnalisés |
 | État | Observation (`@Observable`) | Standard actuel, bien connu de l'IA |
 | Réseau | Client généré par `swift-openapi-generator` + transport `URLSession` | Aucun endpoint ni champ inventé |

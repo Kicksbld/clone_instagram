@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## État du dépôt
 
-Projet de cours : clone d'Instagram iOS + backend + backoffice, développé par un seul lead dev (Killian) avec l'IA, en **8 jours**. **Dev en local** (Supabase CLI, Redis Docker) et **démo hébergée** (Supabase Cloud, Railway pour API + worker + Redis, Vercel pour le backoffice), plus les SaaS RevenueCat et PostHog Cloud. P0 est l'objectif ; P1 à P3 seulement s'il reste du temps. Onboarding, paywall, analytics et A/B test sont imposés et font partie de P0.
+Projet de cours : clone d'Instagram iOS + backend + backoffice, développé par un seul lead dev (Killian) avec l'IA. **Dev en local** (Supabase CLI, Redis Docker) et **démo hébergée** (Supabase Cloud, Railway pour API + worker + Redis, Vercel pour le backoffice), plus les SaaS RevenueCat et PostHog Cloud. P0 est l'objectif ; P1 à P3 viennent ensuite, dans l'ordre. Onboarding, paywall, analytics et A/B test sont imposés et font partie de P0.
 
-À ce stade, le dépôt ne contient que la spécification (`docs/cahier-des-charges/`, à lire en priorité) et un agent ADR (`docs/adr/Agent ADR Architecte.md`). **Aucun code n'existe encore.** L'arborescence, les commandes et les outils ci-dessous sont la cible définie par le cahier des charges : vérifier qu'ils existent avant de les utiliser, et mettre à jour ce fichier au fur et à mesure du scaffolding.
+À ce stade, le dépôt ne contient que la spécification (`docs/cahier-des-charges/`, à lire en priorité) les ADR de la phase 1 (`docs/adr/`, index dans `docs/adr/README.md`), la méthode (`docs/ia-workflow.md`) et le plan P0 (`docs/plan/P0.md`). **Aucun code n'existe encore.** L'arborescence, les commandes et les outils ci-dessous sont la cible définie par le cahier des charges : vérifier qu'ils existent avant de les utiliser, et mettre à jour ce fichier au fur et à mesure du scaffolding.
 
 Le cahier des charges est la source de vérité. En cas de doute, relire le fichier concerné plutôt que d'improviser :
 - `01` périmètre et priorités (P0 → P3), `03` entités et règles métier, `04` contrat d'API, `05` iOS, `06` backend, `07` backoffice, `08` qualité et workflow, `09` décisions et points à vérifier.
@@ -19,7 +19,7 @@ apps/worker/       consommateurs BullMQ (sharp, ffmpeg → HLS), SANS logique m�
 apps/backoffice/   Next.js App Router, Tailwind, shadcn/ui ; client de l'API uniquement
 packages/contract/ openapi.yaml (source de vérité) + types générés
 packages/db/       schéma Drizzle, migrations, seed, fonctions de transition de statut
-ios/               projet Xcode SwiftUI (Swift 6 strict, iOS 27, Liquid Glass)
+ios/               projet Xcode SwiftUI (Swift 6 strict, cible iOS 26 / SDK iOS 27, Liquid Glass)
 supabase/          config.toml de la CLI Supabase
 ```
 
@@ -84,7 +84,7 @@ Organisation par feature (`features/*/{components,data,schemas}`), `app/` ne con
 ## Environnements — pièges
 
 - Deux environnements, même code, seule la config change (`02 § 6`). Mêmes noms de variables d'environnement partout ; en démo, secrets dans Railway / Vercel, jamais dans le repo ni les Dockerfiles.
-- Démo : Railway et Vercel déploient `main` automatiquement ; migrations Drizzle appliquées sur Supabase Cloud avant le démarrage de l'API ; Dockerfile par app (`apps/api`, `apps/worker` avec ffmpeg). Toute config Supabase (exposition du schéma, buckets, fournisseur Apple) doit être identique entre CLI et Cloud.
+- Démo : Railway et Vercel déploient `main` automatiquement ; migrations Drizzle appliquées sur Supabase Cloud par l'étape de pré-déploiement Railway du service `api`, avant son démarrage ; Dockerfile par app (`apps/api`, `apps/worker` avec ffmpeg). Toute config Supabase (exposition du schéma, buckets, fournisseur Apple) doit être identique entre CLI et Cloud.
 - Dev sur iPhone physique : `localhost` injoignable, exposer API et Supabase sur l'IP du Mac (y compris `PUBLIC_MEDIA_BASE_URL`), ou tester sur la démo.
 - iOS : configurations `Local` et `Demo` avec leur `.xcconfig` (non versionnés, modèles versionnés) ; `NSAllowsLocalNetworking` et `NSLocalNetworkUsageDescription` **uniquement** en `Local`.
 - ffmpeg requis sur la machine qui exécute le worker en dev.
@@ -92,10 +92,21 @@ Organisation par feature (`features/*/{components,data,schemas}`), `app/` ne con
 
 ## Workflow et conventions
 
+- **Méthode de travail** : [`docs/ia-workflow.md`](docs/ia-workflow.md) (découpage en tranches, routine de session en 7 étapes). **Plan courant** : [`docs/plan/P0.md`](docs/plan/P0.md) ; on prend la première tranche non cochée, on reste dans sa fiche (ligne « Hors tranche »), on la coche une fois la definition of done validée.
 - **Tranches verticales**, par ordre de priorité : contrat → migration → backend (domaine → use case → adapters → route + tests) → iOS (service → ViewModel → vues + tests) → backoffice. Une phase P n'est commencée que si la précédente est fonctionnelle et testée.
 - Cas limites à tester systématiquement (06 § 7) : utilisateur bloqué, compte privé non suivi, compte suspendu, double like, message rejoué avec le même `clientId`, média d'un autre utilisateur, transition de statut invalide, curseur invalide.
 - Definition of done : voir `08 § 6` (contrat à jour et clients régénérés, lint/typecheck/tests/build verts, visibilité appliquée, testé sur iPhone physique sur l'environnement de démo).
 - Interdits : accès direct à la base depuis un client, `any` en TypeScript, force unwrap en Swift, secrets dans le code, `--no-verify`, tests désactivés, `eslint-disable` / `swiftlint:disable` sans commentaire justificatif.
 - Commits en Conventional Commits (`feat(posts): …`), un commit / une branche par tranche verticale.
 - Conventions pour l'IA uniquement dans des fichiers `CLAUDE.md` (jamais d'`AGENTS.md`) : ce fichier racine, plus un `CLAUDE.md` par app/package prévu en `08 § 2` (`apps/api`, `apps/worker`, `apps/backoffice`, `ios`, `packages/contract`), à créer au scaffolding sans répéter le contenu racine.
-- Décisions d'architecture : l'IA propose, le lead dev tranche. Toute décision est consignée dans `09-decisions-risques.md` et/ou sous forme d'ADR selon `docs/adr/Agent ADR Architecte.md` (statut toujours `Proposé`, numérotation `ADR-XXX` incrémentale dans `docs/adr/`, index dans `docs/adr/README.md`). Avant de proposer du code, vérifier la conformité aux ADR existants.
+- Décisions d'architecture : voir la section ADR ci-dessous.
+
+## Décisions d'architecture (ADR)
+
+Agent de référence : [`docs/adr/Agent ADR Architecte.md`](docs/adr/Agent%20ADR%20Architecte.md). Le lire **en entier** avant de créer, modifier ou vérifier un ADR, et respecter exactement son template et son fonctionnement.
+
+- L'IA propose et formalise, le lead dev tranche. Seul un humain accepte ou remplace un ADR.
+- Un ADR uniquement pour une décision importante et durable. Partir du cahier des charges (`09` § 1, décisions `Dx`) et des explications du lead dev ; ne rien inventer (contrainte, alternative, justification). Poser des questions si le contexte manque.
+- Fichiers `docs/adr/ADR-XXX-titre-en-kebab-case.md`, numéro = plus haut numéro existant + 1, sur trois chiffres ; ne jamais réutiliser un numéro (même supprimé, rejeté ou remplacé). Statut toujours `Proposé` à la création.
+- Chaque nouvel ADR est ajouté à l'index `docs/adr/README.md` (liste + statut) et, si c'est une nouvelle décision, reporté dans `09-decisions-risques.md`.
+- **Avant de proposer du code**, rechercher les ADR concernés et conclure par `Conforme aux ADR existants`, `Contradiction avec ADR-XXX` ou `Décision non documentée — ADR recommandé`.

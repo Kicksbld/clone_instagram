@@ -47,7 +47,7 @@ La colonne P indique la priorité de la feature (voir 01).
 
 | Méthode | Route | P | Description |
 |---|---|---|---|
-| PUT | `/users/{id}/follow` | P0 | Suivre (ou créer une demande si compte privé, P1) |
+| PUT | `/users/{id}/follow` | P0 | Suivre ; compte privé : refusé en P0 (D32), création d'une demande en P1 |
 | DELETE | `/users/{id}/follow` | P0 | Ne plus suivre / annuler une demande |
 | DELETE | `/users/{id}/follower` | P1 | Retirer un abonné |
 | GET | `/me/follow-requests` | P1 | Demandes reçues |
