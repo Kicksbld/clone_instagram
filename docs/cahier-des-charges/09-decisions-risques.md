@@ -22,23 +22,37 @@
 | D16 | Messages : envoi REST, réception WebSocket | Tout en WebSocket, Supabase Realtime | Contrat et idempotence pour l'écriture, rattrapage simple |
 | D17 | Backoffice Next.js organisé par feature, client de l'API | MVC, accès direct à la base | Pas de modèle côté backoffice, logique dans le backend |
 | D18 | Contrat OpenAPI unique, clients générés | Types écrits à la main de chaque côté | Empêche les dérives entre produits |
-| D19 | Tout en local | Déploiement cloud | Suffisant pour l'exercice |
+| D19 | ~~Tout en local~~ Remplacée par D29 | Déploiement cloud | Suffisant pour l'exercice |
 | D20 | Priorités P0 → P3 au lieu d'un planning en semaines | Planning hebdomadaire | Demande du lead dev ; ordre de réalisation clair |
 | D21 | Notification de fin de traitement média par QueueEvents plutôt que polling | Polling seul ; pub/sub Redis dédié | Pas de brique supplémentaire ; Redis reste limité à la file de jobs (D8) |
+| D22 | Délai ramené à 8 jours, priorités conservées | Recadrage complet du périmètre | Demande du lead dev ; P0 devient l'objectif, P1 à P3 ne sont faits que s'il reste du temps |
+| D23 | Onboarding, paywall, analytics et A/B test imposés, intégrés en P0 | Les traiter en P1 ou plus tard | Exigence du projet |
+| D24 | Paywall avec RevenueCat, abonnement « Clone Plus » inspiré d'Instagram Plus | StoreKit 2 seul | Imposé ; offres configurables sans nouvelle version de l'app, restauration et reçus gérés |
+| D25 | Statut d'abonnement lu par l'API via la REST API RevenueCat, copié dans `subscriptions` | Faire confiance au SDK de l'app ; webhooks RevenueCat | Les avantages sont appliqués côté serveur ; le rafraîchissement à la demande marche aussi en dev local, sans URL publique (webhooks possibles plus tard sur la démo) |
+| D26 | Analytics et A/B test avec PostHog Cloud | Analytics fait maison ; PostHog auto-hébergé ; RevenueCat Experiments | Choix du lead dev ; un seul outil pour événements, flags et expériences. L'auto-hébergement est trop lourd pour 8 jours |
+| D27 | Le backoffice lit les analytics via l'API (`/v1/admin/analytics/*`) | Appels directs du backoffice à PostHog ; tableaux PostHog intégrés | Conserve la règle « le backoffice est un client de l'API uniquement » (D17) ; clé PostHog confinée à l'API |
+| D28 | Avantages Plus limités à 4 (icône, story 48 h, vue anonyme, recherche dans les vues) | Reprendre tous les avantages d'Instagram Plus | Seuls ceux compatibles avec le périmètre ; la mise en avant d'une story suppose un algorithme de diffusion (hors périmètre) |
+| D29 | Dev en local, démo hébergée : Supabase Cloud, Railway (API, worker, Redis), Vercel (backoffice) | Tout en local (D19) ; Render ou Fly.io | Démo fiable devant n'importe quel réseau (un wifi d'école peut bloquer la communication entre appareils), HTTPS sans exception iOS, plus de problème d'IP locale ; Railway accepte les processus longs et une image avec ffmpeg |
 
 ## 2. Risques
 
 | Risque | Probabilité | Impact | Mitigation |
 |---|---|---|---|
-| Périmètre trop large pour le délai | Élevée | Élevé | Phases strictes ; une phase n'est commencée que si la précédente est stable ; P2 et P3 sont sacrifiables |
+| Périmètre trop large pour le délai (8 jours, P0 déjà dense) | Très élevée | Élevé | Phases strictes ; une phase n'est commencée que si la précédente est stable ; P1 à P3 sont sacrifiables ; chaque feature P0 a une version simplifiée |
 | Pipeline vidéo HLS plus long que prévu | Élevée | Moyen | Reels en P1 après les stories et DM ; repli possible sur MP4 progressif sans changer le contrat (le champ `variants` porte l'URL de lecture) |
-| Médias inaccessibles depuis l'iPhone (URL en `localhost`) | Moyenne | Élevé | Vérifier dès la phase P0 la configuration des URL de Supabase Storage et de l'API |
+| Médias inaccessibles depuis l'iPhone en dev (URL en `localhost`) | Moyenne | Faible | Tester sur iPhone via la démo ; en dev, configurer l'IP du Mac ou utiliser le simulateur |
+| Problèmes de déploiement découverts tard | Moyenne | Élevé | Squelette déployé dès le début, déploiement automatique de `main` |
+| Écarts entre Supabase CLI et Supabase Cloud (config, buckets, URL) | Moyenne | Moyen | Même configuration appliquée aux deux ; chaque tranche testée sur la démo |
+| Projet Supabase gratuit mis en pause après inactivité | Moyenne | Élevé | Vérifier et réveiller le projet avant la démo |
 | Dérive de l'architecture par l'IA | Élevée | Moyen | `CLAUDE.md`, dependency-cruiser, revue de chaque tranche |
 | Oubli des filtres de blocage / compte privé | Moyenne | Élevé | Politique de visibilité unique + tests de cas limites obligatoires |
 | Exposition de la base via l'API de données Supabase | Moyenne | Élevé | RLS sans policy ou exposition désactivée, vérifié par un test avec la clé publique |
 | Performance du scroll avec Liquid Glass | Moyenne | Moyen | Verre réservé à la navigation, profilage Instruments |
 | Nouveautés d'iOS 27 mal connues | Moyenne | Faible | Lecture de la documentation Apple avant l'UI |
 | Perte d'un événement `media.ready` / `media.failed` si le WebSocket est fermé | Élevée | Faible | Repli REST : `GET /v1/media/{id}` au retour au premier plan et après un délai sans événement |
+| Configuration App Store Connect / sandbox longue (produit, contrat, compte de test) | Moyenne | Élevé | À lancer dès le jour 1 ; fichier de configuration StoreKit pour avancer sans attendre |
+| Statut d'abonnement désynchronisé (renouvellement, résiliation) faute de webhooks | Moyenne | Faible | Rafraîchissement au lancement de l'app ; `expires_at` coupe les avantages même sans rafraîchissement |
+| RevenueCat ou PostHog injoignable | Faible | Moyen | Analytics jamais bloquants ; dernier statut d'abonnement connu conservé ; variante A/B par défaut |
 
 ## 3. Limites assumées
 
@@ -46,13 +60,21 @@
 - Un instant « vu une seule fois » ne peut pas empêcher une capture d'écran.
 - Le rate limiting en mémoire est remis à zéro à chaque redémarrage de l'API.
 - Pas de montée en charge : une seule instance d'API, de worker et de Redis.
+- L'environnement de démo n'est pas une production : une seule instance, offres gratuites ou d'entrée de gamme, pas de supervision.
+- Supprimer un compte ne résilie pas l'abonnement Apple : l'utilisateur doit le résilier lui-même, l'app le lui indique.
 
 ## 4. Points à vérifier au démarrage
 
 - [ ] Version minimale : iOS 27 exclusivement, ou iOS 26 (première version avec Liquid Glass) ? Dépend de la version installée sur l'iPhone de test.
 - [ ] Nouveautés d'iOS 27 et du Xcode correspondant (Liquid Glass, réglage d'isolation `@MainActor` par défaut, dossiers synchronisés).
 - [ ] Dernière version stable de Next.js et nom du fichier de middleware.
-- [ ] Supabase local : configuration des URL publiques de Storage, désactivation de l'exposition du schéma `public`, vérification des JWT (clés de signature), fournisseur Apple.
+- [ ] Supabase (CLI et Cloud) : configuration des URL publiques de Storage, désactivation de l'exposition du schéma `public`, vérification des JWT (clés de signature), fournisseur Apple.
+- [ ] Railway : connexion à Supabase Cloud (connexion directe ou pooler selon le support IPv6), WebSocket derrière le proxy Railway, taille de l'image du worker avec ffmpeg, coût de l'offre.
+- [ ] Application des migrations Drizzle sur Supabase Cloud au déploiement (étape de pré-déploiement Railway ou commande manuelle).
 - [ ] Onglets de l'app : alignement sur l'app Instagram actuelle analysée.
 - [ ] Comportement exact des instants : durée d'affichage après ouverture.
 - [ ] Limite de collaborateurs par post.
+- [ ] Parcours d'onboarding et paywall d'Instagram actuels : écrans et libellés à reproduire.
+- [ ] RevenueCat : endpoints exacts de la REST API v2 (lecture et suppression d'un client), configuration de l'entitlement `plus` et des offres.
+- [ ] PostHog : région du projet cloud (UE de préférence), expériences sur iOS, API de requêtes pour l'entonnoir et les résultats d'expérience, suppression d'une personne.
+- [ ] Déclaration App Privacy de l'app pour les données d'analytics et d'achat.

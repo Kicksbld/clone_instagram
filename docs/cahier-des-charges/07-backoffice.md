@@ -14,6 +14,7 @@
 | Session | `@supabase/ssr` (cookies httpOnly) | Le jeton n'est jamais exposé au JavaScript du navigateur |
 | Lecture vidéo | `hls.js` | Chrome ne lit pas le HLS nativement |
 | Tests | Vitest ; Playwright pour les parcours critiques | — |
+| Hébergement de la démo | Vercel | Hébergeur natif de Next.js ; appelle l'API Railway côté serveur uniquement |
 
 ## 2. Architecture
 
@@ -41,7 +42,8 @@ apps/backoffice/src/
 │       ├── reports/
 │       ├── users/
 │       ├── content/
-│       └── audit/
+│       ├── audit/
+│       └── analytics/
 ├── features/
 │   ├── reports/
 │   │   ├── components/
@@ -50,6 +52,7 @@ apps/backoffice/src/
 │   ├── users/
 │   ├── content/
 │   ├── audit/
+│   ├── analytics/
 │   └── dashboard/
 ├── lib/
 │   ├── api/                  # client openapi-fetch, injection du jeton côté serveur
@@ -81,7 +84,8 @@ Règles vérifiées par le lint :
 |---|---|---|
 | P0 | Connexion | Email + mot de passe ; refus si le compte n'a pas le rôle admin |
 | P0 | File de modération | Signalements ouverts, filtres (motif, type de contenu), aperçu du contenu signalé (image, vidéo, texte), actions « supprimer le contenu » ou « classer » avec note |
-| P0 | Utilisateurs | Recherche, fiche (profil, statut, compteurs, signalements reçus et émis), suspendre, bannir, réactiver, supprimer |
+| P0 | Utilisateurs | Recherche, fiche (profil, statut, compteurs, signalements reçus et émis, abonnement Plus et date d'expiration), suspendre, bannir, réactiver, supprimer |
+| P0 | Analytics | Entonnoir onboarding → paywall → achat, inscriptions et abonnés Plus actifs sur une période, résultats de l'A/B test (expositions et conversion par variante). Données fournies par `GET /v1/admin/analytics/*` ; le backoffice n'appelle jamais PostHog directement. Lien « Ouvrir dans PostHog » pour l'analyse détaillée |
 | P1 | Contenus | Liste filtrable des posts, reels, stories, commentaires ; suppression directe |
 | P1 | Journal d'audit | Liste filtrable (admin, action, période) |
 | P1 | Tableau de bord | Compteurs : utilisateurs, posts du jour, signalements ouverts, médias en échec |
@@ -98,4 +102,4 @@ Conventions d'interface :
 | Niveau | Outil | Contenu |
 |---|---|---|
 | Logique | Vitest | Schémas Zod, formatage, construction des filtres |
-| Parcours | Playwright | Connexion admin ; refus d'un non-admin ; traitement d'un signalement ; bannissement d'un utilisateur |
+| Parcours | Playwright | Connexion admin ; refus d'un non-admin ; traitement d'un signalement ; bannissement d'un utilisateur ; affichage de la page Analytics |

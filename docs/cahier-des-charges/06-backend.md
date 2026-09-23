@@ -8,15 +8,18 @@
 | Framework HTTP | Fastify | Léger, rapide, WebSocket via `@fastify/websocket`, logs pino intégrés. Alternative écartée : NestJS (plus lourd, décorateurs) |
 | Contrat | OpenAPI + `openapi-typescript` | Types générés depuis la spec |
 | Validation | Schémas issus de la spec (ou Zod) | Entrées invalides rejetées à la frontière |
-| Base de données | Postgres (Supabase local) + extension `pg_trgm` | — |
+| Base de données | Postgres (Supabase CLI en dev, Supabase Cloud en démo) + extension `pg_trgm` | — |
 | Accès base | Drizzle ORM + drizzle-kit | Proche du SQL, typé, migrations versionnées |
 | Authentification | Supabase Auth ; vérification de la signature du JWT par l'API | — |
 | Stockage | Supabase Storage (API compatible S3), URL d'upload signées | — |
 | File de jobs | BullMQ sur Redis | Seul usage de Redis |
 | Images | sharp | Redimensionnement, WebP, suppression EXIF |
 | Vidéo | ffmpeg / ffprobe | Transcodage HLS, miniature, contrôle de durée |
-| Temps réel | `@fastify/websocket` + broker en mémoire | Une instance en local ; port prévu pour Redis pub/sub |
+| Temps réel | `@fastify/websocket` + broker en mémoire | Une seule instance d'API (dev et démo) ; port prévu pour Redis pub/sub |
+| Hébergement de la démo | Railway (services `api`, `worker`, Redis), un Dockerfile par app | Supporte les processus longs (worker, WebSocket) et une image avec ffmpeg |
 | Rate limiting | `@fastify/rate-limit` (stockage mémoire) | — |
+| Abonnements | REST API v2 de RevenueCat, via `fetch` | Aucun SDK serveur nécessaire ; lecture des entitlements d'un client à la demande, sans webhook |
+| Analytics | `posthog-node` (événements serveur) + API de requêtes PostHog (lecture pour le backoffice) | Même outil que l'app ; l'API reste l'intermédiaire du backoffice |
 | Logs | pino, JSON structuré, identifiant de requête | Jamais de jeton ni de donnée personnelle dans les logs |
 | Tests | Vitest ; Postgres réel pour l'intégration (Supabase local ou Testcontainers) | — |
 | Qualité | ESLint, Prettier, `tsc --noEmit`, dependency-cruiser | dependency-cruiser fait respecter l'architecture |
@@ -67,6 +70,8 @@ apps/api/src/
 │   ├── messaging/
 │   ├── activity/
 │   ├── moderation/
+│   ├── billing/               # abonnement Clone Plus, règle isPlus
+│   ├── analytics/             # lectures admin des indicateurs (via le port AnalyticsReader)
 │   └── <module>/
 │       ├── domain/            # entités, règles, erreurs métier — aucun import externe
 │       ├── application/
@@ -77,7 +82,7 @@ apps/api/src/
 │           └── persistence/   # adapters Drizzle
 ├── shared/
 │   ├── domain/                # politique de visibilité, erreurs de base, types communs
-│   ├── application/           # ports transverses : UnitOfWork, Clock, IdGenerator, JobQueue, RealtimePublisher
+│   ├── application/           # ports transverses : UnitOfWork, Clock, IdGenerator, JobQueue, RealtimePublisher, AnalyticsTracker
 │   └── infrastructure/        # auth JWT, gestion d'erreurs, rate limit, WebSocket, config
 └── main.ts                    # composition root : assemblage manuel des dépendances
 ```
@@ -104,6 +109,17 @@ apps/api/src/
    - crée une notification pour l'auteur (sauf si c'est soi-même).
 3. Le use case renvoie le nouvel état `{ liked: true, likeCount }` ; la route le sérialise selon le contrat.
 
+### 2.5 Abonnement et analytics
+
+| Port | Module | Adapter | Règle |
+|---|---|---|---|
+| `SubscriptionProvider` | `billing` | REST API v2 RevenueCat (`GET /projects/{project_id}/customers/{customer_id}`) | Appelé uniquement par `RefreshSubscription`, qui met à jour la table `subscriptions`. Pas d'appel si `refreshed_at` date de moins de 5 minutes |
+| `AnalyticsTracker` | `shared` | `posthog-node` | Événements serveur (`profile_created`, `post_created`, `subscription_activated`) envoyés **après** la validation de la transaction ; un échec est journalisé, jamais propagé |
+| `AnalyticsReader` | `analytics` | API de requêtes PostHog (clé personnelle) | Utilisé par les use cases admin `GetAnalyticsOverview` et `GetExperimentResults` |
+
+- Les avantages Plus sont vérifiés dans les use cases concernés (`CreateStory`, `ViewStory`, `ListStoryViewers`) par la règle unique `isPlus` du module `billing`. Refus : `403 plus_required`.
+- En test, les trois ports sont remplacés par des adapters en mémoire : aucun appel à RevenueCat ni à PostHog.
+
 ## 3. Worker
 
 - Processus séparé (`apps/worker`), même monorepo.
@@ -114,7 +130,7 @@ apps/api/src/
 | `media` | `process-image` | Détecte le type réel, refuse les fichiers invalides, génère les variantes WebP sans EXIF |
 | `media` | `process-video` | `ffprobe` (durée ≤ 60 s, flux vidéo présent), HLS 360p / 720p, miniature |
 | `maintenance` | `purge-orphan-media` | Médias non attachés depuis plus de 24 h |
-| `maintenance` | `purge-account` | Données et fichiers d'un compte supprimé |
+| `maintenance` | `purge-account` | Données et fichiers d'un compte supprimé ; suppression du client RevenueCat et de la personne PostHog (appels idempotents) |
 | `maintenance` | `purge-content-files` | Fichiers d'un contenu supprimé par modération |
 | `maintenance` | `purge-instants` (P3) | Instants ouverts par tous ou expirés |
 | `push` | `send-push` (P2) | Envoi APNs |
@@ -170,8 +186,13 @@ Variables d'environnement (valeurs dans `.env`, jamais versionnées) :
 | `PUBLIC_MEDIA_BASE_URL` | API (URL joignable depuis l'iPhone) |
 | `API_PORT`, `LOG_LEVEL` | API |
 | `APNS_*` (P2) | Worker |
+| `REVENUECAT_SECRET_KEY`, `REVENUECAT_PROJECT_ID` | API, worker (purge) |
+| `POSTHOG_HOST`, `POSTHOG_PROJECT_API_KEY` | API (événements serveur) |
+| `POSTHOG_PERSONAL_API_KEY`, `POSTHOG_PROJECT_ID` | API (lectures admin), worker (purge) |
 
 La configuration est validée au démarrage : l'API refuse de démarrer si une variable manque.
+
+En démo, ces variables sont définies dans Railway (API, worker) ; `DATABASE_URL` pointe vers Supabase Cloud et `PUBLIC_MEDIA_BASE_URL` vers l'URL publique du Storage Supabase Cloud. Les deux environnements utilisent les mêmes noms de variables.
 
 ## 7. Tests
 
@@ -183,4 +204,4 @@ La configuration est validée au démarrage : l'API refuse de démarrer si une v
 | API | Vitest + `fastify.inject` | Contrat respecté, codes d'erreur, authentification, rôle admin |
 | Worker | Vitest + fichiers d'exemple | Image avec EXIF GPS → sortie sans EXIF ; vidéo trop longue → `failed` |
 
-Cas limites obligatoires : utilisateur bloqué, compte privé non suivi, compte suspendu, double like, message envoyé deux fois avec le même `clientId`, média d'un autre utilisateur, transition de statut invalide, curseur invalide.
+Cas limites obligatoires : utilisateur bloqué, compte privé non suivi, compte suspendu, double like, message envoyé deux fois avec le même `clientId`, média d'un autre utilisateur, transition de statut invalide, curseur invalide, avantage Plus demandé sans abonnement actif, abonnement expiré, RevenueCat injoignable pendant un rafraîchissement.

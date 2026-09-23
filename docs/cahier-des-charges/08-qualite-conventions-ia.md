@@ -40,6 +40,7 @@ Commandes racine attendues : `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm b
 
 - GitHub Actions sur chaque push : validation du contrat, lint, typecheck, tests et build des parties TypeScript, avec Postgres et Redis en services.
 - App iOS : build et tests **en local** avant chaque intégration (`xcodebuild test`). Les runners macOS consomment beaucoup de minutes ; leur usage en CI est optionnel.
+- Déploiement continu de la démo : Railway (API, worker) et Vercel (backoffice) déploient automatiquement `main` une fois la CI verte.
 - Aucun contournement : pas de `--no-verify`, pas de test désactivé pour faire passer la CI, pas de `eslint-disable` ou `swiftlint:disable` sans commentaire justificatif.
 
 ## 5. Workflow d'une feature
@@ -61,7 +62,7 @@ Une feature est terminée quand :
 - [ ] Les cas limites de 06 § 7 applicables sont testés.
 - [ ] La politique de visibilité est appliquée à toutes les lectures ajoutées.
 - [ ] Les erreurs sont gérées côté app (message compréhensible, pas de crash, possibilité de réessayer).
-- [ ] La feature a été testée sur iPhone physique, de bout en bout.
+- [ ] La feature a été testée sur iPhone physique, de bout en bout, sur l'environnement de démo.
 - [ ] Aucun secret ni donnée de test personnelle n'est versionné.
 - [ ] Les décisions prises en cours de route sont ajoutées à 09.
 

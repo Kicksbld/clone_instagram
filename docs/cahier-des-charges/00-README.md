@@ -8,7 +8,7 @@
 | Fichier | Contenu |
 |---|---|
 | [01-contexte-perimetre.md](01-contexte-perimetre.md) | Contexte, objectifs, contraintes, périmètre par priorité, hors périmètre |
-| [02-architecture-globale.md](02-architecture-globale.md) | Vue d'ensemble des produits, flux entre eux, environnement local, secrets, monorepo |
+| [02-architecture-globale.md](02-architecture-globale.md) | Vue d'ensemble des produits, flux entre eux, environnements (dev local, démo hébergée), secrets, monorepo |
 | [03-entites-metier.md](03-entites-metier.md) | Modules métier, entités, règles, modèle de données, machines à états, index du feed |
 | [04-contrat-api.md](04-contrat-api.md) | Conventions d'API, liste des endpoints, événements temps réel |
 | [05-app-ios.md](05-app-ios.md) | Stack et architecture de l'app mobile |
@@ -23,8 +23,9 @@
 - **Backend** : Node.js + TypeScript, Fastify, architecture hexagonale, Drizzle ORM ; worker séparé (BullMQ sur Redis) pour le traitement des médias (sharp, ffmpeg → HLS).
 - **Infrastructure** : Supabase **utilisé comme infrastructure** (Postgres, Auth, Storage) derrière notre API ; Redis uniquement pour la file de jobs.
 - **Backoffice** : Next.js (App Router), Tailwind CSS, shadcn/ui ; client de l'API uniquement, jamais d'accès direct à la base.
+- **Monétisation et mesure** : paywall « Clone Plus » avec RevenueCat (statut vérifié par l'API), analytics et A/B test avec PostHog, résultats affichés dans le backoffice via l'API.
 - **Contrat** : une spec OpenAPI unique, source de vérité pour les 3 produits.
-- **Exécution** : tout en local (Docker + Supabase CLI), iPhone physique sur le réseau local.
+- **Exécution** : développement en local (Docker + Supabase CLI) ; démo hébergée sur Supabase Cloud, Railway (API, worker, Redis) et Vercel (backoffice), iPhone physique depuis n'importe quel réseau.
 - **Organisation** : monorepo pnpm.
 
 ## Glossaire
@@ -37,3 +38,6 @@
 | Média | Fichier image ou vidéo téléversé, avec son cycle de traitement |
 | Instant | Photo éphémère envoyée en privé, visible une seule fois |
 | Note | Texte court éphémère affiché en haut de la messagerie |
+| Clone Plus | Abonnement payant de l'app, inspiré d'Instagram Plus, géré avec RevenueCat |
+| Entitlement | Droit d'accès accordé par un abonnement (ici `plus`), tel que RevenueCat le renvoie |
+| Feature flag / expérience | Variante attribuée à un utilisateur par PostHog, utilisée pour l'A/B test |

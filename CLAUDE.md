@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## État du dépôt
 
-Projet de cours : clone d'Instagram iOS + backend + backoffice, développé par un seul lead dev (Killian) avec l'IA, en moins de 4 semaines, **exécuté uniquement en local**.
+Projet de cours : clone d'Instagram iOS + backend + backoffice, développé par un seul lead dev (Killian) avec l'IA, en **8 jours**. **Dev en local** (Supabase CLI, Redis Docker) et **démo hébergée** (Supabase Cloud, Railway pour API + worker + Redis, Vercel pour le backoffice), plus les SaaS RevenueCat et PostHog Cloud. P0 est l'objectif ; P1 à P3 seulement s'il reste du temps. Onboarding, paywall, analytics et A/B test sont imposés et font partie de P0.
 
 À ce stade, le dépôt ne contient que la spécification (`docs/cahier-des-charges/`, à lire en priorité) et un agent ADR (`docs/adr/Agent ADR Architecte.md`). **Aucun code n'existe encore.** L'arborescence, les commandes et les outils ci-dessous sont la cible définie par le cahier des charges : vérifier qu'ils existent avant de les utiliser, et mettre à jour ce fichier au fur et à mesure du scaffolding.
 
@@ -43,10 +43,12 @@ Tests : Vitest (API, worker, backoffice), Playwright (backoffice), Swift Testing
 2. **Contract-first.** Toute évolution d'échange : modifier `packages/contract/openapi.yaml` → valider → régénérer (Swift via `swift-openapi-generator`, TS via `openapi-typescript` / `openapi-fetch`) → implémenter. Ne jamais inventer d'endpoint ou de champ.
 3. **Rien de lourd dans l'API** : tout traitement > quelques centaines de ms passe par un job BullMQ traité par le worker.
 4. **Le WebSocket notifie, il n'est jamais la source de vérité.** Envoi des messages par REST (idempotent via `clientId`), réception par WS, rattrapage par REST. Authentification WS par un premier message `{type:"auth", token}`, jamais de token dans l'URL.
+5. **Abonnement vérifié par l'API, jamais par l'app.** Les avantages Clone Plus passent par la règle unique `isPlus` (module `billing`, table `subscriptions`, rafraîchie via la REST API v2 de RevenueCat par `POST /v1/me/subscription/refresh`). Pas de webhooks RevenueCat (le rafraîchissement doit marcher aussi en dev local). Refus : `403 plus_required`.
+6. **Analytics (PostHog) jamais bloquants et sans donnée personnelle** : `distinct_id` = id de profil, événements `objet_action` en `snake_case`. Dans l'app, uniquement via le protocole `AnalyticsService`. Le backoffice n'appelle jamais PostHog : il passe par `/v1/admin/analytics/*` (port `AnalyticsReader`). A/B test = expérience PostHog lue par le `PaywallViewModel`. Voir `02 § 3.7-3.8`.
 
 ### Backend (`apps/api`) — hexagonal par module
 
-Modules métier : `identity`, `social`, `media`, `posts`, `engagement`, `feed`, `ephemeral`, `messaging`, `activity`, `moderation`. Chacun : `domain/` (aucun import externe) → `application/ports` + `application/use-cases` (un fichier par use case) → `infrastructure/http` + `infrastructure/persistence`. Transverse dans `shared/`. Composition manuelle dans `main.ts` (pas de conteneur DI). dependency-cruiser fait échouer la CI si les dépendances ne pointent pas vers l'intérieur.
+Modules métier : `identity`, `social`, `media`, `posts`, `engagement`, `feed`, `ephemeral`, `messaging`, `activity`, `moderation`, `billing`, `analytics`. Chacun : `domain/` (aucun import externe) → `application/ports` + `application/use-cases` (un fichier par use case) → `infrastructure/http` + `infrastructure/persistence`. Transverse dans `shared/`. Composition manuelle dans `main.ts` (pas de conteneur DI). dependency-cruiser fait échouer la CI si les dépendances ne pointent pas vers l'intérieur.
 
 - Le contrôleur authentifie, **le use case autorise** (propriétaire, rôle admin, visibilité).
 - **Politique de visibilité unique** (`shared/domain/visibility` : `canViewProfile`, `canViewContent`, `canViewStory`, `canMessage`, `isMutual`) appelée par *toutes* les lectures. Aucune requête ne réimplémente les filtres de blocage / compte privé / audience. Un contenu invisible renvoie **404**, pas 403.
@@ -79,18 +81,20 @@ MVVM avec `@Observable` / `@MainActor` : View → ViewModel (seulement si l'écr
 
 Organisation par feature (`features/*/{components,data,schemas}`), `app/` ne contient que les routes. Seuls `features/*/data/` importent `lib/api`. Aucun appel API depuis le navigateur : tout passe par le serveur Next.js, jeton en cookie httpOnly (`@supabase/ssr`). **Chaque Server Action revérifie la session** (le middleware n'est qu'un confort). L'API reste l'autorité pour le rôle admin ; toute action admin écrit dans `admin_audit_log`. Pagination / filtres dans l'URL.
 
-## Environnement local — pièges
+## Environnements — pièges
 
-- L'iPhone physique ne peut pas joindre `localhost` : API et Supabase doivent être exposés sur l'IP locale du Mac, y compris les URL publiques générées par Storage (`PUBLIC_MEDIA_BASE_URL`).
-- iOS : `NSAllowsLocalNetworking`, `NSLocalNetworkUsageDescription`, URL dans `Local.xcconfig` (non versionné, modèle versionné).
-- ffmpeg requis sur la machine qui exécute le worker.
-- `SUPABASE_SERVICE_ROLE_KEY` uniquement dans l'API et le worker ; l'app et le navigateur n'ont que la clé publique. `.env` non versionné, `.env.example` versionné. L'API refuse de démarrer si une variable manque.
+- Deux environnements, même code, seule la config change (`02 § 6`). Mêmes noms de variables d'environnement partout ; en démo, secrets dans Railway / Vercel, jamais dans le repo ni les Dockerfiles.
+- Démo : Railway et Vercel déploient `main` automatiquement ; migrations Drizzle appliquées sur Supabase Cloud avant le démarrage de l'API ; Dockerfile par app (`apps/api`, `apps/worker` avec ffmpeg). Toute config Supabase (exposition du schéma, buckets, fournisseur Apple) doit être identique entre CLI et Cloud.
+- Dev sur iPhone physique : `localhost` injoignable, exposer API et Supabase sur l'IP du Mac (y compris `PUBLIC_MEDIA_BASE_URL`), ou tester sur la démo.
+- iOS : configurations `Local` et `Demo` avec leur `.xcconfig` (non versionnés, modèles versionnés) ; `NSAllowsLocalNetworking` et `NSLocalNetworkUsageDescription` **uniquement** en `Local`.
+- ffmpeg requis sur la machine qui exécute le worker en dev.
+- `SUPABASE_SERVICE_ROLE_KEY`, la clé secrète RevenueCat et la clé personnelle PostHog uniquement côté serveur (API, worker pour la purge) ; l'app et le navigateur n'ont que la clé publique. `.env` non versionné, `.env.example` versionné. L'API refuse de démarrer si une variable manque.
 
 ## Workflow et conventions
 
 - **Tranches verticales**, par ordre de priorité : contrat → migration → backend (domaine → use case → adapters → route + tests) → iOS (service → ViewModel → vues + tests) → backoffice. Une phase P n'est commencée que si la précédente est fonctionnelle et testée.
 - Cas limites à tester systématiquement (06 § 7) : utilisateur bloqué, compte privé non suivi, compte suspendu, double like, message rejoué avec le même `clientId`, média d'un autre utilisateur, transition de statut invalide, curseur invalide.
-- Definition of done : voir `08 § 6` (contrat à jour et clients régénérés, lint/typecheck/tests/build verts, visibilité appliquée, testé sur iPhone physique).
+- Definition of done : voir `08 § 6` (contrat à jour et clients régénérés, lint/typecheck/tests/build verts, visibilité appliquée, testé sur iPhone physique sur l'environnement de démo).
 - Interdits : accès direct à la base depuis un client, `any` en TypeScript, force unwrap en Swift, secrets dans le code, `--no-verify`, tests désactivés, `eslint-disable` / `swiftlint:disable` sans commentaire justificatif.
 - Commits en Conventional Commits (`feat(posts): …`), un commit / une branche par tranche verticale.
 - Conventions pour l'IA uniquement dans des fichiers `CLAUDE.md` (jamais d'`AGENTS.md`) : ce fichier racine, plus un `CLAUDE.md` par app/package prévu en `08 § 2` (`apps/api`, `apps/worker`, `apps/backoffice`, `ios`, `packages/contract`), à créer au scaffolding sans répéter le contenu racine.

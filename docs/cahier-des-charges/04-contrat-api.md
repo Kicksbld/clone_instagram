@@ -17,7 +17,7 @@ Ce document liste les endpoints et conventions. La référence exécutable est `
 | Visibilité | Un contenu invisible pour l'appelant renvoie **404** (pas 403), pour ne pas révéler son existence |
 | Rate limiting | Réponse `429` avec en-tête `Retry-After` |
 
-Codes HTTP : `200`, `201`, `204`, `400` (validation), `401` (non authentifié), `403` (compte suspendu, rôle manquant), `404`, `409` (conflit : username pris, transition invalide), `422` (règle métier), `429`.
+Codes HTTP : `200`, `201`, `204`, `400` (validation), `401` (non authentifié), `403` (compte suspendu, rôle manquant, abonnement Plus requis : code `plus_required`), `404`, `409` (conflit : username pris, transition invalide), `422` (règle métier), `429`.
 
 ## 2. Endpoints
 
@@ -28,8 +28,10 @@ La colonne P indique la priorité de la feature (voir 01).
 | Méthode | Route | P | Description |
 |---|---|---|---|
 | GET | `/health` | P0 | État de l'API (sans authentification) |
-| GET | `/me` | P0 | Mon profil et mes paramètres (`404 profile_not_found` si onboarding non fait) |
+| GET | `/me` | P0 | Mon profil, mes paramètres et mon plan (`plan: free \| plus`, `plusExpiresAt`) (`404 profile_not_found` si onboarding non fait) |
+| GET | `/usernames/{username}/availability` | P0 | Disponibilité d'un username, vérifiée en direct pendant l'onboarding |
 | POST | `/me/onboarding` | P0 | Création du profil (username, nom) |
+| POST | `/me/subscription/refresh` | P0 | Relit l'abonnement chez RevenueCat et renvoie `{ plan, expiresAt }` (au plus un appel à RevenueCat toutes les 5 minutes par utilisateur) |
 | PATCH | `/me` | P0 | Modifier nom, bio, avatar (`avatarMediaId`), username |
 | PATCH | `/me/settings` | P0 | Compte privé / public |
 | DELETE | `/me` | P0 | Supprimer mon compte |
@@ -98,8 +100,8 @@ La colonne P indique la priorité de la feature (voir 01).
 | POST | `/stories` | P1 | Publier `{ mediaId, audience }` |
 | GET | `/stories/tray` | P1 | Bandeau : auteurs ayant des stories actives visibles, statut vu / non vu |
 | GET | `/users/{id}/stories` | P1 | Stories actives d'un auteur |
-| POST | `/stories/{id}/view` | P1 | Enregistrer une vue |
-| GET | `/stories/{id}/viewers` | P1 | Liste des vues (auteur seulement) |
+| POST | `/stories/{id}/view` | P1 | Enregistrer une vue ; `{ anonymous: true }` réservé aux abonnés Plus (aucune vue enregistrée) |
+| GET | `/stories/{id}/viewers` | P1 | Liste des vues (auteur seulement) ; filtre `?q=` réservé aux abonnés Plus |
 | DELETE | `/stories/{id}` | P1 | Supprimer |
 | GET | `/me/stories/archive` | P1 | Mes stories archivées |
 | GET · POST | `/users/{id}/highlights` · `/highlights` | P2 | Lister / créer |
@@ -141,7 +143,9 @@ La colonne P indique la priorité de la feature (voir 01).
 | GET | `/admin/reports/{id}` | P0 | Détail avec aperçu du contenu |
 | POST | `/admin/reports/{id}/resolve` | P0 | `{ action: remove_content \| dismiss, note? }` |
 | GET | `/admin/users` | P0 | Recherche paginée |
-| GET | `/admin/users/{id}` | P0 | Fiche (statut, compteurs, signalements reçus) |
+| GET | `/admin/users/{id}` | P0 | Fiche (statut, compteurs, signalements reçus, abonnement Plus) |
+| GET | `/admin/analytics/overview` | P0 | Entonnoir onboarding → paywall → achat, inscriptions, abonnés Plus actifs (`?from=&to=`) |
+| GET | `/admin/analytics/experiments` | P0 | Expériences A/B : variantes, expositions, conversions |
 | POST | `/admin/users/{id}/suspend` · `/ban` · `/reactivate` | P0 | Changer le statut `{ reason }` |
 | DELETE | `/admin/users/{id}` | P0 | Supprimer le compte |
 | GET | `/admin/content` | P1 | Liste de contenus (posts, reels, stories, commentaires) |
@@ -181,4 +185,4 @@ Toute action admin qui modifie des données écrit une ligne dans `admin_audit_l
 | `POST …/messages` | 60 / minute |
 | `POST /reports` | 10 / heure |
 
-Le stockage des compteurs est en mémoire (une seule instance, en local).
+Le stockage des compteurs est en mémoire (une seule instance d'API, en dev comme en démo).

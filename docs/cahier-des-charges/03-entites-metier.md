@@ -8,7 +8,7 @@ L'utilisateur est l'acteur principal. Ses actions se répartissent en trois axes
 |---|---|
 | **1. Publier** | Post (photo / carrousel), reel, story, story à la une, note, instantané |
 | **2. Interagir** | Message, like, commentaire, republication, enregistrement, collaboration, mention, abonnement (+ demandes), ami proche, signalement, blocage |
-| **3. Gérer et consulter** | Profil, paramètres (compte privé, bloqués, amis proches, suppression du compte), activité, recherche |
+| **3. Gérer et consulter** | Profil, paramètres (compte privé, bloqués, amis proches, suppression du compte), abonnement Clone Plus, activité, recherche |
 
 > **Important** : cette carte décrit le **produit**. Elle ne doit pas devenir le modèle de données. Dans le code et en base, l'utilisateur n'est qu'un **identifiant référencé** par des modules indépendants. Une entité `User` qui porterait tout deviendrait une « god entity » modifiée par tous les modules.
 
@@ -26,6 +26,8 @@ L'utilisateur est l'acteur principal. Ses actions se répartissent en trois axes
 | `messaging` | Conversations, messages, lecture | `conversations`, `conversation_members`, `messages` |
 | `activity` | Notifications in-app | `notifications` |
 | `moderation` | Signalements, actions admin, audit | `reports`, `admin_audit_log` |
+| `billing` | Abonnement Clone Plus, droits d'accès | `subscriptions` |
+| `analytics` | Lecture des indicateurs pour le backoffice (données dans PostHog) | aucune table propre (lecture) |
 
 **Deux identités distinctes :**
 - `auth.users` : géré par Supabase Auth (email, fournisseur, mot de passe). **On ne modifie jamais le schéma `auth`.**
@@ -135,10 +137,12 @@ Pourquoi une seule table pour posts et reels : likes, commentaires, enregistreme
 
 ### 4.7 Stories et stories à la une
 
-**`stories`** : `id`, `author_id`, `media_id`, `audience` (`everyone` | `close_friends`), `view_count`, `created_at`, `expires_at` (= `created_at` + 24 h), `deleted_at`.
+**`stories`** : `id`, `author_id`, `media_id`, `audience` (`everyone` | `close_friends`), `view_count`, `created_at`, `expires_at` (= `created_at` + 24 h, ou + 48 h si l'auteur est abonné Plus à la publication), `deleted_at`.
 
 - Une story est **active** tant que `expires_at > now()`. Ensuite, elle est archivée (visible par son seul auteur), jamais supprimée automatiquement.
 - **`story_views`** (`story_id`, `viewer_id`, `viewed_at`) : une vue par personne, enregistrée à l'affichage. La liste des vues n'est visible que de l'auteur.
+- **Vue anonyme (Plus)** : un abonné Plus peut regarder une story sans être enregistré dans `story_views` ; la vue n'est pas comptée. La politique de visibilité reste appliquée normalement.
+- **Recherche dans les vues (Plus)** : l'auteur abonné peut filtrer la liste des vues par username ou nom.
 - Répondre à une story crée un message privé de type `story_reply`.
 - **`highlights`** (P2) : `id`, `owner_id`, `title`, `cover_media_id`, `created_at`.
 - **`highlight_items`** (P2) : `highlight_id`, `story_id`, `position`. Seules les stories de l'auteur peuvent y figurer ; leur visibilité suit alors celle du profil, et non plus l'expiration.
@@ -201,6 +205,27 @@ Types : `like`, `comment`, `comment_reply`, `comment_like`, `follow`, `follow_re
 - **`reports`** : `id`, `reporter_id`, cible (`post_id` | `comment_id` | `story_id` | `user_id` | `message_id`, exactement une), `reason` (`spam` | `nudity` | `harassment` | `violence` | `hate` | `other`), `details`, `status` (`open` | `resolved_removed` | `resolved_dismissed`), `created_at`, `resolved_at`, `resolved_by`.
 - **`admin_audit_log`** : `id`, `admin_id`, `action`, `target_type`, `target_id`, `metadata` (jsonb), `created_at`. Écriture seule, jamais modifiée.
 
+### 4.13 Billing (Clone Plus)
+
+Abonnement inspiré d'Instagram Plus (lancé par Meta en 2026). On reprend les avantages compatibles avec notre périmètre :
+
+| Avantage | P | Où il est appliqué |
+|---|---|---|
+| Icône d'app personnalisée | P0 | App uniquement (icônes alternatives iOS) |
+| Story visible 48 h au lieu de 24 h | P1 | API, à la création de la story |
+| Voir une story sans apparaître dans les vues | P1 | API, à l'enregistrement de la vue |
+| Rechercher dans la liste des vues de ses stories | P1 | API, lecture des vues |
+
+Avantages d'Instagram Plus écartés : mise en avant d'une story (suppose un algorithme de diffusion, hors périmètre), listes d'audience personnalisées, compteur de revisionnages, polices de bio.
+
+**`subscriptions`** : `user_id` (PK), `entitlement` (`plus`), `status` (`active` | `expired`), `product_id`, `expires_at`, `refreshed_at`, `updated_at`.
+
+Règles :
+- Cette table est une **copie locale** de l'état RevenueCat, écrite uniquement par le use case `RefreshSubscription`. RevenueCat reste la source de vérité des achats.
+- `isPlus(user)` = `status = active` **et** `expires_at > now()`. Tous les avantages côté API passent par cette règle unique du domaine.
+- Un avantage acquis reste acquis : une story publiée à 48 h garde sa durée si l'abonnement expire ensuite.
+- Suppression de compte : la ligne est supprimée, et le client RevenueCat est supprimé par le job de purge. L'abonnement Apple, lui, doit être résilié par l'utilisateur ; l'app le lui indique avant la suppression.
+
 ## 5. Schéma relationnel (vue simplifiée)
 
 ```mermaid
@@ -225,6 +250,7 @@ erDiagram
     CONVERSATIONS ||--o{ MESSAGES : contient
     PROFILES ||--o{ NOTIFICATIONS : recoit
     PROFILES ||--o{ REPORTS : signale
+    PROFILES ||--o| SUBSCRIPTIONS : souscrit
 
     PROFILES {
         uuid id PK
@@ -259,6 +285,12 @@ erDiagram
         uuid sender_id FK
         text client_id
         text kind
+    }
+    SUBSCRIPTIONS {
+        uuid user_id PK
+        text entitlement
+        text status
+        timestamptz expires_at
     }
 ```
 

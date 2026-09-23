@@ -13,11 +13,12 @@ Projet réalisé dans le cadre d'un cours. Objectif pédagogique double :
 | Contrainte             | Valeur                            | Conséquence                                                                       |
 | ---------------------- | --------------------------------- | --------------------------------------------------------------------------------- |
 | Équipe                 | 1 développeur + IA                | Architecture simple et homogène, peu de dépendances                               |
-| Délai                  | Moins de 4 semaines               | Périmètre découpé en phases de priorité ; chaque feature a une version simplifiée |
+| Délai                  | 8 jours                           | Périmètre découpé en phases de priorité ; chaque feature a une version simplifiée ; P0 est l'objectif, P1 à P3 ne sont faits que s'il reste du temps |
 | Plateforme             | iOS uniquement                    | SwiftUI natif, pas de cross-platform                                              |
-| Exécution              | Local uniquement                  | Pas de déploiement cloud ; démo sur iPhone physique via le réseau local           |
+| Exécution              | Dev en local, démo hébergée       | Supabase Cloud, Railway (API, worker, Redis), Vercel (backoffice) ; démo sur iPhone physique, en HTTPS, depuis n'importe quel réseau |
 | Compte Apple Developer | Payant                            | Sign in with Apple et notifications push possibles                                |
 | UI                     | Instagram « réinterprété iOS 27 » | Structure et interactions d'Instagram, composants système Liquid Glass            |
+| Fonctionnalités imposées | Onboarding, paywall (RevenueCat), analytics, A/B test | Intégrées en P0 ; RevenueCat et PostHog Cloud sont des services SaaS |
 
 
 
@@ -39,12 +40,13 @@ Projet réalisé dans le cadre d'un cours. Objectif pédagogique double :
 **Fondations**
 
 - Monorepo, contrat OpenAPI, squelettes des 3 produits, CI, environnement local.
+- **Environnement de démo déployé dès le début** (squelette sur Supabase Cloud, Railway et Vercel), puis mis à jour à chaque tranche.
 - Pipeline média pour les **images** (upload présigné, traitement, variantes).
 
 **Compte et profil**
 
 - Inscription / connexion : email + mot de passe, **Sign in with Apple**.
-- Onboarding : choix du username, nom, avatar, bio.
+- **Onboarding (obligatoire)** : parcours reproduit sur celui d'Instagram, un écran par étape (identifiant, mot de passe, nom, username vérifié en direct, photo de profil passable, bio passable), suivi du paywall. Parcours exact à aligner sur l'app Instagram actuelle analysée.
 - Profil : en-tête (avatar, compteurs, bio), grille des posts.
 - Paramètres de base : compte privé / public, liste des comptes bloqués.
 - **Suppression du compte depuis l'app** (exigence App Store).
@@ -63,11 +65,19 @@ Projet réalisé dans le cadre d'un cours. Objectif pédagogique double :
 - Like / unlike d'un post.
 - Commentaires avec **réponses sur un niveau**, suppression de ses propres commentaires.
 
+**Monétisation, analytics et A/B test (obligatoires)**
+
+- **Paywall « Clone Plus »** via RevenueCat, inspiré d'Instagram Plus : abonnement mensuel en environnement sandbox, affiché en fin d'onboarding (refusable) et accessible depuis les paramètres, avec restauration des achats. Avantages repris d'Instagram Plus (voir 03 § 4.13) : icône d'app personnalisée (P0), puis stories 48 h, vue anonyme d'une story et recherche dans la liste des vues (P1, avec les stories).
+- Statut d'abonnement vérifié **côté serveur** : l'API interroge RevenueCat, l'app ne fait pas foi.
+- **Analytics** via PostHog : événements de l'onboarding, du paywall et des actions principales (post, like, abonnement).
+- **A/B test** via les expériences PostHog : première expérience sur le paywall (variante d'offre ou de présentation), mesurée sur la conversion vers l'achat.
+
 **Backoffice**
 
 - Connexion admin.
 - File de modération : consulter un signalement, supprimer le contenu ou classer le signalement.
-- Gestion des utilisateurs : recherche, fiche, suspension, bannissement, suppression.
+- Gestion des utilisateurs : recherche, fiche (dont statut d'abonnement), suspension, bannissement, suppression.
+- **Page Analytics** : entonnoir onboarding → paywall → achat, résultats de l'A/B test, nombre d'abonnés Plus actifs.
 
 
 
@@ -118,7 +128,7 @@ Ces fonctionnalités d'Instagram seront développées si la deadline n'est pas e
 - Conversations de groupe, réactions aux messages (sauf réaction emoji aux instants en P3).
 - Shopping, publicités, comptes professionnels, statistiques créateur.
 - « Restreindre » et « Masquer » (seul le blocage est implémenté).
-- Déploiement en production, montée en charge multi-instance, CDN.
+- Mise en production réelle : montée en charge multi-instance, CDN, supervision. L'environnement de démo reste une instance unique.
 
 
 
@@ -129,6 +139,7 @@ Ces fonctionnalités d'Instagram seront développées si la deadline n'est pas e
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Sécurité      | Aucune donnée accessible sans passer par l'API ; secrets jamais versionnés ; métadonnées EXIF (dont GPS) supprimées des images |
 | Vie privée    | Blocage et compte privé respectés dans **toutes** les lectures ; suppression de compte réelle (données et fichiers)            |
+| Analytics     | Utilisateur identifié par son identifiant de profil uniquement (ni email, ni nom, ni contenu dans les événements) ; suppression de compte propagée à PostHog et RevenueCat |
 | Performance   | Scroll du feed fluide sur iPhone récent ; images servies à la taille d'affichage ; pagination par curseur                      |
 | Fiabilité     | Upload qui survit à la mise en arrière-plan de l'app ; reprise des messages manqués après reconnexion                          |
 | Qualité       | Lint, typage et tests verts avant chaque intégration (voir 08)                                                                 |
