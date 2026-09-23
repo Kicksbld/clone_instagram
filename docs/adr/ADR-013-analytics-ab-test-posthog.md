@@ -1,10 +1,10 @@
-# ADR-013 — Analytics et A/B test avec PostHog, backoffice passant par l'API
+# ADR-013 — Analytics et A/B test avec PostHog, backoffice sans duplication
 
 ## Statut
 Proposé
 
 ## Contexte
-Les analytics et un A/B test sont imposés en P0 : événements de l'onboarding, du paywall et des actions principales, et une première expérience sur le paywall mesurée sur la conversion vers l'achat. Le backoffice doit afficher l'entonnoir onboarding → paywall → achat, les résultats de l'A/B test et le nombre d'abonnés Plus actifs.
+Les analytics et un A/B test sont imposés en P0 : événements de l'onboarding, du paywall et des actions principales, et une première expérience sur le paywall mesurée sur la conversion vers l'achat. L'entonnoir onboarding → paywall → achat et les résultats de l'A/B test doivent être consultables par le lead dev.
 
 Contraintes : aucune donnée personnelle dans les événements, analytics jamais bloquants, le backoffice reste un client de l'API (ADR-011), et un auto-hébergement est trop lourd à mettre en place.
 
@@ -23,14 +23,15 @@ Décisions sources : D26, D27.
 - **App** : SDK `posthog-ios` utilisé uniquement via le protocole `AnalyticsService` (`Core/Analytics`, remplaçable par un faux dans les tests et les previews) ; noms d'événements centralisés dans `Core/Analytics` ; `identify(profileId)` dès la création du profil, avant le paywall (la variante reste la même pour l'utilisateur) ; `reset()` à la déconnexion.
 - **API** : les événements serveur sont envoyés **après** la validation de la transaction ; un échec est journalisé, jamais propagé.
 - **A/B test** : expérience PostHog sur un feature flag à plusieurs variantes, lue par le `PaywallViewModel`, qui choisit l'offre RevenueCat ou la présentation correspondante. PostHog enregistre l'exposition. Métrique principale : `purchase_completed`. Variante par défaut si PostHog est injoignable.
-- **Backoffice** : jamais d'appel direct à PostHog. Il passe par `GET /v1/admin/analytics/overview` (entonnoir, inscriptions, abonnés Plus actifs, `?from=&to=`) et `GET /v1/admin/analytics/experiments` (variantes, expositions, conversions). L'API interroge l'API de requêtes PostHog (port `AnalyticsReader` du module `analytics`, clé personnelle côté serveur, use cases `GetAnalyticsOverview` et `GetExperimentResults`) et ajoute le nombre d'abonnés actifs lu en base. La page Analytics propose un lien « Ouvrir dans PostHog ».
+- **Backoffice** : pas de duplication. Aucun endpoint `/v1/admin/analytics/*`, aucun module `analytics` côté API, aucun appel à PostHog depuis le backoffice ou le navigateur. L'entonnoir, les inscriptions, les abonnés Plus actifs et les résultats de l'A/B test se consultent directement dans l'interface PostHog. La page Analytics du backoffice se limite à un lien « Ouvrir dans PostHog ».
 - Suppression de compte propagée à PostHog (suppression de la personne) par le job `purge-account` (ADR-008).
-- En test, `AnalyticsTracker` et `AnalyticsReader` sont remplacés par des adapters en mémoire : aucun appel à PostHog.
+- En test, `AnalyticsTracker` est remplacé par un adapter en mémoire : aucun appel à PostHog.
 
 ## Alternatives
 - Analytics faits maison : contrôle total, mais entonnoirs et expériences à construire. Écarté (D26).
 - PostHog auto-hébergé : données chez soi, mais trop lourd à mettre en place. Écarté (D26).
 - RevenueCat Experiments : intégré au paywall, mais un second outil pour les événements. Écarté (D26).
+- Backoffice lisant les analytics via l'API (`/v1/admin/analytics/overview`, `/experiments`) : garde tout dans le backoffice, mais duplique une interface que PostHog fournit déjà, endpoints et use cases supplémentaires à maintenir pour rien. Écarté (D27).
 - Appels directs du backoffice à PostHog, ou tableaux PostHog intégrés : moins de code, mais clé PostHog hors de l'API et contraire à ADR-011. Écarté (D27).
 
 ## Conséquences
@@ -38,14 +39,15 @@ Décisions sources : D26, D27.
 - Un seul outil pour les événements, les flags et les expériences.
 - Faits métier fiables envoyés par le serveur, indépendamment de l'app.
 - Clé personnelle PostHog confinée au serveur (API, worker pour la purge).
+- Rien à construire ni maintenir côté backoffice pour les analytics : PostHog fournit déjà l'entonnoir et les résultats d'expérience.
 
 ### Négatives
-- Dépendance à un SaaS et à son API de requêtes (endpoints de l'entonnoir, des résultats d'expérience et de suppression d'une personne à vérifier au démarrage).
-- Endpoints admin supplémentaires à maintenir dans le contrat.
+- Dépendance à un SaaS (événements et suppression d'une personne à vérifier au démarrage).
+- Le lead dev doit ouvrir PostHog séparément du backoffice pour consulter les chiffres.
 - Déclaration App Privacy à remplir pour les données d'analytics et d'achat.
 
 ## Liens
-- ADR-005 (ports `AnalyticsTracker` et `AnalyticsReader`)
+- ADR-005 (port `AnalyticsTracker`)
 - ADR-008 (job `purge-account`)
 - ADR-010 (protocole `AnalyticsService`)
 - ADR-011 (backoffice client de l'API)

@@ -144,8 +144,6 @@ La colonne P indique la priorité de la feature (voir 01).
 | POST | `/admin/reports/{id}/resolve` | P0 | `{ action: remove_content \| dismiss, note? }` |
 | GET | `/admin/users` | P0 | Recherche paginée |
 | GET | `/admin/users/{id}` | P0 | Fiche (statut, compteurs, signalements reçus, abonnement Plus) |
-| GET | `/admin/analytics/overview` | P0 | Entonnoir onboarding → paywall → achat, inscriptions, abonnés Plus actifs (`?from=&to=`) |
-| GET | `/admin/analytics/experiments` | P0 | Expériences A/B : variantes, expositions, conversions |
 | POST | `/admin/users/{id}/suspend` · `/ban` · `/reactivate` | P0 | Changer le statut `{ reason }` |
 | DELETE | `/admin/users/{id}` | P0 | Supprimer le compte |
 | GET | `/admin/content` | P1 | Liste de contenus (posts, reels, stories, commentaires) |

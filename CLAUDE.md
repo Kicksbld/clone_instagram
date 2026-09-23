@@ -55,7 +55,7 @@ Outils de qualité et tests par niveau : ADR-014.
 5. **Données** (ADR-007) : migrations drizzle-kit uniquement, jamais le schéma `auth`, UUID v7, `timestamptz` UTC, `text` + `CHECK`, pas de FK polymorphe, pagination par curseur `(created_at, id)`, jamais `OFFSET`.
 6. **Rien de lourd dans l'API** (ADR-008) : traitement par job BullMQ dans le worker, sans logique métier ; Redis = file de jobs uniquement. Machine à états des médias par `UPDATE … WHERE status = '<attendu>'`.
 7. **Abonnement vérifié par l'API** (ADR-012) : règle unique `isPlus`, `POST /v1/me/subscription/refresh`, pas de webhooks. Refus : `403 plus_required`.
-8. **Analytics jamais bloquants, sans donnée personnelle** (ADR-013) : `distinct_id` = id de profil ; l'app passe par `AnalyticsService` ; le backoffice passe par `/v1/admin/analytics/*`.
+8. **Analytics jamais bloquants, sans donnée personnelle** (ADR-013) : `distinct_id` = id de profil ; l'app passe par `AnalyticsService` ; le backoffice ne duplique rien, simple lien « Ouvrir dans PostHog ».
 9. **iOS** (ADR-010) : MVVM `@Observable` / `@MainActor`, services injectés par protocole, une feature n'importe jamais une autre, Nuke (jamais `AsyncImage`), Liquid Glass jamais sur le contenu.
 10. **Backoffice** (ADR-011) : aucun appel API depuis le navigateur, chaque Server Action revérifie la session, seuls `features/*/data/` importent `lib/api`.
 11. **Environnements** (ADR-009) : même code, seule la config change ; secrets jamais versionnés ; l'iPhone n'atteint pas `localhost` (IP du Mac ou démo).

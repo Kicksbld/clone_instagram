@@ -54,5 +54,5 @@ apps/backoffice/src/
 ## Liens
 - ADR-003 (client `openapi-fetch`)
 - ADR-004 (l'API est la seule porte d'entrée)
-- ADR-013 (analytics lus via l'API)
+- ADR-013 (analytics : pas de duplication, lien direct vers PostHog)
 - ADR-014 (tests Vitest et Playwright)

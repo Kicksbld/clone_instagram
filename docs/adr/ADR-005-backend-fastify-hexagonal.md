@@ -4,7 +4,7 @@
 Proposé
 
 ## Contexte
-L'API porte toute la logique métier (ADR-004) de douze modules (`identity`, `social`, `media`, `posts`, `engagement`, `feed`, `ephemeral`, `messaging`, `activity`, `moderation`, `billing`, `analytics`).
+L'API porte toute la logique métier (ADR-004) de onze modules (`identity`, `social`, `media`, `posts`, `engagement`, `feed`, `ephemeral`, `messaging`, `activity`, `moderation`, `billing`).
 
 Le code est largement produit par l'IA : l'architecture doit donner à chaque type de code un emplacement évident et être vérifiable automatiquement, sinon elle dérive.
 
@@ -29,7 +29,6 @@ Décisions sources : D6, D7, D8, D34.
 | `activity` | Notifications in-app | `notifications` |
 | `moderation` | Signalements, actions admin, audit | `reports`, `admin_audit_log` |
 | `billing` | Abonnement Clone Plus, règle `isPlus` (ADR-012) | `subscriptions` |
-| `analytics` | Lecture des indicateurs pour le backoffice (ADR-013) | aucune (lecture) |
 
 - **Architecture hexagonale par module** :
 

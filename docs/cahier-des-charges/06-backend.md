@@ -71,7 +71,6 @@ apps/api/src/
 │   ├── activity/
 │   ├── moderation/
 │   ├── billing/               # abonnement Clone Plus, règle isPlus
-│   ├── analytics/             # lectures admin des indicateurs (via le port AnalyticsReader)
 │   └── <module>/
 │       ├── domain/            # entités, règles, erreurs métier — aucun import externe
 │       ├── application/
@@ -115,10 +114,10 @@ apps/api/src/
 |---|---|---|---|
 | `SubscriptionProvider` | `billing` | REST API v2 RevenueCat (`GET /projects/{project_id}/customers/{customer_id}`) | Appelé uniquement par `RefreshSubscription`, qui met à jour la table `subscriptions`. Pas d'appel si `refreshed_at` date de moins de 5 minutes |
 | `AnalyticsTracker` | `shared` | `posthog-node` | Événements serveur (`profile_created`, `post_created`, `subscription_activated`) envoyés **après** la validation de la transaction ; un échec est journalisé, jamais propagé |
-| `AnalyticsReader` | `analytics` | API de requêtes PostHog (clé personnelle) | Utilisé par les use cases admin `GetAnalyticsOverview` et `GetExperimentResults` |
 
 - Les avantages Plus sont vérifiés dans les use cases concernés (`CreateStory`, `ViewStory`, `ListStoryViewers`) par la règle unique `isPlus` du module `billing`. Refus : `403 plus_required`.
-- En test, les trois ports sont remplacés par des adapters en mémoire : aucun appel à RevenueCat ni à PostHog.
+- En test, les deux ports sont remplacés par des adapters en mémoire : aucun appel à RevenueCat ni à PostHog.
+- Le backoffice ne lit jamais les analytics via l'API : l'entonnoir, les inscriptions et les résultats de l'A/B test se consultent directement dans PostHog (ADR-013).
 
 ## 3. Worker
 

@@ -18,7 +18,7 @@ Décisions d'architecture du projet, rédigées selon [Agent ADR Architecte.md](
 | [ADR-010](ADR-010-app-ios-swiftui-mvvm.md) | App iOS : SwiftUI natif, MVVM `@Observable`, cible iOS 26, une cible organisée par feature | Proposé |
 | [ADR-011](ADR-011-backoffice-nextjs-client-api.md) | Backoffice Next.js organisé par feature, client de l'API uniquement | Proposé |
 | [ADR-012](ADR-012-abonnement-clone-plus-revenuecat.md) | Abonnement Clone Plus : RevenueCat, statut vérifié par l'API | Proposé |
-| [ADR-013](ADR-013-analytics-ab-test-posthog.md) | Analytics et A/B test avec PostHog, backoffice passant par l'API | Proposé |
+| [ADR-013](ADR-013-analytics-ab-test-posthog.md) | Analytics et A/B test avec PostHog, backoffice sans duplication | Proposé |
 | [ADR-014](ADR-014-qualite-ci-definition-of-done.md) | Qualité, CI, tests et definition of done | Proposé |
 
 ## À rédiger avant le plan de leur phase (P1 et plus)
