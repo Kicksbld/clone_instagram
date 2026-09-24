@@ -8,7 +8,7 @@ Projet de cours : un clone d'Instagram composé de trois produits.
 
 Le projet tourne dans deux environnements : en local pour le développement, et sur une démo hébergée (Supabase Cloud, Railway, Vercel). Pour l'instant, seul l'environnement local est en place.
 
-> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. Le projet iOS arrive en T0b, la démo hébergée en T1. Détail dans le [plan P0](docs/plan/P0.md).
+> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. La démo hébergée arrive en T1. Détail dans le [plan P0](docs/plan/P0.md).
 
 ---
 
@@ -20,6 +20,8 @@ Le projet tourne dans deux environnements : en local pour le développement, et 
 | Node.js | 24 | `nvm install 24` (le fichier `.nvmrc` fixe la version) |
 | pnpm | 10 (épinglé) | `corepack enable` ; la bonne version est lue dans `package.json` |
 | Supabase CLI | ≥ 2.75 | `brew install supabase/tap/supabase` |
+| Xcode | 27 (SDK iOS 27) | Mac App Store ; app iOS uniquement |
+| XcodeGen, SwiftLint, SwiftFormat | récents | `brew bundle --file ios/Brewfile` (fait par `ios/scripts/bootstrap.sh`) |
 
 ## 2. Première installation
 
@@ -69,7 +71,35 @@ pnpm dev                 # API + worker + backoffice (Ctrl+C pour arrêter)
 | Supabase Studio | http://127.0.0.1:54323 | interface d'administration de la base |
 | Mails de test (Mailpit) | http://127.0.0.1:54324 | emails envoyés par Supabase Auth |
 
-## 4. Arrêter et relancer
+## 4. App iOS
+
+**Première fois** (installe les outils, crée les fichiers de configuration locaux et génère le projet Xcode) :
+
+```bash
+ios/scripts/bootstrap.sh
+open ios/CloneInstagram.xcodeproj
+```
+
+Le projet Xcode est généré à partir de `ios/project.yml` et n'est pas versionné : relancer `xcodegen generate` (depuis `ios/`) après un `git pull` qui modifie `project.yml`. Au premier build, Xcode demande d'autoriser le plugin `OpenAPIGenerator` : accepter.
+
+**Lancer** : l'API doit tourner (`pnpm dev`). Dans Xcode, choisir le schéma `CloneInstagram` et un simulateur, puis ▶︎. L'écran « État de l'API » doit afficher « API disponible ».
+
+| Configuration | Schéma | Fichier à compléter (non versionné) | API appelée |
+|---|---|---|---|
+| Local | `CloneInstagram` | `ios/CloneInstagram/Resources/Config/Local.xcconfig` | `http://localhost:3000` (simulateur) ; sur iPhone, l'IP du Mac |
+| Demo | `CloneInstagram-Demo` | `ios/CloneInstagram/Resources/Config/Demo.xcconfig` | API Railway (à partir de T1) |
+
+**Tests** (en local, pas de CI macOS) :
+
+```bash
+cd ios
+xcodebuild test -project CloneInstagram.xcodeproj -scheme CloneInstagram \
+  -destination 'platform=iOS Simulator,name=iPhone 17' -skipPackagePluginValidation
+```
+
+SwiftLint et SwiftFormat sont lancés à chaque build (et à la main : `swiftlint lint`, `swiftformat --lint .` depuis `ios/`).
+
+## 5. Arrêter et relancer
 
 | Action | Commande | Données |
 |---|---|---|
@@ -87,7 +117,7 @@ docker compose down -v         # supprime le conteneur et les données Redis
 
 Au prochain `supabase start`, relancer `pnpm db:migrate` (puis `pnpm db:seed` quand un seed existera).
 
-## 5. Commandes utiles
+## 6. Commandes utiles
 
 | Commande | Rôle |
 |---|---|
@@ -96,14 +126,14 @@ Au prochain `supabase start`, relancer `pnpm db:migrate` (puis `pnpm db:seed` qu
 | `pnpm typecheck` | Vérification des types TypeScript |
 | `pnpm test` | Tests Vitest de tous les packages |
 | `pnpm build` | Build de production de l'API, du worker et du backoffice |
-| `pnpm contract:generate` | Valide `openapi.yaml` et régénère les types des clients |
+| `pnpm contract:generate` | Valide `openapi.yaml`, régénère les types des clients et met à jour la copie de l'app iOS |
 | `pnpm db:migrate` | Applique les migrations Drizzle |
 | `pnpm db:seed` | Remplit la base avec des données de démo (vide pour l'instant) |
 | `supabase status` | Affiche les URL et les clés locales de Supabase |
 
 La CI GitHub Actions lance, à chaque push : validation du contrat, lint, typecheck, tests et build.
 
-## 6. Organisation du code
+## 7. Organisation du code
 
 ```
 apps/api/            API Fastify, architecture hexagonale par module
@@ -112,6 +142,7 @@ apps/backoffice/     backoffice Next.js, client de l'API uniquement
 packages/contract/   openapi.yaml : contrat unique de l'API + types générés
 packages/db/         schéma Drizzle, migrations, identifiants, pagination
 packages/jobs/       contrat des jobs entre l'API et le worker
+ios/                 app iOS SwiftUI (projet XcodeGen : project.yml)
 supabase/            configuration de Supabase en local
 docs/                cahier des charges, décisions d'architecture (ADR), plan
 ```
@@ -121,7 +152,7 @@ Principes clés :
 - **Contract-first.** Toute évolution de l'API commence dans `packages/contract/openapi.yaml`.
 - **Développement par tranches verticales**, chacune livrée dans une branche et un commit.
 
-## 7. Documentation
+## 8. Documentation
 
 | Document | Contenu |
 |---|---|
@@ -130,7 +161,7 @@ Principes clés :
 | [docs/ia-workflow.md](docs/ia-workflow.md) | Méthode de développement avec l'IA |
 | [docs/cahier-des-charges/](docs/cahier-des-charges/) | Cahier des charges complet |
 
-## 8. Problèmes fréquents
+## 9. Problèmes fréquents
 
 | Symptôme | Solution |
 |---|---|
@@ -140,3 +171,6 @@ Principes clés :
 | L'API refuse de démarrer : « Configuration invalide » | Compléter `.env` (la variable fautive est nommée dans le message) |
 | Backoffice : « API : injoignable » | Vérifier que l'API tourne (`/health`) et que `API_URL` est renseignée dans `.env` |
 | Port 3000 ou 3001 déjà utilisé | Arrêter l'autre processus : `lsof -ti tcp:3000 \| xargs kill` |
+| App iOS : « API injoignable » | Vérifier que `pnpm dev` tourne ; sur iPhone, mettre l'IP du Mac dans `Local.xcconfig` (même Wi-Fi) et accepter l'accès au réseau local |
+| Xcode : « Plugin must be enabled » ou build bloqué sur `OpenAPIGenerator` | Autoriser le plugin dans Xcode ; en ligne de commande, ajouter `-skipPackagePluginValidation` |
+| Xcode : fichier `.xcconfig` introuvable | Lancer `ios/scripts/bootstrap.sh` (crée `Local.xcconfig` et `Demo.xcconfig`) |

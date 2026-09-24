@@ -1,0 +1,30 @@
+# SwiftLint (ADR-014). Désactivation locale uniquement avec un commentaire justificatif.
+included:
+  - CloneInstagram
+  - CloneInstagramTests
+excluded:
+  - '**/*.generated.swift'
+opt_in_rules:
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - empty_count
+  - first_where
+  - sorted_first_last
+  - toggle_bool
+  - unowned_variable_capture
+  - weak_delegate
+  - private_swiftui_state
+force_unwrapping: error
+trailing_comma:
+  mandatory_comma: true
+force_cast: error
+force_try: error
+line_length:
+  warning: 140
+  ignores_comments: true
+  ignores_urls: true
+identifier_name:
+  excluded:
+    - id
+    - ok
+    - url

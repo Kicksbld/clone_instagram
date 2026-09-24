@@ -1,0 +1,94 @@
+openapi: 3.1.1
+info:
+  title: Clone Instagram API
+  version: 0.1.0
+  description: |
+    Contrat unique des échanges entre l'API, l'app iOS et le backoffice (ADR-003).
+
+    - Routes métier préfixées par `/v1` ; `GET /health` est hors version.
+    - JSON UTF-8, identifiants UUID v7, dates ISO 8601 UTC.
+    - Authentification : `Authorization: Bearer <JWT Supabase>` sur toutes les routes sauf `GET /health`.
+    - Erreurs : Problem Details (RFC 9457), `Content-Type: application/problem+json`, avec un `code` stable.
+
+    Codes d'erreur transverses :
+
+    | Code | Statut | Cas |
+    |---|---|---|
+    | `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |
+    | `route_not_found` | 404 | Route inexistante |
+    | `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |
+servers:
+  - url: /
+    description: Même origine ; l'hôte dépend de l'environnement (local ou démo, ADR-009).
+security:
+  - bearerAuth: []
+tags:
+  - name: system
+    description: Supervision de l'API
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags: [system]
+      summary: État de l'API (liveness)
+      description: Répond sans interroger Postgres ni Redis. Sans authentification.
+      security: []
+      responses:
+        '200':
+          description: L'API répond.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token Supabase Auth.
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+    ProblemDetails:
+      type: object
+      description: Erreur au format Problem Details (RFC 9457).
+      additionalProperties: false
+      required: [type, title, status, detail, code]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: Identifiant du type de problème (`about:blank` par défaut).
+          examples: ['about:blank']
+        title:
+          type: string
+          description: Résumé lisible du statut HTTP.
+          examples: ['Not Found']
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+          examples: [404]
+        detail:
+          type: string
+          description: Explication lisible de cette occurrence.
+        code:
+          type: string
+          description: Code stable, destiné au client (ex. `validation_failed`, `username_taken`).
+          examples: ['route_not_found']
+  responses:
+    InternalError:
+      description: Erreur inattendue (`internal_error`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'

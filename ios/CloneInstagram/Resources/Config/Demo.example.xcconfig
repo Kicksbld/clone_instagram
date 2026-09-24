@@ -1,0 +1,9 @@
+// Configuration Demo (ADR-009, ADR-010) : API Railway et Supabase Cloud, HTTPS uniquement.
+// Modèle versionné : copier en Demo.xcconfig (non versionné), via `ios/scripts/bootstrap.sh`.
+// Dans un .xcconfig, `//` commence un commentaire : écrire `https:/$()/…` dans les URL.
+
+// URL de l'API sur Railway (renseignée en T1).
+API_BASE_URL = https:/$()/api.example.invalid
+
+// Team ID Apple (compte développeur en attente de validation) : à renseigner dès qu'il est attribué.
+DEVELOPMENT_TEAM =

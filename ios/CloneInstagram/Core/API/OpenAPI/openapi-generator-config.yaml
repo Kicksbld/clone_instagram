@@ -1,0 +1,7 @@
+# Client Swift généré depuis la copie de packages/contract/openapi.yaml (ADR-003).
+# Module APIClient séparé, sans isolation par défaut (ADR-017).
+generate:
+  - types
+  - client
+accessModifier: public
+namingStrategy: idiomatic

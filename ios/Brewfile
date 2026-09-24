@@ -1,0 +1,4 @@
+# Outils du projet iOS (ADR-017) : `brew bundle --file ios/Brewfile`.
+brew "xcodegen"
+brew "swiftlint"
+brew "swiftformat"

@@ -1,0 +1,11 @@
+# SwiftFormat (ADR-014)
+--swiftversion 6.0
+--exclude **/*.generated.swift,DerivedData,build
+--indent 4
+--maxwidth 140
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--self remove
+--importgrouping testable-last
+--disable redundantSendable

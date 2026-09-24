@@ -1,0 +1,20 @@
+# Projet généré par XcodeGen (ADR-017), sauf Package.resolved (versions des dépendances SPM, transitives comprises)
+*.xcodeproj/*
+!*.xcodeproj/project.xcworkspace/
+*.xcodeproj/project.xcworkspace/*
+!*.xcodeproj/project.xcworkspace/xcshareddata/
+*.xcodeproj/project.xcworkspace/xcshareddata/*
+!*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/*
+!*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+# Configurations locales (modèles *.example.xcconfig versionnés)
+CloneInstagram/Resources/Config/Local.xcconfig
+CloneInstagram/Resources/Config/Demo.xcconfig
+
+# Build
+DerivedData/
+build/
+.build/
+*.xcresult
+xcuserdata/
