@@ -43,7 +43,7 @@ xcodebuild test -project CloneInstagram.xcodeproj -scheme CloneInstagram \
 
 ## En attente
 
-- **Team ID Apple** : compte développeur payant en cours de validation. En attendant, `DEVELOPMENT_TEAM` du `Local.xcconfig` local contient l'équipe personnelle gratuite (installation sur iPhone valable 7 jours). Le Team ID payant est indispensable avant Sign in with Apple (T2) et l'achat intégré (T10).
+- **Team ID Apple** : compte développeur payant en cours de validation. En attendant, `DEVELOPMENT_TEAM` du `Local.xcconfig` local contient l'équipe personnelle gratuite (installation sur iPhone valable 7 jours). Le Team ID payant est indispensable avant Sign in with Apple (T2b) et l'achat intégré (T10).
 
 ## Interdits
 

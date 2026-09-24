@@ -6,9 +6,9 @@ Projet de cours : un clone d'Instagram composé de trois produits.
 - **Backend** : une API Fastify et un worker BullMQ.
 - **Backoffice d'administration** : Next.js.
 
-Le projet tourne dans deux environnements : en local pour le développement, et sur une démo hébergée (Supabase Cloud, Railway, Vercel). Pour l'instant, seul l'environnement local est en place.
+Le projet tourne dans deux environnements : en local pour le développement, et sur une démo hébergée (Supabase Cloud, Railway, Vercel). Les deux sont en place (§ 7).
 
-> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. La démo hébergée arrive en T1. Détail dans le [plan P0](docs/plan/P0.md).
+> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. T1 (démo hébergée : Supabase Cloud, Railway, Vercel) est terminée. Détail dans le [plan P0](docs/plan/P0.md).
 
 ---
 
@@ -19,7 +19,7 @@ Le projet tourne dans deux environnements : en local pour le développement, et 
 | Docker Desktop | récent | [docker.com](https://www.docker.com/products/docker-desktop/) — **doit être lancé** avant toute commande |
 | Node.js | 24 | `nvm install 24` (le fichier `.nvmrc` fixe la version) |
 | pnpm | 10 (épinglé) | `corepack enable` ; la bonne version est lue dans `package.json` |
-| Supabase CLI | ≥ 2.75 | `brew install supabase/tap/supabase` |
+| Supabase CLI | ≥ 2.117 | `brew install supabase/tap/supabase` (mise à jour : `brew upgrade supabase`) |
 | Xcode | 27 (SDK iOS 27) | Mac App Store ; app iOS uniquement |
 | XcodeGen, SwiftLint, SwiftFormat | récents | `brew bundle --file ios/Brewfile` (fait par `ios/scripts/bootstrap.sh`) |
 
@@ -47,6 +47,8 @@ pnpm db:migrate          # applique les migrations
 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres   # « Database URL » de `supabase status`
 REDIS_URL=redis://127.0.0.1:6379
 API_URL=http://127.0.0.1:3000
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_…                          # « Publishable » de `supabase status`
 ```
 
 > `.env` n'est jamais versionné. Les noms de variables sont les mêmes en local et sur la démo ; seules les valeurs changent.
@@ -129,11 +131,32 @@ Au prochain `supabase start`, relancer `pnpm db:migrate` (puis `pnpm db:seed` qu
 | `pnpm contract:generate` | Valide `openapi.yaml`, régénère les types des clients et met à jour la copie de l'app iOS |
 | `pnpm db:migrate` | Applique les migrations Drizzle |
 | `pnpm db:seed` | Remplit la base avec des données de démo (vide pour l'instant) |
-| `supabase status` | Affiche les URL et les clés locales de Supabase |
+| `pnpm test:supabase` | Vérifie qu'aucune table n'est lisible avec la clé publique Supabase (hors CI, voir § 7) |
+| `supabase status` | Affiche les clés locales de Supabase (l'API de Supabase est sur http://127.0.0.1:54321) |
 
 La CI GitHub Actions lance, à chaque push : validation du contrat, lint, typecheck, tests et build.
 
-## 7. Organisation du code
+## 7. Démo hébergée
+
+Même code qu'en local ; seule la configuration change (variables dans Railway et Vercel, jamais dans le dépôt).
+
+| Élément | Hébergement | Déploiement |
+|---|---|---|
+| Postgres, Auth, Storage | Supabase Cloud, projet `clone-instagram-demo` (UE) | buckets : `supabase seed buckets --linked` |
+| API | Railway, service `api` (`apps/api/Dockerfile`, `apps/api/railway.json`) | automatique sur `main` après CI verte ; migrations appliquées avant le démarrage |
+| Worker | Railway, service `worker` (`apps/worker/Dockerfile`, avec ffmpeg) | automatique sur `main` après CI verte |
+| Redis | Railway, service Redis | — |
+| Backoffice | Vercel (racine `apps/backoffice`) | automatique sur `main`, mis en ligne après CI verte |
+
+- **Base de données** : Railway se connecte au **Session pooler** de Supabase (IPv4, port 5432) ; la connexion directe de Supabase est en IPv6 uniquement.
+- **Aucune migration à la main** : Railway lance `db:migrate` avant chaque nouvelle version de l'API ; si elle échoue, l'ancienne version reste en ligne.
+- **Vérifier la clé publique de la démo** :
+  ```bash
+  SUPABASE_URL=https://<ref>.supabase.co SUPABASE_PUBLISHABLE_KEY=<clé publishable> pnpm test:supabase
+  ```
+- **Coût** : Railway, offre Hobby (5 $ / mois après l'essai de 29 jours) ; Supabase en offre gratuite. Le projet Supabase gratuit se met en pause après une période d'inactivité : le réveiller depuis le dashboard avant une démo.
+
+## 8. Organisation du code
 
 ```
 apps/api/            API Fastify, architecture hexagonale par module
@@ -152,7 +175,7 @@ Principes clés :
 - **Contract-first.** Toute évolution de l'API commence dans `packages/contract/openapi.yaml`.
 - **Développement par tranches verticales**, chacune livrée dans une branche et un commit.
 
-## 8. Documentation
+## 9. Documentation
 
 | Document | Contenu |
 |---|---|
@@ -161,7 +184,7 @@ Principes clés :
 | [docs/ia-workflow.md](docs/ia-workflow.md) | Méthode de développement avec l'IA |
 | [docs/cahier-des-charges/](docs/cahier-des-charges/) | Cahier des charges complet |
 
-## 9. Problèmes fréquents
+## 10. Problèmes fréquents
 
 | Symptôme | Solution |
 |---|---|
@@ -173,4 +196,6 @@ Principes clés :
 | Port 3000 ou 3001 déjà utilisé | Arrêter l'autre processus : `lsof -ti tcp:3000 \| xargs kill` |
 | App iOS : « API injoignable » | Vérifier que `pnpm dev` tourne ; sur iPhone, mettre l'IP du Mac dans `Local.xcconfig` (même Wi-Fi) et accepter l'accès au réseau local |
 | Xcode : « Plugin must be enabled » ou build bloqué sur `OpenAPIGenerator` | Autoriser le plugin dans Xcode ; en ligne de commande, ajouter `-skipPackagePluginValidation` |
+| Storage local : bucket `uploads`, `media-public` ou `media-private` absent | `supabase seed buckets` (crée les buckets déclarés dans `supabase/config.toml`) |
+| Railway : l'API ne démarre pas après un déploiement | Onglet *Deployments* → logs du pré-déploiement (migration) puis du démarrage ; vérifier les variables du service |
 | Xcode : fichier `.xcconfig` introuvable | Lancer `ios/scripts/bootstrap.sh` (crée `Local.xcconfig` et `Demo.xcconfig`) |

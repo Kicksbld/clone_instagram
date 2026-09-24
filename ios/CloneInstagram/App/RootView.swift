@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Routeur racine. En T0b, seul l'écran d'état de l'API existe (auth et onboarding : T2).
+/// Routeur racine. En T0b, seul l'écran d'état de l'API existe (auth et onboarding : T2a).
 struct RootView: View {
     let dependencies: AppDependencies
 

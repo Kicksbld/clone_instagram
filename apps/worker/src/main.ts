@@ -10,7 +10,8 @@ const config = loadConfig(process.env);
 const logger = pino({ level: config.LOG_LEVEL });
 
 // `maxRetriesPerRequest: null` est exigé par BullMQ pour les connexions bloquantes des workers.
-const connection = { url: config.REDIS_URL, maxRetriesPerRequest: null };
+// `family: 0` : résolution IPv4 et IPv6 (le réseau privé Railway est en IPv6).
+const connection = { url: config.REDIS_URL, maxRetriesPerRequest: null, family: 0 };
 const processor = createProcessor(new Map());
 const queueNames = Object.values(QUEUE_NAMES);
 

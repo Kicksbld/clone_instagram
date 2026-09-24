@@ -56,7 +56,9 @@ targets:
         excludes:
           - 'Resources/Config/**'
           - 'Core/API/OpenAPI/**'
-          - '**/.gitkeep'
+          # Chemins explicites : le motif `**/.gitkeep` ne couvre pas les fichiers cachés.
+          - 'Core/Models/.gitkeep'
+          - 'DesignSystem/.gitkeep'
     configFiles:
       Local: CloneInstagram/Resources/Config/Local.xcconfig
       Demo: CloneInstagram/Resources/Config/Demo.xcconfig
