@@ -2,8 +2,8 @@
 // Modèle versionné : copier en Demo.xcconfig (non versionné), via `ios/scripts/bootstrap.sh`.
 // Dans un .xcconfig, `//` commence un commentaire : écrire `https:/$()/…` dans les URL.
 
-// URL de l'API sur Railway (renseignée en T1).
-API_BASE_URL = https:/$()/api.example.invalid
+// URL de l'API sur Railway.
+API_BASE_URL = https:/$()/api-production-cf16.up.railway.app
 
-// Team ID Apple (compte développeur en attente de validation) : à renseigner dès qu'il est attribué.
-DEVELOPMENT_TEAM =
+// Team ID Apple du compte développeur (Sign in with Apple, achat intégré).
+DEVELOPMENT_TEAM = CNLG2XPDKN
