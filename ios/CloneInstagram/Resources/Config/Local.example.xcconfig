@@ -5,6 +5,5 @@
 // URL de l'API. Simulateur : localhost. iPhone physique : IP du Mac (ex. http:/$()/192.168.1.20:3000).
 API_BASE_URL = http:/$()/localhost:3000
 
-// Team ID Apple (compte développeur en attente de validation) : à renseigner dès qu'il est attribué.
-// Indispensable pour Sign in with Apple (T2b) et l'achat intégré (T10).
-DEVELOPMENT_TEAM =
+// Team ID Apple du compte développeur (Sign in with Apple, achat intégré).
+DEVELOPMENT_TEAM = CNLG2XPDKN

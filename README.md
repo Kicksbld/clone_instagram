@@ -150,6 +150,7 @@ Même code qu'en local ; seule la configuration change (variables dans Railway e
 
 - **Base de données** : Railway se connecte au **Session pooler** de Supabase (IPv4, port 5432) ; la connexion directe de Supabase est en IPv6 uniquement.
 - **Aucune migration à la main** : Railway lance `db:migrate` avant chaque nouvelle version de l'API ; si elle échoue, l'ancienne version reste en ligne.
+- **Services externes** : PostHog (région UE), RevenueCat (entitlement `plus`, offre `default`), App Store Connect (abonnement Clone Plus mensuel, testeur sandbox), Sign in with Apple activé dans Supabase (CLI et Cloud, client ID = bundle ID). Détail dans la fiche T1 du [plan P0](docs/plan/P0.md).
 - **Vérifier la clé publique de la démo** :
   ```bash
   SUPABASE_URL=https://<ref>.supabase.co SUPABASE_PUBLISHABLE_KEY=<clé publishable> pnpm test:supabase
