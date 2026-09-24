@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "test:supabase": "pnpm --filter @clone/api test:supabase",
     "build": "pnpm -r build",
     "contract:generate": "pnpm --filter @clone/contract generate",
     "db:migrate": "pnpm --filter @clone/db db:migrate",

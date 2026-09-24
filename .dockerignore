@@ -1,0 +1,16 @@
+# Contexte de build Docker = racine du monorepo (Dockerfiles de apps/api et apps/worker, ADR-009).
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/*.tsbuildinfo
+.git
+.github
+.claude
+.env
+.env.*
+!.env.example
+docs
+ios
+supabase
+**/.DS_Store

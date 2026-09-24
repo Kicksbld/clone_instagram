@@ -4,7 +4,7 @@ import OpenAPIRuntime
 import OpenAPIURLSession
 
 /// Construit le client généré par `swift-openapi-generator` (ADR-003).
-/// Le middleware d'authentification sera ajouté en T2.
+/// Le middleware d'authentification sera ajouté en T2a.
 enum APIClientFactory {
     static func makeClient(
         configuration: APIConfiguration,

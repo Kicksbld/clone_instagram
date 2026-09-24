@@ -9,6 +9,7 @@
     "lint": "eslint . && depcruise src",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
+    "test:supabase": "vitest run --config vitest.supabase.config.ts",
     "build": "tsdown"
   },
   "dependencies": {
