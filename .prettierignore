@@ -6,3 +6,6 @@ packages/contract/generated/
 dist/
 coverage/
 **/*.md
+ios/build/
+ios/*.xcodeproj/
+ios/**/*.xcassets/

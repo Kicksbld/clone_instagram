@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Projet de cours : clone d'Instagram iOS + backend + backoffice, développé par un seul lead dev (Killian) avec l'IA. **Dev en local** (Supabase CLI, Redis Docker) et **démo hébergée** (Supabase Cloud, Railway pour API + worker + Redis, Vercel pour le backoffice), plus les SaaS RevenueCat et PostHog Cloud. P0 est l'objectif ; P1 à P3 viennent ensuite, dans l'ordre. Onboarding, paywall, analytics et A/B test sont imposés et font partie de P0.
 
-Le socle TypeScript existe (T0a) : `apps/api`, `apps/worker`, `apps/backoffice`, `packages/contract`, `packages/db`, `packages/jobs`, sans table ni authentification. **Le projet iOS (`ios/`) n'existe pas encore** (T0b). Mettre à jour ce fichier au fur et à mesure du scaffolding.
+Le socle TypeScript existe (T0a) : `apps/api`, `apps/worker`, `apps/backoffice`, `packages/contract`, `packages/db`, `packages/jobs`, sans table ni authentification. Le squelette iOS existe (T0b) : `ios/`, projet XcodeGen, écran d'état de `/health`. Mettre à jour ce fichier au fur et à mesure du scaffolding.
 
 ## Sources de contexte (ADR-001)
 
@@ -29,7 +29,7 @@ apps/backoffice/   Next.js App Router, Tailwind, shadcn/ui ; client de l'API uni
 packages/contract/ openapi.yaml (source de vérité) + types générés
 packages/db/       schéma Drizzle, migrations, seed, fonctions de transition de statut
 packages/jobs/     contrat API ↔ worker : files, jobs, schémas Zod des payloads (ADR-015)
-ios/               projet Xcode SwiftUI (Swift 6 strict, cible iOS 26 / SDK iOS 27, Liquid Glass)
+ios/               app SwiftUI (Swift 6 strict, cible iOS 26 / SDK iOS 27, Liquid Glass) ; project.yml XcodeGen (ADR-017)
 supabase/          config.toml de la CLI Supabase
 ```
 
@@ -45,7 +45,8 @@ pnpm dev                    # API (:3000) + worker + backoffice (:3001)
 pnpm lint | pnpm typecheck | pnpm test | pnpm build
 pnpm contract:generate      # régénère les clients depuis openapi.yaml
 pnpm db:migrate | pnpm db:seed
-xcodebuild test             # app iOS (à partir de T0b), lancé en local (pas de CI macOS)
+ios/scripts/bootstrap.sh    # app iOS : outils Homebrew, .xcconfig locaux, xcodegen generate
+xcodebuild test             # app iOS, lancé en local (pas de CI macOS) ; commande complète dans ios/CLAUDE.md
 ```
 
 Outils de qualité et tests par niveau : ADR-014.

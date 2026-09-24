@@ -52,7 +52,7 @@ jobs:
       - name: Contrat (Redocly + génération à jour)
         run: |
           pnpm contract:generate
-          git diff --exit-code -- packages/contract/generated
+          git diff --exit-code -- packages/contract/generated ios/CloneInstagram/Core/API/OpenAPI/openapi.yaml
 
       - name: Lint (dont dependency-cruiser et règles d'import)
         run: pnpm lint

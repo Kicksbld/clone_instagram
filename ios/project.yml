@@ -1,0 +1,175 @@
+# Spécification XcodeGen du projet iOS (ADR-010, ADR-017).
+# Le .xcodeproj est généré (`xcodegen generate`) et n'est pas versionné.
+name: CloneInstagram
+
+options:
+  bundleIdPrefix: com.killianboularand
+  deploymentTarget:
+    iOS: '26.0'
+  defaultSourceDirectoryType: syncedFolder
+  createIntermediateGroups: false
+  developmentLanguage: fr
+  defaultConfig: Local
+  # Réglages recommandés d'Xcode 27 déjà appliqués : pas de proposition de mise à niveau.
+  xcodeVersion: '27.0'
+
+# .xcconfig et Info.plist : visibles dans Xcode, hors de toute cible (jamais copiés dans l'app).
+fileGroups:
+  - CloneInstagram/Resources/Config
+
+configs:
+  Local: debug
+  Demo: release
+
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+    TARGETED_DEVICE_FAMILY: '1'
+    SUPPORTS_MACCATALYST: NO
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    STRING_CATALOG_GENERATE_SYMBOLS: YES
+
+packages:
+  swift-openapi-generator:
+    url: https://github.com/apple/swift-openapi-generator
+    exactVersion: 1.13.1
+  swift-openapi-runtime:
+    url: https://github.com/apple/swift-openapi-runtime
+    exactVersion: 1.12.1
+  swift-openapi-urlsession:
+    url: https://github.com/apple/swift-openapi-urlsession
+    exactVersion: 1.3.1
+  Nuke:
+    url: https://github.com/kean/Nuke
+    exactVersion: 13.2.0
+
+targets:
+  CloneInstagram:
+    type: application
+    platform: iOS
+    sources:
+      - path: CloneInstagram
+        excludes:
+          - 'Resources/Config/**'
+          - 'Core/API/OpenAPI/**'
+          - '**/.gitkeep'
+    configFiles:
+      Local: CloneInstagram/Resources/Config/Local.xcconfig
+      Demo: CloneInstagram/Resources/Config/Demo.xcconfig
+    settings:
+      base:
+        PRODUCT_NAME: CloneInstagram
+        PRODUCT_BUNDLE_IDENTIFIER: com.killianboularand.cloneinstagram
+        MARKETING_VERSION: '0.1.0'
+        CURRENT_PROJECT_VERSION: '1'
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Clone
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        # Portrait uniquement, comme Instagram sur iPhone (choix du lead dev). Avertissement Xcode assumé :
+        # « All interface orientations must be supported… » (UIRequiresFullScreen est obsolète depuis iOS 26).
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        # La phase SwiftLint / SwiftFormat lit les sources hors de la liste d'entrées du script.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+      configs:
+        Local:
+          INFOPLIST_FILE: CloneInstagram/Resources/Config/Info-Local.plist
+          INFOPLIST_KEY_NSLocalNetworkUsageDescription: L'app se connecte à l'API de développement sur le réseau local.
+        Demo:
+          INFOPLIST_FILE: CloneInstagram/Resources/Config/Info-Demo.plist
+    dependencies:
+      - target: APIClient
+      - package: swift-openapi-runtime
+        product: OpenAPIRuntime
+      - package: swift-openapi-urlsession
+        product: OpenAPIURLSession
+      - package: Nuke
+        product: Nuke
+    preBuildScripts:
+      - name: SwiftLint et SwiftFormat
+        basedOnDependencyAnalysis: false
+        script: |
+          export PATH="/opt/homebrew/bin:$PATH"
+          cd "$SRCROOT"
+          status=0
+          if command -v swiftlint >/dev/null; then swiftlint lint --quiet || status=$?; else echo "warning: SwiftLint absent (brew bundle --file ios/Brewfile)"; fi
+          if command -v swiftformat >/dev/null; then swiftformat --lint . 2>&1 | sed 's/: error: /: warning: /'; else echo "warning: SwiftFormat absent (brew bundle --file ios/Brewfile)"; fi
+          exit $status
+
+  # Client généré par swift-openapi-generator, isolé dans son propre module :
+  # le code généré ne compile pas avec l'isolation @MainActor par défaut de l'app (ADR-017).
+  APIClient:
+    type: framework.static
+    platform: iOS
+    sources:
+      - path: CloneInstagram/Core/API/OpenAPI
+        name: APIClient (OpenAPI)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.killianboularand.cloneinstagram.apiclient
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
+        ENABLE_MODULE_VERIFIER: YES
+        # Code généré uniquement : ses avertissements (imports publics inutilisés) ne sont pas corrigeables ici.
+        SWIFT_SUPPRESS_WARNINGS: YES
+    dependencies:
+      - package: swift-openapi-runtime
+        product: OpenAPIRuntime
+    buildToolPlugins:
+      - plugin: OpenAPIGenerator
+        package: swift-openapi-generator
+
+  CloneInstagramTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: CloneInstagramTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.killianboularand.cloneinstagram.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/CloneInstagram.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CloneInstagram
+        BUNDLE_LOADER: $(TEST_HOST)
+    dependencies:
+      - target: CloneInstagram
+
+# `CloneInstagram` (configuration Local) est le schéma par défaut ; `CloneInstagram-Demo` vise l'API de démo.
+schemes:
+  CloneInstagram:
+    build:
+      targets:
+        CloneInstagram: all
+        CloneInstagramTests: [test]
+    run:
+      config: Local
+    test:
+      config: Local
+      targets:
+        - CloneInstagramTests
+    profile:
+      config: Local
+    analyze:
+      config: Local
+    archive:
+      config: Local
+  CloneInstagram-Demo:
+    build:
+      targets:
+        CloneInstagram: all
+    run:
+      config: Demo
+    test:
+      config: Demo
+    profile:
+      config: Demo
+    analyze:
+      config: Demo
+    archive:
+      config: Demo

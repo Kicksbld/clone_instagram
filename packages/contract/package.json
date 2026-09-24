@@ -8,7 +8,7 @@
     "./openapi.json": "./generated/openapi.json"
   },
   "scripts": {
-    "generate": "redocly lint openapi.yaml && redocly bundle openapi.yaml --dereferenced --ext json -o generated/openapi.json && openapi-typescript openapi.yaml -o generated/schema.d.ts",
+    "generate": "redocly lint openapi.yaml && redocly bundle openapi.yaml --dereferenced --ext json -o generated/openapi.json && openapi-typescript openapi.yaml -o generated/schema.d.ts && cp openapi.yaml ../../ios/CloneInstagram/Core/API/OpenAPI/openapi.yaml",
     "lint": "redocly lint openapi.yaml",
     "typecheck": "tsc -p tsconfig.json",
     "test": "echo \"@clone/contract : pas de test (validé par redocly lint)\"",
