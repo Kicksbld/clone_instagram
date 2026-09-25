@@ -8,7 +8,7 @@ Projet de cours : un clone d'Instagram composé de trois produits.
 
 Le projet tourne dans deux environnements : en local pour le développement, et sur une démo hébergée (Supabase Cloud, Railway, Vercel). Les deux sont en place (§ 7).
 
-> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. T1 (démo hébergée : Supabase Cloud, Railway, Vercel) est terminée. T2 (inscription par email ou Apple, connexion, onboarding) est en cours de validation sur la démo. Détail dans le [plan P0](docs/plan/P0.md).
+> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. T1 (démo hébergée : Supabase Cloud, Railway, Vercel) est terminée. T2 (inscription par email ou Apple, connexion, onboarding) est terminée. T3 (pipeline image et photo de profil) est en cours. Détail dans le [plan P0](docs/plan/P0.md).
 
 ---
 
@@ -53,9 +53,13 @@ API_URL=http://127.0.0.1:3000
 SUPABASE_URL=http://127.0.0.1:54321
 SUPABASE_JWT_ISSUER=http://127.0.0.1:54321/auth/v1
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_…                          # « Publishable » de `supabase status`
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_…                              # « Secret » de `supabase status`
+PUBLIC_MEDIA_BASE_URL=http://127.0.0.1:54321                        # sur iPhone : http://<IP du Mac>:54321
 ```
 
-L'API refuse de démarrer si `DATABASE_URL`, `SUPABASE_URL` ou `SUPABASE_JWT_ISSUER` manque. Elle vérifie les JWT avec les clés publiques de `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`.
+L'API refuse de démarrer si `DATABASE_URL`, `REDIS_URL`, `SUPABASE_URL`, `SUPABASE_JWT_ISSUER`, `SUPABASE_SERVICE_ROLE_KEY` ou `PUBLIC_MEDIA_BASE_URL` manque ; le worker, si `REDIS_URL`, `DATABASE_URL`, `SUPABASE_URL` ou `SUPABASE_SERVICE_ROLE_KEY` manque. L'API vérifie les JWT avec les clés publiques de `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`. `PUBLIC_MEDIA_BASE_URL` est l'adresse de Supabase vue par l'app : l'API s'en sert pour les URL d'upload et les URL des photos.
+
+Après un `git pull` qui modifie les buckets de `supabase/config.toml` (limites de taille, types acceptés) : `supabase seed buckets`.
 
 > `.env` n'est jamais versionné. Les noms de variables sont les mêmes en local et sur la démo ; seules les valeurs changent.
 
@@ -75,7 +79,7 @@ pnpm dev                 # API + worker + backoffice (Ctrl+C pour arrêter)
 |---|---|---|
 | API | http://localhost:3000/health | `{"status":"ok"}` |
 | Backoffice | http://localhost:3001 | « API : ok » |
-| Worker | logs de `pnpm dev` | `Worker démarré` (files `media`, `maintenance`) |
+| Worker | logs de `pnpm dev` | `Worker démarré` (files `media`, `maintenance`), puis `Médias orphelins purgés` (toutes les heures) |
 | Supabase Studio | http://127.0.0.1:54323 | interface d'administration de la base |
 | Mails de test (Mailpit) | http://127.0.0.1:54324 | emails envoyés par Supabase Auth, dont le **code de confirmation** de l'inscription |
 
@@ -92,7 +96,7 @@ Le projet Xcode est généré à partir de `ios/project.yml` et n'est pas versio
 
 **Lancer** : Supabase et l'API doivent tourner (`supabase start`, `pnpm dev`). Dans Xcode, choisir le schéma `CloneInstagram` et un simulateur, puis ▶︎. L'écran de bienvenue s'affiche (« Commencer », « J'ai déjà un compte »). À l'inscription, le code de confirmation arrive dans Mailpit (http://127.0.0.1:54324). Les écrans sont des wireframes : le style viendra dans une tranche dédiée.
 
-Chaque `.xcconfig` contient `API_BASE_URL`, `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY` (clé publique, non secrète). Sur iPhone, `API_BASE_URL` et `SUPABASE_URL` utilisent l'IP du Mac.
+Chaque `.xcconfig` contient `API_BASE_URL`, `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY` (clé publique, non secrète). Sur iPhone, `API_BASE_URL` et `SUPABASE_URL` utilisent l'IP du Mac, comme `PUBLIC_MEDIA_BASE_URL` dans `.env` (envoi et affichage des photos) ; `pnpm dev` doit tourner pour que le worker traite les photos.
 
 | Configuration | Schéma | Fichier à compléter (non versionné) | API appelée |
 |---|---|---|---|
@@ -139,7 +143,7 @@ Au prochain `supabase start`, relancer `pnpm db:migrate` (puis `pnpm db:seed` qu
 | `pnpm contract:generate` | Valide `openapi.yaml`, régénère les types des clients et met à jour la copie de l'app iOS |
 | `pnpm db:migrate` | Applique les migrations Drizzle |
 | `pnpm db:seed` | Remplit la base avec des données de démo (vide pour l'instant) |
-| `pnpm test:supabase` | Vérifie qu'aucune table n'est lisible avec la clé publique Supabase (hors CI, voir § 7) |
+| `pnpm test:supabase` | Vérifie contre un vrai Supabase qu'aucune table n'est lisible avec la clé publique, et l'upload présigné et les URL publiques des médias (hors CI, voir § 7) |
 | `supabase status` | Affiche les clés locales de Supabase (l'API de Supabase est sur http://127.0.0.1:54321) |
 
 La CI GitHub Actions lance, à chaque push : validation du contrat, lint, typecheck, tests et build.
@@ -175,6 +179,10 @@ Même code qu'en local ; seule la configuration change (variables dans Railway e
   - variables du service `api` sur Railway : `SUPABASE_URL` (`https://<ref>.supabase.co`) et `SUPABASE_JWT_ISSUER` (`https://<ref>.supabase.co/auth/v1`) ;
   - Supabase Cloud → Authentication → Emails → SMTP Settings : SMTP d'iCloud Mail (`smtp.mail.me.com`, port 587, identifiant = adresse iCloud complète, mot de passe pour app créé sur appleid.apple.com, expéditeur = cette adresse). Obligatoire : sans SMTP personnel, un projet gratuit ne peut pas modifier ses modèles et l'email ne contiendrait pas le code ;
   - puis Authentication → Emails → Templates : copier `supabase/templates/confirmation.html` dans « Confirm signup » et `supabase/templates/magic_link.html` dans « Magic Link » (sujet « Votre code de confirmation ») ; confirmation de l'email activée.
+- **Médias (T3, ADR-008)** :
+  - variables du service `api` sur Railway : `REDIS_URL` (référence au service Redis, comme pour le worker), `SUPABASE_SERVICE_ROLE_KEY` (clé « Secret » de Supabase Cloud, Settings → API Keys) et `PUBLIC_MEDIA_BASE_URL` (`https://<ref>.supabase.co`) ;
+  - variables du service `worker` : `DATABASE_URL` (Session pooler, comme l'API), `SUPABASE_URL` (`https://<ref>.supabase.co`) et `SUPABASE_SERVICE_ROLE_KEY`, en plus de `REDIS_URL` ;
+  - limites du bucket `uploads` (20 Mo, JPEG et PNG) reportées sur Supabase Cloud : `supabase seed buckets --linked`.
 - **Vérifier la clé publique de la démo** :
   ```bash
   SUPABASE_URL=https://<ref>.supabase.co SUPABASE_PUBLISHABLE_KEY=<clé publishable> pnpm test:supabase

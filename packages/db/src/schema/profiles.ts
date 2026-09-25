@@ -9,12 +9,15 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+
+import { media } from './media.ts';
 
 /**
  * Profil d'un utilisateur (module `identity`, ADR-005). `id` = identifiant Supabase Auth, sans clé
  * étrangère vers le schéma `auth` (ADR-004) ; profil créé par `POST /v1/me/onboarding` (ADR-018).
- * `avatar_media_id` : clé étrangère vers `media` en T3.
+ * `avatar_media_id` : photo de profil, média attaché (ADR-008).
  */
 export const profiles = pgTable(
   'profiles',
@@ -24,7 +27,9 @@ export const profiles = pgTable(
     fullName: text('full_name').notNull(),
     bio: text('bio').notNull().default(''),
     birthDate: date('birth_date', { mode: 'string' }).notNull(),
-    avatarMediaId: uuid('avatar_media_id'),
+    avatarMediaId: uuid('avatar_media_id').references((): AnyPgColumn => media.id, {
+      onDelete: 'set null',
+    }),
     isPrivate: boolean('is_private').notNull().default(false),
     status: text('status', { enum: ['active', 'suspended', 'banned'] })
       .notNull()

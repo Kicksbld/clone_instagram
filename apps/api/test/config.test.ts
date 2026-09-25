@@ -6,6 +6,9 @@ const required = {
   DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
   SUPABASE_URL: 'http://127.0.0.1:54321',
   SUPABASE_JWT_ISSUER: 'http://127.0.0.1:54321/auth/v1',
+  REDIS_URL: 'redis://127.0.0.1:6379',
+  SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test',
+  PUBLIC_MEDIA_BASE_URL: 'http://192.168.1.20:54321',
 };
 
 describe('configuration', () => {
@@ -35,6 +38,10 @@ describe('configuration', () => {
     ['DATABASE_URL qui n’est pas une URL Postgres', { DATABASE_URL: 'redis://localhost:6379' }],
     ['SUPABASE_URL absente', { SUPABASE_URL: '' }],
     ['SUPABASE_JWT_ISSUER absent', { SUPABASE_JWT_ISSUER: '' }],
+    ['REDIS_URL absente', { REDIS_URL: '' }],
+    ['REDIS_URL qui n’est pas une URL Redis', { REDIS_URL: 'http://localhost:6379' }],
+    ['SUPABASE_SERVICE_ROLE_KEY absente', { SUPABASE_SERVICE_ROLE_KEY: '' }],
+    ['PUBLIC_MEDIA_BASE_URL absente', { PUBLIC_MEDIA_BASE_URL: '' }],
   ])('refuse de démarrer : %s', (_label, env) => {
     expect(() => loadConfig({ ...required, ...env })).toThrow(InvalidConfigError);
   });

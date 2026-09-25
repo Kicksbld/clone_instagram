@@ -18,6 +18,8 @@ struct Profile: Equatable, Identifiable {
     let followerCount: Int
     let followingCount: Int
     let postCount: Int
+    /// Photo de profil ; `nil` sans photo.
+    var avatar: ImageVariants?
 }
 
 /// Disponibilité d'un username (ADR-018).

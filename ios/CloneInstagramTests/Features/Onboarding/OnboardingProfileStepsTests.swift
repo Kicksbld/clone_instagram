@@ -140,6 +140,62 @@ struct OnboardingProfileStepsTests {
 
     // MARK: - Photo, bio, fin
 
+    @Test func `photo choisie → envoi, PATCH /me avec le média, puis étape bio`() async throws {
+        let viewModel = try await context.viewModelAtUsernameStep()
+        viewModel.submitUsername()
+        await viewModel.acceptTerms()
+
+        await viewModel.addProfilePhoto(Data("photo".utf8))
+
+        #expect(context.uploads.uploads.map(\.purpose) == [.avatar])
+        #expect(context.identity.updates == [ProfileChanges(avatarMediaId: context.uploads.mediaId)])
+        #expect(viewModel.profile?.avatar == .fixture)
+        #expect(viewModel.path == [.bio])
+        #expect(viewModel.errorMessage == nil)
+    }
+
+    @Test(arguments: [
+        (UploadError.rejected(.invalidImage), "Ce fichier n'est pas une photo valide. Choisissez-en une autre."),
+        (.transferFailed, "L'envoi de la photo a échoué. Vérifiez votre connexion et réessayez."),
+        (.timedOut, "Le traitement de la photo prend trop de temps. Réessayez."),
+    ])
+    func `échec de l'envoi → message, on reste sur l'étape photo`(error: UploadError, message: String) async throws {
+        let viewModel = try await context.viewModelAtUsernameStep()
+        viewModel.submitUsername()
+        await viewModel.acceptTerms()
+        context.uploads.error = error
+
+        await viewModel.addProfilePhoto(Data("photo".utf8))
+
+        #expect(viewModel.currentStep == .profilePhoto)
+        #expect(viewModel.errorMessage == message)
+        #expect(context.identity.updates.isEmpty)
+        #expect(!viewModel.isLoading)
+    }
+
+    @Test func `photo refusée par l'API → message, on reste sur l'étape photo`() async throws {
+        let viewModel = try await context.viewModelAtUsernameStep()
+        viewModel.submitUsername()
+        await viewModel.acceptTerms()
+        context.identity.updateError = .mediaRejected
+
+        await viewModel.addProfilePhoto(Data("photo".utf8))
+
+        #expect(viewModel.currentStep == .profilePhoto)
+        #expect(viewModel.errorMessage == "Cette photo n'a pas pu être utilisée. Choisissez-en une autre.")
+    }
+
+    @Test func `photo illisible dans la photothèque → message`() async throws {
+        let viewModel = try await context.viewModelAtUsernameStep()
+        viewModel.submitUsername()
+        await viewModel.acceptTerms()
+
+        viewModel.profilePhotoLoadFailed()
+
+        #expect(viewModel.errorMessage == "Cette photo n'a pas pu être lue. Choisissez-en une autre.")
+        #expect(context.uploads.uploads.isEmpty)
+    }
+
     @Test func `photo passée, bio vide → compte prêt sans appel`() async throws {
         let viewModel = try await context.viewModelAtUsernameStep()
         viewModel.submitUsername()

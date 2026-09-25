@@ -1,4 +1,12 @@
+import type { ImageVariantPaths } from '../../../shared/domain/image-variants.ts';
+
 export type AccountStatus = 'active' | 'suspended' | 'banned';
+
+/** Photo de profil : média attaché et ses variantes (ADR-008). */
+export interface Avatar {
+  mediaId: string;
+  variants: ImageVariantPaths;
+}
 
 /** Profil de l'utilisateur, tel que le module `identity` le manipule. */
 export interface Profile {
@@ -14,6 +22,7 @@ export interface Profile {
   followerCount: number;
   followingCount: number;
   postCount: number;
+  avatar: Avatar | null;
   createdAt: Date;
 }
 

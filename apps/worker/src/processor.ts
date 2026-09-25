@@ -4,7 +4,7 @@ export type JobHandler = (job: Job) => Promise<unknown>;
 
 /**
  * Aiguillage des jobs par nom. Chaque tranche qui crée un job y ajoute son handler, qui valide
- * d'abord le payload avec le schéma Zod de packages/jobs (ADR-015). Aucun job en T0a.
+ * d'abord le payload avec le schéma Zod de packages/jobs (ADR-015).
  */
 export function createProcessor(handlers: ReadonlyMap<string, JobHandler>) {
   return async (job: Job): Promise<unknown> => {

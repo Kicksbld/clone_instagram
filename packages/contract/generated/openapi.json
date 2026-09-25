@@ -3,7 +3,7 @@
   "info": {
     "title": "Clone Instagram API",
     "version": "0.1.0",
-    "description": "Contrat unique des échanges entre l'API, l'app iOS et le backoffice (ADR-003).\n\n- Routes métier préfixées par `/v1` ; `GET /health` est hors version.\n- JSON UTF-8, identifiants UUID v7, dates ISO 8601 UTC.\n- Authentification : `Authorization: Bearer <JWT Supabase>` sur toutes les routes sauf `GET /health`.\n- Erreurs : Problem Details (RFC 9457), `Content-Type: application/problem+json`, avec un `code` stable.\n\nCodes d'erreur transverses :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |\n| `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |\n| `route_not_found` | 404 | Route inexistante |\n| `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |\n\nCodes d'erreur métier :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `profile_not_found` | 404 | L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé) |\n| `username_taken` | 409 | Username déjà utilisé par un autre profil |\n| `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |\n| `age_requirement_not_met` | 422 | Moins de 13 ans à la date du jour (UTC) |\n"
+    "description": "Contrat unique des échanges entre l'API, l'app iOS et le backoffice (ADR-003).\n\n- Routes métier préfixées par `/v1` ; `GET /health` est hors version.\n- JSON UTF-8, identifiants UUID v7, dates ISO 8601 UTC.\n- Authentification : `Authorization: Bearer <JWT Supabase>` sur toutes les routes sauf `GET /health`.\n- Erreurs : Problem Details (RFC 9457), `Content-Type: application/problem+json`, avec un `code` stable.\n\nCodes d'erreur transverses :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |\n| `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |\n| `route_not_found` | 404 | Route inexistante |\n| `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |\n\nCodes d'erreur métier :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `profile_not_found` | 404 | L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé) |\n| `username_taken` | 409 | Username déjà utilisé par un autre profil |\n| `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |\n| `age_requirement_not_met` | 422 | Moins de 13 ans à la date du jour (UTC) |\n| `media_not_found` | 404 | Média inexistant ou appartenant à un autre utilisateur |\n| `media_invalid_transition` | 409 | Le statut du média ne permet pas l'opération (ex. `complete` sur un média déjà traité) |\n| `media_not_ready` | 409 | Le média n'est pas encore `ready` |\n| `media_already_attached` | 409 | Le média est déjà utilisé, ou l'a été (un média ne sert qu'une fois) |\n| `media_purpose_mismatch` | 422 | Le `purpose` du média ne correspond pas à l'usage demandé |\n"
   },
   "servers": [
     {
@@ -24,6 +24,10 @@
     {
       "name": "identity",
       "description": "Profil de l'utilisateur authentifié, onboarding, usernames"
+    },
+    {
+      "name": "media",
+      "description": "Upload présigné et traitement des médias (ADR-008)"
     }
   ],
   "paths": {
@@ -203,6 +207,33 @@
                     "postCount": {
                       "type": "integer",
                       "minimum": 0
+                    },
+                    "avatar": {
+                      "description": "Photo de profil ; absente si aucune photo.",
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "thumb",
+                        "medium",
+                        "large"
+                      ],
+                      "properties": {
+                        "thumb": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "150 px de large."
+                        },
+                        "medium": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "640 px de large."
+                        },
+                        "large": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "1080 px de large."
+                        }
+                      }
                     },
                     "createdAt": {
                       "type": "string",
@@ -386,7 +417,7 @@
           "identity"
         ],
         "summary": "Modifier mon profil",
-        "description": "Modifie le nom, la bio ou le username. Seuls les champs présents sont modifiés ; une bio vide efface la bio.",
+        "description": "Modifie le nom, la bio, le username ou la photo de profil. Seuls les champs présents sont modifiés ; une bio vide efface la bio. `avatarMediaId` désigne un média `ready`, à moi, de `purpose` `avatar`, jamais utilisé ; l'ancienne photo est détachée puis purgée (ADR-008).",
         "requestBody": {
           "required": true,
           "content": {
@@ -421,6 +452,11 @@
                     "type": "string",
                     "description": "150 caractères au plus ; chaîne vide si aucune bio.",
                     "maxLength": 150
+                  },
+                  "avatarMediaId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Nouvelle photo de profil ; le retrait passe par `DELETE /v1/me/avatar`."
                   }
                 }
               }
@@ -507,6 +543,33 @@
                     "postCount": {
                       "type": "integer",
                       "minimum": 0
+                    },
+                    "avatar": {
+                      "description": "Photo de profil ; absente si aucune photo.",
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "thumb",
+                        "medium",
+                        "large"
+                      ],
+                      "properties": {
+                        "thumb": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "150 px de large."
+                        },
+                        "medium": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "640 px de large."
+                        },
+                        "large": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "1080 px de large."
+                        }
+                      }
                     },
                     "createdAt": {
                       "type": "string",
@@ -628,7 +691,7 @@
             }
           },
           "404": {
-            "description": "Onboarding non terminé (`profile_not_found`).",
+            "description": "Onboarding non terminé (`profile_not_found`) ou média introuvable (`media_not_found`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -683,7 +746,355 @@
             }
           },
           "409": {
-            "description": "Username déjà utilisé (`username_taken`).",
+            "description": "Username déjà utilisé (`username_taken`), média pas encore prêt (`media_not_ready`) ou déjà utilisé (`media_already_attached`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Média prévu pour un autre usage (`media_purpose_mismatch`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/avatar": {
+      "delete": {
+        "operationId": "removeAvatar",
+        "tags": [
+          "identity"
+        ],
+        "summary": "Retirer ma photo de profil",
+        "description": "Retire la photo de profil ; l'ancien média est détaché puis purgé (ADR-008). Sans photo, ne change rien.",
+        "responses": {
+          "200": {
+            "description": "Profil sans photo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Profil de l'utilisateur authentifié.",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "username",
+                    "fullName",
+                    "bio",
+                    "birthDate",
+                    "isPrivate",
+                    "status",
+                    "followerCount",
+                    "followingCount",
+                    "postCount",
+                    "createdAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Identifiant Supabase Auth."
+                    },
+                    "username": {
+                      "type": "string",
+                      "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                      "minLength": 1,
+                      "maxLength": 30,
+                      "pattern": "^[a-z0-9._]{1,30}$",
+                      "examples": [
+                        "killian.b"
+                      ]
+                    },
+                    "fullName": {
+                      "type": "string",
+                      "description": "Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.",
+                      "minLength": 1,
+                      "maxLength": 30,
+                      "pattern": "\\S",
+                      "examples": [
+                        "Killian Boularand"
+                      ]
+                    },
+                    "bio": {
+                      "type": "string",
+                      "description": "150 caractères au plus ; chaîne vide si aucune bio.",
+                      "maxLength": 150
+                    },
+                    "birthDate": {
+                      "type": "string",
+                      "format": "date",
+                      "description": "Renvoyée à son seul propriétaire."
+                    },
+                    "isPrivate": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "suspended",
+                        "banned"
+                      ]
+                    },
+                    "followerCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "followingCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "postCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "avatar": {
+                      "description": "Photo de profil ; absente si aucune photo.",
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "thumb",
+                        "medium",
+                        "large"
+                      ],
+                      "properties": {
+                        "thumb": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "150 px de large."
+                        },
+                        "medium": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "640 px de large."
+                        },
+                        "large": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "1080 px de large."
+                        }
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Onboarding non terminé (`profile_not_found`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -928,6 +1339,33 @@
                     "postCount": {
                       "type": "integer",
                       "minimum": 0
+                    },
+                    "avatar": {
+                      "description": "Photo de profil ; absente si aucune photo.",
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "thumb",
+                        "medium",
+                        "large"
+                      ],
+                      "properties": {
+                        "thumb": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "150 px de large."
+                        },
+                        "medium": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "640 px de large."
+                        },
+                        "large": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "1080 px de large."
+                        }
+                      }
                     },
                     "createdAt": {
                       "type": "string",
@@ -1455,6 +1893,1026 @@
           }
         }
       }
+    },
+    "/v1/media/uploads": {
+      "post": {
+        "operationId": "requestMediaUpload",
+        "tags": [
+          "media"
+        ],
+        "summary": "Demander une intention d'upload",
+        "description": "Crée le média en `pending_upload` et renvoie une URL d'upload présignée (ADR-008).\nLe fichier est envoyé directement à `uploadUrl` par un `PUT` du contenu brut, avec le `Content-Type` déclaré, avant `expiresAt` ;\nl'API ne transporte jamais le fichier. En T3 : image JPEG ou PNG de 20 Mo au plus, pour une photo de profil.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "purpose",
+                  "mimeType",
+                  "sizeBytes"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "description": "`video` arrive avec les reels (P1).",
+                    "enum": [
+                      "image"
+                    ]
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "description": "`post` arrive en T6a.",
+                    "enum": [
+                      "avatar"
+                    ]
+                  },
+                  "mimeType": {
+                    "type": "string",
+                    "enum": [
+                      "image/jpeg",
+                      "image/png"
+                    ]
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "description": "Taille déclarée du fichier ; le worker revérifie le fichier réel.",
+                    "minimum": 1,
+                    "maximum": 20971520
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Intention d'upload créée.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "mediaId",
+                    "uploadUrl",
+                    "expiresAt"
+                  ],
+                  "properties": {
+                    "mediaId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "uploadUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL présignée ; `PUT` du contenu brut du fichier."
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Onboarding non terminé (`profile_not_found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/media/{id}/complete": {
+      "post": {
+        "operationId": "completeMediaUpload",
+        "tags": [
+          "media"
+        ],
+        "summary": "Confirmer l'envoi du fichier",
+        "description": "Passe le média de `pending_upload` à `uploaded` et lance son traitement. Rappelé sur un média déjà `uploaded`, relance le traitement sans doublon.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Média en attente de traitement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Un de mes médias.",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "kind",
+                    "purpose",
+                    "status"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "description": "`video` arrive avec les reels (P1).",
+                      "enum": [
+                        "image"
+                      ]
+                    },
+                    "purpose": {
+                      "type": "string",
+                      "description": "`post` arrive en T6a.",
+                      "enum": [
+                        "avatar"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "`pending_upload` → `uploaded` → `processing` → `ready` | `failed` (ADR-008).",
+                      "enum": [
+                        "pending_upload",
+                        "uploaded",
+                        "processing",
+                        "ready",
+                        "failed"
+                      ]
+                    },
+                    "variants": {
+                      "description": "Présentes quand le média est `ready`.",
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "thumb",
+                        "medium",
+                        "large"
+                      ],
+                      "properties": {
+                        "thumb": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "150 px de large."
+                        },
+                        "medium": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "640 px de large."
+                        },
+                        "large": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "1080 px de large."
+                        }
+                      }
+                    },
+                    "failureReason": {
+                      "description": "Présent quand le média est `failed`.",
+                      "type": "string",
+                      "enum": [
+                        "invalid_image",
+                        "file_too_large",
+                        "processing_error"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Média inexistant ou d'un autre utilisateur (`media_not_found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Média déjà en traitement, prêt ou en échec (`media_invalid_transition`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/media/{id}": {
+      "get": {
+        "operationId": "getMedia",
+        "tags": [
+          "media"
+        ],
+        "summary": "Statut d'un de mes médias",
+        "description": "Statut et variantes d'un média, pour son seul propriétaire. L'app interroge cette route jusqu'à `ready` ou `failed`.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Le média.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Un de mes médias.",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "kind",
+                    "purpose",
+                    "status"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "description": "`video` arrive avec les reels (P1).",
+                      "enum": [
+                        "image"
+                      ]
+                    },
+                    "purpose": {
+                      "type": "string",
+                      "description": "`post` arrive en T6a.",
+                      "enum": [
+                        "avatar"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "`pending_upload` → `uploaded` → `processing` → `ready` | `failed` (ADR-008).",
+                      "enum": [
+                        "pending_upload",
+                        "uploaded",
+                        "processing",
+                        "ready",
+                        "failed"
+                      ]
+                    },
+                    "variants": {
+                      "description": "Présentes quand le média est `ready`.",
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "thumb",
+                        "medium",
+                        "large"
+                      ],
+                      "properties": {
+                        "thumb": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "150 px de large."
+                        },
+                        "medium": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "640 px de large."
+                        },
+                        "large": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "1080 px de large."
+                        }
+                      }
+                    },
+                    "failureReason": {
+                      "description": "Présent quand le média est `failed`.",
+                      "type": "string",
+                      "enum": [
+                        "invalid_image",
+                        "file_too_large",
+                        "processing_error"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Média inexistant ou d'un autre utilisateur (`media_not_found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1589,6 +3047,33 @@
             "type": "integer",
             "minimum": 0
           },
+          "avatar": {
+            "description": "Photo de profil ; absente si aucune photo.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "thumb",
+              "medium",
+              "large"
+            ],
+            "properties": {
+              "thumb": {
+                "type": "string",
+                "format": "uri",
+                "description": "150 px de large."
+              },
+              "medium": {
+                "type": "string",
+                "format": "uri",
+                "description": "640 px de large."
+              },
+              "large": {
+                "type": "string",
+                "format": "uri",
+                "description": "1080 px de large."
+              }
+            }
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -1663,6 +3148,11 @@
             "type": "string",
             "description": "150 caractères au plus ; chaîne vide si aucune bio.",
             "maxLength": 150
+          },
+          "avatarMediaId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Nouvelle photo de profil ; le retrait passe par `DELETE /v1/me/avatar`."
           }
         }
       },
@@ -1702,6 +3192,208 @@
                 "killian.b"
               ]
             }
+          }
+        }
+      },
+      "ImageVariants": {
+        "type": "object",
+        "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+        "additionalProperties": false,
+        "required": [
+          "thumb",
+          "medium",
+          "large"
+        ],
+        "properties": {
+          "thumb": {
+            "type": "string",
+            "format": "uri",
+            "description": "150 px de large."
+          },
+          "medium": {
+            "type": "string",
+            "format": "uri",
+            "description": "640 px de large."
+          },
+          "large": {
+            "type": "string",
+            "format": "uri",
+            "description": "1080 px de large."
+          }
+        }
+      },
+      "MediaKind": {
+        "type": "string",
+        "description": "`video` arrive avec les reels (P1).",
+        "enum": [
+          "image"
+        ]
+      },
+      "MediaPurpose": {
+        "type": "string",
+        "description": "`post` arrive en T6a.",
+        "enum": [
+          "avatar"
+        ]
+      },
+      "MediaStatus": {
+        "type": "string",
+        "description": "`pending_upload` → `uploaded` → `processing` → `ready` | `failed` (ADR-008).",
+        "enum": [
+          "pending_upload",
+          "uploaded",
+          "processing",
+          "ready",
+          "failed"
+        ]
+      },
+      "MediaFailureReason": {
+        "type": "string",
+        "description": "- `invalid_image` : le fichier n'est pas une image JPEG ou PNG ;\n- `file_too_large` : plus de 20 Mo ;\n- `processing_error` : échec du traitement après ses tentatives.\n",
+        "enum": [
+          "invalid_image",
+          "file_too_large",
+          "processing_error"
+        ]
+      },
+      "MediaUploadRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "purpose",
+          "mimeType",
+          "sizeBytes"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "`video` arrive avec les reels (P1).",
+            "enum": [
+              "image"
+            ]
+          },
+          "purpose": {
+            "type": "string",
+            "description": "`post` arrive en T6a.",
+            "enum": [
+              "avatar"
+            ]
+          },
+          "mimeType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png"
+            ]
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "description": "Taille déclarée du fichier ; le worker revérifie le fichier réel.",
+            "minimum": 1,
+            "maximum": 20971520
+          }
+        }
+      },
+      "MediaUploadIntent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mediaId",
+          "uploadUrl",
+          "expiresAt"
+        ],
+        "properties": {
+          "mediaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL présignée ; `PUT` du contenu brut du fichier."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Media": {
+        "type": "object",
+        "description": "Un de mes médias.",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "purpose",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`video` arrive avec les reels (P1).",
+            "enum": [
+              "image"
+            ]
+          },
+          "purpose": {
+            "type": "string",
+            "description": "`post` arrive en T6a.",
+            "enum": [
+              "avatar"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "`pending_upload` → `uploaded` → `processing` → `ready` | `failed` (ADR-008).",
+            "enum": [
+              "pending_upload",
+              "uploaded",
+              "processing",
+              "ready",
+              "failed"
+            ]
+          },
+          "variants": {
+            "description": "Présentes quand le média est `ready`.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "thumb",
+              "medium",
+              "large"
+            ],
+            "properties": {
+              "thumb": {
+                "type": "string",
+                "format": "uri",
+                "description": "150 px de large."
+              },
+              "medium": {
+                "type": "string",
+                "format": "uri",
+                "description": "640 px de large."
+              },
+              "large": {
+                "type": "string",
+                "format": "uri",
+                "description": "1080 px de large."
+              }
+            }
+          },
+          "failureReason": {
+            "description": "Présent quand le média est `failed`.",
+            "type": "string",
+            "enum": [
+              "invalid_image",
+              "file_too_large",
+              "processing_error"
+            ]
           }
         }
       },
@@ -1751,6 +3443,17 @@
               "route_not_found"
             ]
           }
+        }
+      }
+    },
+    "parameters": {
+      "MediaId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
         }
       }
     },
@@ -1920,8 +3623,8 @@
           }
         }
       },
-      "UsernameTaken": {
-        "description": "Username déjà utilisé (`username_taken`).",
+      "MediaNotFound": {
+        "description": "Média inexistant ou d'un autre utilisateur (`media_not_found`).",
         "content": {
           "application/problem+json": {
             "schema": {

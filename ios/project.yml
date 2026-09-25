@@ -103,6 +103,9 @@ targets:
         product: OpenAPIURLSession
       - package: Nuke
         product: Nuke
+      # `LazyImage` : affichage des photos (ADR-010), jamais `AsyncImage`.
+      - package: Nuke
+        product: NukeUI
       - package: supabase-swift
         product: Auth
     preBuildScripts:

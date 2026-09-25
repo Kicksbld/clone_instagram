@@ -3,6 +3,10 @@ import { z } from 'zod';
 /** Configuration du worker, validée au démarrage (liste complète : ADR-009, `.env.example`). */
 const configSchema = z.object({
   REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+  // T3 : état des médias en base, fichiers dans Supabase Storage avec la clé secrète (ADR-009).
+  DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+  SUPABASE_URL: z.url({ protocol: /^https?$/ }),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 

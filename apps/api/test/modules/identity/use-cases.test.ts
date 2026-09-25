@@ -10,6 +10,8 @@ import {
   ProfileNotFoundError,
   UsernameTakenError,
 } from '../../../src/modules/identity/domain/errors.ts';
+import { InMemoryUnitOfWork } from '../../support/fakes.ts';
+import { InMemoryMediaRepository } from '../../support/in-memory-media-repository.ts';
 import { InMemoryProfileRepository } from '../../support/in-memory-profile-repository.ts';
 
 const NOW = new Date('2026-09-25T12:00:00.000Z');
@@ -93,10 +95,16 @@ describe('CompleteOnboarding', () => {
 });
 
 describe('UpdateMe', () => {
+  const updateMe = () =>
+    new UpdateMe(
+      profiles,
+      new InMemoryUnitOfWork({ profiles, media: new InMemoryMediaRepository() }),
+    );
+
   it('ne modifie que les champs fournis, nettoyés', async () => {
     profiles.add({ id: ME, username: 'killian', fullName: 'Killian', bio: 'avant' });
 
-    const profile = await new UpdateMe(profiles).execute({
+    const profile = await updateMe().execute({
       userId: ME,
       changes: { bio: '  Dev iOS  ' },
     });
@@ -106,14 +114,14 @@ describe('UpdateMe', () => {
 
   it('bio vide → bio effacée', async () => {
     profiles.add({ id: ME, username: 'killian', bio: 'avant' });
-    const profile = await new UpdateMe(profiles).execute({ userId: ME, changes: { bio: '' } });
+    const profile = await updateMe().execute({ userId: ME, changes: { bio: '' } });
     expect(profile.bio).toBe('');
   });
 
   it('garder son propre username n’est pas un conflit', async () => {
     profiles.add({ id: ME, username: 'killian' });
     await expect(
-      new UpdateMe(profiles).execute({ userId: ME, changes: { username: 'killian' } }),
+      updateMe().execute({ userId: ME, changes: { username: 'killian' } }),
     ).resolves.toMatchObject({ username: 'killian' });
   });
 
@@ -121,14 +129,14 @@ describe('UpdateMe', () => {
     profiles.add({ id: ME, username: 'killian' });
     profiles.add({ id: OTHER, username: 'autre' });
     await expect(
-      new UpdateMe(profiles).execute({ userId: ME, changes: { username: 'autre' } }),
+      updateMe().execute({ userId: ME, changes: { username: 'autre' } }),
     ).rejects.toBeInstanceOf(UsernameTakenError);
   });
 
   it('profil absent → profile_not_found', async () => {
-    await expect(
-      new UpdateMe(profiles).execute({ userId: ME, changes: { bio: 'x' } }),
-    ).rejects.toBeInstanceOf(ProfileNotFoundError);
+    await expect(updateMe().execute({ userId: ME, changes: { bio: 'x' } })).rejects.toBeInstanceOf(
+      ProfileNotFoundError,
+    );
   });
 });
 

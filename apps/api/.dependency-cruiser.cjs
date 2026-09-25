@@ -40,7 +40,9 @@ module.exports = {
     },
   ],
   options: {
-    doNotFollow: { path: 'node_modules' },
+    // Les règles portent sur le code de l'API : les packages partagés sont résolus, pas analysés
+    // (références circulaires voulues entre tables Drizzle, fichiers internes de packages/jobs).
+    doNotFollow: { path: ['node_modules', '(^|/)packages/'] },
     exclude: { path: '(^|/)test/fixtures/' },
     tsConfig: { fileName: 'tsconfig.json' },
     tsPreCompilationDeps: true,

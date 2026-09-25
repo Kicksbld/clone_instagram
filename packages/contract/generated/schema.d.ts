@@ -43,9 +43,29 @@ export interface paths {
         head?: never;
         /**
          * Modifier mon profil
-         * @description Modifie le nom, la bio ou le username. Seuls les champs présents sont modifiés ; une bio vide efface la bio.
+         * @description Modifie le nom, la bio, le username ou la photo de profil. Seuls les champs présents sont modifiés ; une bio vide efface la bio. `avatarMediaId` désigne un média `ready`, à moi, de `purpose` `avatar`, jamais utilisé ; l'ancienne photo est détachée puis purgée (ADR-008).
          */
         patch: operations["updateMe"];
+        trace?: never;
+    };
+    "/v1/me/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Retirer ma photo de profil
+         * @description Retire la photo de profil ; l'ancien média est détaché puis purgé (ADR-008). Sans photo, ne change rien.
+         */
+        delete: operations["removeAvatar"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/me/onboarding": {
@@ -80,6 +100,68 @@ export interface paths {
          * @description Vérifiée en direct pendant l'onboarding. Si le username est pris, jusqu'à 3 usernames libres dérivés du candidat sont suggérés. Un username au mauvais format est refusé en `400`. Le username de l'appelant lui-même est disponible pour lui.
          */
         get: operations["getUsernameAvailability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/media/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Demander une intention d'upload
+         * @description Crée le média en `pending_upload` et renvoie une URL d'upload présignée (ADR-008).
+         *     Le fichier est envoyé directement à `uploadUrl` par un `PUT` du contenu brut, avec le `Content-Type` déclaré, avant `expiresAt` ;
+         *     l'API ne transporte jamais le fichier. En T3 : image JPEG ou PNG de 20 Mo au plus, pour une photo de profil.
+         */
+        post: operations["requestMediaUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/media/{id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirmer l'envoi du fichier
+         * @description Passe le média de `pending_upload` à `uploaded` et lance son traitement. Rappelé sur un média déjà `uploaded`, relance le traitement sans doublon.
+         */
+        post: operations["completeMediaUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/media/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Statut d'un de mes médias
+         * @description Statut et variantes d'un média, pour son seul propriétaire. L'app interroge cette route jusqu'à `ready` ou `failed`.
+         */
+        get: operations["getMedia"];
         put?: never;
         post?: never;
         delete?: never;
@@ -130,6 +212,8 @@ export interface components {
             followerCount: number;
             followingCount: number;
             postCount: number;
+            /** @description Photo de profil ; absente si aucune photo. */
+            avatar?: components["schemas"]["ImageVariants"];
             /** Format: date-time */
             createdAt: string;
         };
@@ -147,12 +231,88 @@ export interface components {
             username?: components["schemas"]["Username"];
             fullName?: components["schemas"]["FullName"];
             bio?: components["schemas"]["Bio"];
+            /**
+             * Format: uuid
+             * @description Nouvelle photo de profil ; le retrait passe par `DELETE /v1/me/avatar`.
+             */
+            avatarMediaId?: string;
         };
         UsernameAvailability: {
             username: components["schemas"]["Username"];
             available: boolean;
             /** @description Vide si le username est disponible ; sinon jusqu'à 3 usernames libres. */
             suggestions: components["schemas"]["Username"][];
+        };
+        /** @description URL publiques des variantes WebP d'une image (ADR-008). */
+        ImageVariants: {
+            /**
+             * Format: uri
+             * @description 150 px de large.
+             */
+            thumb: string;
+            /**
+             * Format: uri
+             * @description 640 px de large.
+             */
+            medium: string;
+            /**
+             * Format: uri
+             * @description 1080 px de large.
+             */
+            large: string;
+        };
+        /**
+         * @description `video` arrive avec les reels (P1).
+         * @enum {string}
+         */
+        MediaKind: "image";
+        /**
+         * @description `post` arrive en T6a.
+         * @enum {string}
+         */
+        MediaPurpose: "avatar";
+        /**
+         * @description `pending_upload` → `uploaded` → `processing` → `ready` | `failed` (ADR-008).
+         * @enum {string}
+         */
+        MediaStatus: "pending_upload" | "uploaded" | "processing" | "ready" | "failed";
+        /**
+         * @description - `invalid_image` : le fichier n'est pas une image JPEG ou PNG ;
+         *     - `file_too_large` : plus de 20 Mo ;
+         *     - `processing_error` : échec du traitement après ses tentatives.
+         * @enum {string}
+         */
+        MediaFailureReason: "invalid_image" | "file_too_large" | "processing_error";
+        MediaUploadRequest: {
+            kind: components["schemas"]["MediaKind"];
+            purpose: components["schemas"]["MediaPurpose"];
+            /** @enum {string} */
+            mimeType: "image/jpeg" | "image/png";
+            /** @description Taille déclarée du fichier ; le worker revérifie le fichier réel. */
+            sizeBytes: number;
+        };
+        MediaUploadIntent: {
+            /** Format: uuid */
+            mediaId: string;
+            /**
+             * Format: uri
+             * @description URL présignée ; `PUT` du contenu brut du fichier.
+             */
+            uploadUrl: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        /** @description Un de mes médias. */
+        Media: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["MediaKind"];
+            purpose: components["schemas"]["MediaPurpose"];
+            status: components["schemas"]["MediaStatus"];
+            /** @description Présentes quand le média est `ready`. */
+            variants?: components["schemas"]["ImageVariants"];
+            /** @description Présent quand le média est `failed`. */
+            failureReason?: components["schemas"]["MediaFailureReason"];
         };
         /** @description Erreur au format Problem Details (RFC 9457). */
         ProblemDetails: {
@@ -206,8 +366,8 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
-        /** @description Username déjà utilisé (`username_taken`). */
-        UsernameTaken: {
+        /** @description Média inexistant ou d'un autre utilisateur (`media_not_found`). */
+        MediaNotFound: {
             headers: {
                 [name: string]: unknown;
             };
@@ -225,7 +385,9 @@ export interface components {
             };
         };
     };
-    parameters: never;
+    parameters: {
+        MediaId: string;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -300,8 +462,56 @@ export interface operations {
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
+            /** @description Onboarding non terminé (`profile_not_found`) ou média introuvable (`media_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Username déjà utilisé (`username_taken`), média pas encore prêt (`media_not_ready`) ou déjà utilisé (`media_already_attached`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Média prévu pour un autre usage (`media_purpose_mismatch`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    removeAvatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Profil sans photo. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
             404: components["responses"]["ProfileNotFound"];
-            409: components["responses"]["UsernameTaken"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -372,6 +582,95 @@ export interface operations {
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    requestMediaUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MediaUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Intention d'upload créée. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaUploadIntent"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["ProfileNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    completeMediaUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["MediaId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Média en attente de traitement. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Media"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["MediaNotFound"];
+            /** @description Média déjà en traitement, prêt ou en échec (`media_invalid_transition`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getMedia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["MediaId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Le média. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Media"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["MediaNotFound"];
             500: components["responses"]["InternalError"];
         };
     };

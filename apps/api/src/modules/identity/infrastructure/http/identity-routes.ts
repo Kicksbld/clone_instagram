@@ -3,15 +3,18 @@ import type { FastifyInstance } from 'fastify';
 
 import { authenticatedUserId } from '../../../../shared/infrastructure/auth/authentication.ts';
 import { routeSchemaFor } from '../../../../shared/infrastructure/http/contract-schemas.ts';
+import type { PublicMediaUrls } from '../../../../shared/infrastructure/http/public-media-urls.ts';
 import type { CheckUsernameAvailability } from '../../application/use-cases/check-username-availability.ts';
 import type { CompleteOnboarding } from '../../application/use-cases/complete-onboarding.ts';
 import type { GetMe } from '../../application/use-cases/get-me.ts';
+import type { RemoveAvatar } from '../../application/use-cases/remove-avatar.ts';
 import type { UpdateMe } from '../../application/use-cases/update-me.ts';
 import type { Profile } from '../../domain/profile.ts';
 
 export interface IdentityUseCases {
   getMe: GetMe;
   updateMe: UpdateMe;
+  removeAvatar: RemoveAvatar;
   completeOnboarding: CompleteOnboarding;
   checkUsernameAvailability: CheckUsernameAvailability;
 }
@@ -23,12 +26,18 @@ type JsonBody<Operation extends keyof operations> = operations[Operation] extend
   ? Body
   : never;
 
-function toMe(profile: Profile): Me {
-  return { ...profile, createdAt: profile.createdAt.toISOString() };
-}
-
 /** Routes du module `identity` : authentifiées par le scope `/v1` (voir `app.ts`). */
-export function registerIdentityRoutes(app: FastifyInstance, useCases: IdentityUseCases): void {
+export function registerIdentityRoutes(
+  app: FastifyInstance,
+  useCases: IdentityUseCases,
+  urls: PublicMediaUrls,
+): void {
+  const toMe = ({ avatar, createdAt, ...profile }: Profile): Me => ({
+    ...profile,
+    ...(avatar && { avatar: urls.of(avatar.variants) }),
+    createdAt: createdAt.toISOString(),
+  });
+
   app.get('/v1/me', { schema: routeSchemaFor('getMe') }, async (request): Promise<Me> => {
     return toMe(await useCases.getMe.execute({ userId: authenticatedUserId(request) }));
   });
@@ -42,6 +51,14 @@ export function registerIdentityRoutes(app: FastifyInstance, useCases: IdentityU
         changes: request.body,
       });
       return toMe(profile);
+    },
+  );
+
+  app.delete(
+    '/v1/me/avatar',
+    { schema: routeSchemaFor('removeAvatar') },
+    async (request): Promise<Me> => {
+      return toMe(await useCases.removeAvatar.execute({ userId: authenticatedUserId(request) }));
     },
   );
 

@@ -7,6 +7,10 @@ import {
   registerIdentityRoutes,
 } from './modules/identity/infrastructure/http/identity-routes.ts';
 import {
+  type MediaUseCases,
+  registerMediaRoutes,
+} from './modules/media/infrastructure/http/media-routes.ts';
+import {
   decorateAuthentication,
   requireAuthentication,
 } from './shared/infrastructure/auth/authentication.ts';
@@ -15,11 +19,14 @@ import type { Config } from './shared/infrastructure/config.ts';
 import { installContractValidation } from './shared/infrastructure/http/contract-schemas.ts';
 import { registerErrorHandling } from './shared/infrastructure/http/error-handler.ts';
 import { registerHealthRoutes } from './shared/infrastructure/http/health-routes.ts';
+import type { PublicMediaUrls } from './shared/infrastructure/http/public-media-urls.ts';
 
 /** Dépendances assemblées par `main.ts` (ou par les tests, avec des adapters en mémoire). */
 export interface AppDependencies {
   tokenVerifier: TokenVerifier;
   identity: IdentityUseCases;
+  media: MediaUseCases;
+  mediaUrls: PublicMediaUrls;
 }
 
 export interface AppOptions {
@@ -52,7 +59,8 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
   // Routes `/v1` : toutes authentifiées (ADR-003).
   void app.register((v1, _options, done) => {
     requireAuthentication(v1, dependencies.tokenVerifier);
-    registerIdentityRoutes(v1, dependencies.identity);
+    registerIdentityRoutes(v1, dependencies.identity, dependencies.mediaUrls);
+    registerMediaRoutes(v1, dependencies.media, dependencies.mediaUrls);
     done();
   });
 

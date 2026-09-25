@@ -14,3 +14,9 @@ export function createDatabase(url: string) {
 }
 
 export type Database = ReturnType<typeof createDatabase>['db'];
+
+/** Transaction Drizzle (`db.transaction(async (tx) => …)`). */
+export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+/** Connexion ou transaction : les fonctions partagées s'utilisent dans les deux cas. */
+export type Executor = Database | Transaction;

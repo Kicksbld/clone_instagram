@@ -111,9 +111,12 @@ enabled = true
 file_size_limit = "50MiB"
 
 # Buckets de ADR-008, identiques sur Supabase Cloud : `supabase seed buckets --linked` (T1).
-# Originaux envoyés par URL présignée (privé).
+# Originaux envoyés par URL présignée (privé). Limites des images d'ADR-008, revérifiées par le
+# worker sur le fichier réel ; à élargir avec les vidéos (P1).
 [storage.buckets.uploads]
 public = false
+file_size_limit = "20MiB"
+allowed_mime_types = ["image/jpeg", "image/png"]
 
 # Variantes lues directement par l'app : posts, reels, stories, avatars (public, chemins UUID).
 [storage.buckets.media-public]

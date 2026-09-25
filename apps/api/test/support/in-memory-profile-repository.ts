@@ -8,10 +8,15 @@ import {
   UsernameTakenError,
 } from '../../src/modules/identity/domain/errors.ts';
 import type { Profile } from '../../src/modules/identity/domain/profile.ts';
+import type { InMemoryMediaRepository } from './in-memory-media-repository.ts';
 
-/** Adapter en mémoire (ADR-005) : mêmes contraintes d'unicité que la table `profiles`. */
+/**
+ * Adapter en mémoire (ADR-005) : mêmes contraintes d'unicité que la table `profiles` ; la photo de
+ * profil est lue dans `media`, comme la jointure de l'adapter Drizzle.
+ */
 export class InMemoryProfileRepository implements ProfileRepository {
   readonly rows = new Map<string, Profile>();
+  media: InMemoryMediaRepository | null = null;
 
   constructor(private readonly now: () => Date = () => new Date()) {}
 
@@ -25,6 +30,7 @@ export class InMemoryProfileRepository implements ProfileRepository {
       followerCount: 0,
       followingCount: 0,
       postCount: 0,
+      avatar: null,
       createdAt: this.now(),
       ...profile,
     };
@@ -34,6 +40,15 @@ export class InMemoryProfileRepository implements ProfileRepository {
 
   findById(id: string): Promise<Profile | null> {
     return Promise.resolve(this.rows.get(id) ?? null);
+  }
+
+  /** Photo de profil d'après `avatarMediaId`, avec les variantes du média. */
+  private withAvatar(profile: Profile, avatarMediaId: string | null): Profile {
+    const variants = avatarMediaId ? this.media?.rows.get(avatarMediaId)?.variants : null;
+    return {
+      ...profile,
+      avatar: avatarMediaId && variants ? { mediaId: avatarMediaId, variants } : null,
+    };
   }
 
   create(profile: NewProfile): Promise<Profile> {
@@ -50,7 +65,9 @@ export class InMemoryProfileRepository implements ProfileRepository {
     if (changes.username !== undefined && this.usernameTakenBy(changes.username, id)) {
       return Promise.reject(new UsernameTakenError());
     }
-    const updated = { ...current, ...changes };
+    const { avatarMediaId, ...fields } = changes;
+    const merged = { ...current, ...fields };
+    const updated = avatarMediaId === undefined ? merged : this.withAvatar(merged, avatarMediaId);
     this.rows.set(id, updated);
     return Promise.resolve(updated);
   }

@@ -96,6 +96,42 @@ struct APIIdentityServiceTests {
         }
     }
 
+    @Test func `GET /me avec photo → variantes en URL`() async throws {
+        let base = "http://192.168.1.20:54321/storage/v1/object/public/media-public/m"
+        let body = Self.meJSON.replacingOccurrences(
+            of: #""postCount":3,"#,
+            with: #""postCount":3,"avatar":{"thumb":"\#(base)/thumb.webp","medium":"\#(base)/medium.webp","large":"\#(base)/large.webp"},"#
+        )
+        let service = try makeService(.response(status: 200, contentType: "application/json", body: body))
+
+        let profile = try await service.fetchMe()
+
+        #expect(profile.avatar?.thumb.absoluteString == "\(base)/thumb.webp")
+        #expect(profile.avatar?.large.absoluteString == "\(base)/large.webp")
+    }
+
+    @Test(arguments: [
+        (404, "media_not_found"),
+        (409, "media_not_ready"),
+        (409, "media_already_attached"),
+        (422, "media_purpose_mismatch"),
+    ])
+    func `PATCH /me : photo refusée`(status: Int, code: String) async throws {
+        let service = try makeService(problem(status, code))
+
+        await #expect(throws: IdentityServiceError.mediaRejected) {
+            try await service.updateMe(ProfileChanges(avatarMediaId: "0199a1b2-0000-7000-9000-000000000001"))
+        }
+    }
+
+    @Test func `DELETE /me/avatar → profil sans photo`() async throws {
+        let service = try makeService(.response(status: 200, contentType: "application/json", body: Self.meJSON))
+
+        let profile = try await service.removeAvatar()
+
+        #expect(profile.avatar == nil)
+    }
+
     @Test func `erreur réseau → API injoignable`() async throws {
         let service = try makeService(.failure)
 
