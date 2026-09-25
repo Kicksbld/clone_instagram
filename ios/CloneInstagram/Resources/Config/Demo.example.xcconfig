@@ -5,5 +5,11 @@
 // URL de l'API sur Railway.
 API_BASE_URL = https:/$()/api-production-cf16.up.railway.app
 
+// URL du projet Supabase Cloud de la démo.
+SUPABASE_URL = https:/$()/<ref>.supabase.co
+
+// Clé publique (publishable) de Supabase Cloud, non secrète (Project Settings → API Keys).
+SUPABASE_PUBLISHABLE_KEY =
+
 // Team ID Apple du compte développeur (Sign in with Apple, achat intégré).
 DEVELOPMENT_TEAM = CNLG2XPDKN

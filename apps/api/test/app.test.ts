@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { buildApp } from '../src/app.ts';
 import { BusinessRuleError, ConflictError, NotFoundError } from '../src/shared/domain/errors.ts';
+import { buildTestApp } from './support/test-app.ts';
 
-let app: ReturnType<typeof buildApp>;
+let app: ReturnType<typeof buildTestApp>['app'];
 
 function createApp() {
-  app = buildApp({ logLevel: 'silent' });
+  app = buildTestApp().app;
   return app;
 }
 

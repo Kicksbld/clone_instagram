@@ -24,6 +24,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mon profil
+         * @description Profil de l'utilisateur authentifié, dont sa date de naissance et le statut du compte. `404 profile_not_found` tant que l'onboarding n'est pas terminé.
+         */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Modifier mon profil
+         * @description Modifie le nom, la bio ou le username. Seuls les champs présents sont modifiés ; une bio vide efface la bio.
+         */
+        patch: operations["updateMe"];
+        trace?: never;
+    };
+    "/v1/me/onboarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Créer mon profil (fin de l'onboarding)
+         * @description Appelé à l'acceptation des conditions (ADR-018). Crée le profil de l'utilisateur authentifié.
+         */
+        post: operations["completeOnboarding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/usernames/{username}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Disponibilité d'un username
+         * @description Vérifiée en direct pendant l'onboarding. Si le username est pris, jusqu'à 3 usernames libres dérivés du candidat sont suggérés. Un username au mauvais format est refusé en `400`. Le username de l'appelant lui-même est disponible pour lui.
+         */
+        get: operations["getUsernameAvailability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -31,6 +95,64 @@ export interface components {
         Health: {
             /** @constant */
             status: "ok";
+        };
+        /**
+         * @description 1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).
+         * @example killian.b
+         */
+        Username: string;
+        /**
+         * @description Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.
+         * @example Killian Boularand
+         */
+        FullName: string;
+        /** @description 150 caractères au plus ; chaîne vide si aucune bio. */
+        Bio: string;
+        /** @enum {string} */
+        AccountStatus: "active" | "suspended" | "banned";
+        /** @description Profil de l'utilisateur authentifié. */
+        Me: {
+            /**
+             * Format: uuid
+             * @description Identifiant Supabase Auth.
+             */
+            id: string;
+            username: components["schemas"]["Username"];
+            fullName: components["schemas"]["FullName"];
+            bio: components["schemas"]["Bio"];
+            /**
+             * Format: date
+             * @description Renvoyée à son seul propriétaire.
+             */
+            birthDate: string;
+            isPrivate: boolean;
+            status: components["schemas"]["AccountStatus"];
+            followerCount: number;
+            followingCount: number;
+            postCount: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        CompleteOnboardingRequest: {
+            username: components["schemas"]["Username"];
+            fullName: components["schemas"]["FullName"];
+            /**
+             * Format: date
+             * @example 2000-01-31
+             */
+            birthDate: string;
+        };
+        /** @description Au moins un champ. */
+        UpdateMeRequest: {
+            username?: components["schemas"]["Username"];
+            fullName?: components["schemas"]["FullName"];
+            bio?: components["schemas"]["Bio"];
+        };
+        UsernameAvailability: {
+            username: components["schemas"]["Username"];
+            available: boolean;
+            /** @description Vide si le username est disponible ; sinon jusqu'à 3 usernames libres. */
+            suggestions: components["schemas"]["Username"][];
         };
         /** @description Erreur au format Problem Details (RFC 9457). */
         ProblemDetails: {
@@ -57,6 +179,42 @@ export interface components {
         };
     };
     responses: {
+        /** @description Entrée non conforme au schéma (`validation_failed`). */
+        ValidationFailed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
+        /** @description JWT absent ou invalide (`unauthenticated`). */
+        Unauthenticated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
+        /** @description Onboarding non terminé (`profile_not_found`). */
+        ProfileNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
+        /** @description Username déjà utilisé (`username_taken`). */
+        UsernameTaken: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
         /** @description Erreur inattendue (`internal_error`). */
         InternalError: {
             headers: {
@@ -92,6 +250,128 @@ export interface operations {
                     "application/json": components["schemas"]["Health"];
                 };
             };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Mon profil. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["ProfileNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMeRequest"];
+            };
+        };
+        responses: {
+            /** @description Profil modifié. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["ProfileNotFound"];
+            409: components["responses"]["UsernameTaken"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    completeOnboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteOnboardingRequest"];
+            };
+        };
+        responses: {
+            /** @description Profil créé. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Username déjà utilisé (`username_taken`) ou profil déjà créé (`profile_already_exists`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Moins de 13 ans (`age_requirement_not_met`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getUsernameAvailability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                username: components["schemas"]["Username"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Disponibilité du username. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsernameAvailability"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
             500: components["responses"]["InternalError"];
         };
     };

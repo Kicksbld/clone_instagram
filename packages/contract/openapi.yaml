@@ -15,8 +15,18 @@ info:
     | Code | Statut | Cas |
     |---|---|---|
     | `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |
+    | `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |
     | `route_not_found` | 404 | Route inexistante |
     | `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |
+
+    Codes d'erreur métier :
+
+    | Code | Statut | Cas |
+    |---|---|---|
+    | `profile_not_found` | 404 | L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé) |
+    | `username_taken` | 409 | Username déjà utilisé par un autre profil |
+    | `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |
+    | `age_requirement_not_met` | 422 | Moins de 13 ans à la date du jour (UTC) |
 servers:
   - url: /
     description: Même origine ; l'hôte dépend de l'environnement (local ou démo, ADR-009).
@@ -25,6 +35,8 @@ security:
 tags:
   - name: system
     description: Supervision de l'API
+  - name: identity
+    description: Profil de l'utilisateur authentifié, onboarding, usernames
 paths:
   /health:
     get:
@@ -40,6 +52,115 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Health'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/me:
+    get:
+      operationId: getMe
+      tags: [identity]
+      summary: Mon profil
+      description: Profil de l'utilisateur authentifié, dont sa date de naissance et le statut du compte. `404 profile_not_found` tant que l'onboarding n'est pas terminé.
+      responses:
+        '200':
+          description: Mon profil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: updateMe
+      tags: [identity]
+      summary: Modifier mon profil
+      description: Modifie le nom, la bio ou le username. Seuls les champs présents sont modifiés ; une bio vide efface la bio.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMeRequest'
+      responses:
+        '200':
+          description: Profil modifié.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+        '409':
+          $ref: '#/components/responses/UsernameTaken'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/me/onboarding:
+    post:
+      operationId: completeOnboarding
+      tags: [identity]
+      summary: Créer mon profil (fin de l'onboarding)
+      description: Appelé à l'acceptation des conditions (ADR-018). Crée le profil de l'utilisateur authentifié.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteOnboardingRequest'
+      responses:
+        '201':
+          description: Profil créé.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '409':
+          description: Username déjà utilisé (`username_taken`) ou profil déjà créé (`profile_already_exists`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          description: Moins de 13 ans (`age_requirement_not_met`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/usernames/{username}/availability:
+    get:
+      operationId: getUsernameAvailability
+      tags: [identity]
+      summary: Disponibilité d'un username
+      description: Vérifiée en direct pendant l'onboarding. Si le username est pris, jusqu'à 3 usernames libres dérivés du candidat sont suggérés. Un username au mauvais format est refusé en `400`. Le username de l'appelant lui-même est disponible pour lui.
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Username'
+      responses:
+        '200':
+          description: Disponibilité du username.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsernameAvailability'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalError'
 components:
@@ -58,6 +179,116 @@ components:
         status:
           type: string
           const: ok
+    Username:
+      type: string
+      description: 1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).
+      minLength: 1
+      maxLength: 30
+      pattern: '^[a-z0-9._]{1,30}$'
+      examples: ['killian.b']
+    FullName:
+      type: string
+      description: Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.
+      minLength: 1
+      maxLength: 30
+      pattern: '\S'
+      examples: ['Killian Boularand']
+    Bio:
+      type: string
+      description: 150 caractères au plus ; chaîne vide si aucune bio.
+      maxLength: 150
+    AccountStatus:
+      type: string
+      enum: [active, suspended, banned]
+    Me:
+      type: object
+      description: Profil de l'utilisateur authentifié.
+      additionalProperties: false
+      required:
+        [
+          id,
+          username,
+          fullName,
+          bio,
+          birthDate,
+          isPrivate,
+          status,
+          followerCount,
+          followingCount,
+          postCount,
+          createdAt,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identifiant Supabase Auth.
+        username:
+          $ref: '#/components/schemas/Username'
+        fullName:
+          $ref: '#/components/schemas/FullName'
+        bio:
+          $ref: '#/components/schemas/Bio'
+        birthDate:
+          type: string
+          format: date
+          description: Renvoyée à son seul propriétaire.
+        isPrivate:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        followerCount:
+          type: integer
+          minimum: 0
+        followingCount:
+          type: integer
+          minimum: 0
+        postCount:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+    CompleteOnboardingRequest:
+      type: object
+      additionalProperties: false
+      required: [username, fullName, birthDate]
+      properties:
+        username:
+          $ref: '#/components/schemas/Username'
+        fullName:
+          $ref: '#/components/schemas/FullName'
+        birthDate:
+          type: string
+          format: date
+          examples: ['2000-01-31']
+    UpdateMeRequest:
+      type: object
+      description: Au moins un champ.
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        username:
+          $ref: '#/components/schemas/Username'
+        fullName:
+          $ref: '#/components/schemas/FullName'
+        bio:
+          $ref: '#/components/schemas/Bio'
+    UsernameAvailability:
+      type: object
+      additionalProperties: false
+      required: [username, available, suggestions]
+      properties:
+        username:
+          $ref: '#/components/schemas/Username'
+        available:
+          type: boolean
+        suggestions:
+          type: array
+          description: Vide si le username est disponible ; sinon jusqu'à 3 usernames libres.
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/Username'
     ProblemDetails:
       type: object
       description: Erreur au format Problem Details (RFC 9457).
@@ -86,6 +317,30 @@ components:
           description: Code stable, destiné au client (ex. `validation_failed`, `username_taken`).
           examples: ['route_not_found']
   responses:
+    ValidationFailed:
+      description: Entrée non conforme au schéma (`validation_failed`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Unauthenticated:
+      description: JWT absent ou invalide (`unauthenticated`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    ProfileNotFound:
+      description: Onboarding non terminé (`profile_not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    UsernameTaken:
+      description: Username déjà utilisé (`username_taken`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
     InternalError:
       description: Erreur inattendue (`internal_error`).
       content:

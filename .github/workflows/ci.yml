@@ -60,6 +60,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Migrations (Postgres de la CI, pour les tests d'adapters)
+        run: pnpm db:migrate
+
       - name: Tests
         run: pnpm test
 

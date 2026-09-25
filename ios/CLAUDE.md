@@ -14,6 +14,10 @@ App SwiftUI, MVVM, organisation par feature : [ADR-010](../docs/adr/ADR-010-app-
 - Configurations `Local` et `Demo` : schémas `CloneInstagram` (Local, par défaut) et `CloneInstagram-Demo`. Valeurs dans `CloneInstagram/Resources/Config/<Config>.xcconfig` (non versionnés, modèles `*.example.xcconfig`), exposées à l'app par `Info-<Config>.plist`. `NSAllowsLocalNetworking` n'existe que dans `Info-Local.plist`.
 - Portrait uniquement (comme Instagram). L'avertissement Xcode « All interface orientations must be supported… » est assumé : `UIRequiresFullScreen` est obsolète depuis iOS 26.
 
+## Écrans en wireframe
+
+Jusqu'à une tranche de style à planifier (décisions de planification de [`P0.md`](../docs/plan/P0.md)) : composants système, alignements et espacements uniquement ; aucune couleur, typographie, image ou composant personnalisé. Le parcours, les libellés et la navigation reproduisent Instagram.
+
 ## Où mettre quoi
 
 | Fichier | Emplacement |
@@ -29,9 +33,12 @@ App SwiftUI, MVVM, organisation par feature : [ADR-010](../docs/adr/ADR-010-app-
 ## Recettes
 
 - **Nouvel endpoint** : il est d'abord dans `packages/contract/openapi.yaml` ; `pnpm contract:generate` met à jour la copie `Core/API/OpenAPI/openapi.yaml` (ne jamais la modifier à la main) ; le client est régénéré au build.
-- **Feature de référence** : `Features/Health` — service protocolaire qui appelle le client généré et convertit le DTO en modèle de l'app, erreurs typées, ViewModel `@Observable` avec états `idle` / `loading` / `loaded` / `failed` et « Réessayer ».
-- **Test d'un service** : vrai `Client` construit par `APIClientFactory` avec `StubTransport` (`CloneInstagramTests/Support`). **Test d'un ViewModel** : faux service injecté.
+- **Service de référence** : `Core/Identity/IdentityService.swift` — protocole, implémentation sur le client généré, conversion des DTO en modèles de l'app, erreurs typées selon le `code` des Problem Details.
+- **Feature de référence** : `Features/Onboarding` — un ViewModel `@Observable` pour tout le parcours, une vue par étape, navigation par `NavigationStack(path:)`, erreurs affichées avec possibilité de réessayer.
+- **Session et jeton** : `Core/Auth` (`AuthService`, SDK `Auth` de `supabase-swift`) ; `AuthenticationMiddleware` ajoute le Bearer à chaque appel ; le routeur racine est `App/RootViewModel`.
+- **Test d'un service** : vrai `Client` construit par `APIClientFactory` avec `StubTransport` (`CloneInstagramTests/Support`). **Test d'un ViewModel** : faux services injectés (`FakeAuthService`, `FakeIdentityService`).
 - **Variable de configuration** : l'ajouter aux deux modèles `*.example.xcconfig`, à `Info-Local.plist` et `Info-Demo.plist`, puis la lire dans `Core`.
+- **Entitlements** : déclarés dans `project.yml` (`entitlements.properties`) ; le fichier `.entitlements` est généré par `xcodegen generate`.
 - **Commandes** :
 
 ```bash

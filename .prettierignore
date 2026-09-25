@@ -9,3 +9,4 @@ coverage/
 ios/build/
 ios/*.xcodeproj/
 ios/**/*.xcassets/
+.claude/

@@ -2,20 +2,26 @@ import { describe, expect, it } from 'vitest';
 
 import { InvalidConfigError, loadConfig } from '../src/shared/infrastructure/config.ts';
 
+const required = {
+  DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+  SUPABASE_URL: 'http://127.0.0.1:54321',
+  SUPABASE_JWT_ISSUER: 'http://127.0.0.1:54321/auth/v1',
+};
+
 describe('configuration', () => {
   it('applique les valeurs par défaut', () => {
-    expect(loadConfig({})).toEqual({ API_PORT: 3000, LOG_LEVEL: 'info' });
+    expect(loadConfig(required)).toEqual({ ...required, API_PORT: 3000, LOG_LEVEL: 'info' });
   });
 
   it('traite une variable vide comme absente', () => {
-    expect(loadConfig({ API_PORT: '', LOG_LEVEL: '' })).toEqual({
+    expect(loadConfig({ ...required, API_PORT: '', LOG_LEVEL: '' })).toMatchObject({
       API_PORT: 3000,
       LOG_LEVEL: 'info',
     });
   });
 
   it('lit et convertit les variables', () => {
-    expect(loadConfig({ API_PORT: '8080', LOG_LEVEL: 'debug' })).toEqual({
+    expect(loadConfig({ ...required, API_PORT: '8080', LOG_LEVEL: 'debug' })).toMatchObject({
       API_PORT: 8080,
       LOG_LEVEL: 'debug',
     });
@@ -25,19 +31,23 @@ describe('configuration', () => {
     ['port non numérique', { API_PORT: 'abc' }],
     ['port hors plage', { API_PORT: '70000' }],
     ['niveau de log inconnu', { LOG_LEVEL: 'verbose' }],
+    ['DATABASE_URL absente', { DATABASE_URL: '' }],
+    ['DATABASE_URL qui n’est pas une URL Postgres', { DATABASE_URL: 'redis://localhost:6379' }],
+    ['SUPABASE_URL absente', { SUPABASE_URL: '' }],
+    ['SUPABASE_JWT_ISSUER absent', { SUPABASE_JWT_ISSUER: '' }],
   ])('refuse de démarrer : %s', (_label, env) => {
-    expect(() => loadConfig(env)).toThrow(InvalidConfigError);
+    expect(() => loadConfig({ ...required, ...env })).toThrow(InvalidConfigError);
   });
 
   it('n’affiche jamais la valeur fautive', () => {
     let message = '';
     try {
-      loadConfig({ API_PORT: 'valeur-secrete' });
+      loadConfig({ ...required, DATABASE_URL: 'mysql://user:motdepasse@db' });
     } catch (error) {
       if (error instanceof Error) message = error.message;
     }
 
-    expect(message).toContain('API_PORT');
-    expect(message).not.toContain('valeur-secrete');
+    expect(message).toContain('DATABASE_URL');
+    expect(message).not.toContain('motdepasse');
   });
 });
