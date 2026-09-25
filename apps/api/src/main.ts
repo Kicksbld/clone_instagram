@@ -15,6 +15,17 @@ import { GetMedia } from './modules/media/application/use-cases/get-media.ts';
 import { RequestUpload } from './modules/media/application/use-cases/request-upload.ts';
 import { DrizzleMediaRepository } from './modules/media/infrastructure/persistence/drizzle-media-repository.ts';
 import { SupabaseMediaStorage } from './modules/media/infrastructure/storage/supabase-media-storage.ts';
+import { FollowUser } from './modules/social/application/use-cases/follow-user.ts';
+import { ListFollowers } from './modules/social/application/use-cases/list-followers.ts';
+import { ListFollowing } from './modules/social/application/use-cases/list-following.ts';
+import { SearchUsers } from './modules/social/application/use-cases/search-users.ts';
+import { UnfollowUser } from './modules/social/application/use-cases/unfollow-user.ts';
+import { DrizzleAccountReader } from './modules/social/infrastructure/persistence/drizzle-account-reader.ts';
+import {
+  DrizzleFollowCounters,
+  DrizzleFollowRepository,
+} from './modules/social/infrastructure/persistence/drizzle-follow-repository.ts';
+import { DrizzleSocialGraphReader } from './modules/social/infrastructure/persistence/drizzle-social-graph-reader.ts';
 import { createJwtVerifier, supabaseJwks } from './shared/infrastructure/auth/token-verifier.ts';
 import { loadConfig } from './shared/infrastructure/config.ts';
 import { publicMediaUrls } from './shared/infrastructure/http/public-media-urls.ts';
@@ -33,6 +44,14 @@ const relationships = new DrizzleRelationshipReader(database.db);
 const avatarTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   profiles: new DrizzleProfileRepository(tx),
   media: new DrizzleMediaRepository(tx),
+}));
+const accounts = new DrizzleAccountReader(database.db);
+const socialGraph = new DrizzleSocialGraphReader(database.db);
+const followTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  accounts: new DrizzleAccountReader(tx),
+  relationships: new DrizzleRelationshipReader(tx),
+  follows: new DrizzleFollowRepository(tx),
+  counters: new DrizzleFollowCounters(tx),
 }));
 const jobs = new BullMqJobQueue(config.REDIS_URL);
 const secretKey = config.SUPABASE_SERVICE_ROLE_KEY;
@@ -64,6 +83,13 @@ const app = buildApp({
       requestUpload: new RequestUpload(media, storage, uuidV7Generator),
       completeUpload: new CompleteUpload(media, jobs),
       getMedia: new GetMedia(media),
+    },
+    social: {
+      followUser: new FollowUser(followTransaction),
+      unfollowUser: new UnfollowUser(followTransaction),
+      listFollowers: new ListFollowers(accounts, relationships, socialGraph),
+      listFollowing: new ListFollowing(accounts, relationships, socialGraph),
+      searchUsers: new SearchUsers(socialGraph),
     },
     mediaUrls: publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL),
   },

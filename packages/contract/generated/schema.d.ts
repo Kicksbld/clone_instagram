@@ -129,6 +129,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/users/{id}/follow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Suivre un utilisateur
+         * @description Idempotent : suivre un compte déjà suivi renvoie `200` sans changer les compteurs. Refusé vers un compte privé non suivi (`403 account_private`, demandes d'abonnement en P1).
+         *     Compte inexistant, bloqué dans un sens ou dans l'autre, ou non actif : `404 user_not_found` (ADR-006).
+         */
+        put: operations["followUser"];
+        post?: never;
+        /**
+         * Ne plus suivre un utilisateur
+         * @description Idempotent : sans abonnement, renvoie `200` sans changer les compteurs. Possible vers un compte privé. Compte inexistant ou invisible : `404 user_not_found`.
+         */
+        delete: operations["unfollowUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/users/{id}/followers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Abonnés d'un utilisateur
+         * @description Comptes qui suivent cet utilisateur, abonnement le plus récent en premier, par pages de 20. Réservé à qui peut voir ses contenus (compte public, soi-même ou abonné) ; sinon `404 user_not_found`.
+         *     Les comptes bloqués dans un sens ou dans l'autre avec l'appelant et les comptes non actifs n'apparaissent pas.
+         */
+        get: operations["listFollowers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/users/{id}/following": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Abonnements d'un utilisateur
+         * @description Comptes suivis par cet utilisateur, abonnement le plus récent en premier, par pages de 20. Mêmes règles de visibilité que `GET /v1/users/{id}/followers`.
+         */
+        get: operations["listFollowing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/search/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rechercher des utilisateurs
+         * @description Correspondance partielle sur le username ou le nom, insensible à la casse ; `q` est nettoyé (espaces en début et en fin, `@` initial). 30 résultats au plus, sans pagination.
+         *     Tri : username exact, username qui commence par `q`, comptes suivis, similarité, nombre d'abonnés. Comptes bloqués dans un sens ou dans l'autre et comptes non actifs absents ; comptes privés présents (ADR-006).
+         */
+        get: operations["searchUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/media/uploads": {
         parameters: {
             query?: never;
@@ -288,6 +375,31 @@ export interface components {
             /** @description Ce profil suit l'appelant. */
             followedBy: boolean;
         };
+        /** @description Compte dans une liste ou un résultat de recherche, vu par l'appelant. */
+        UserSummary: {
+            /** Format: uuid */
+            id: string;
+            username: components["schemas"]["Username"];
+            fullName: components["schemas"]["FullName"];
+            isPrivate: boolean;
+            /** @description Photo de profil ; absente si aucune photo. */
+            avatar?: components["schemas"]["ImageVariants"];
+            relationship: components["schemas"]["Relationship"];
+        };
+        UserPage: {
+            items: components["schemas"]["UserSummary"][];
+            /** @description Curseur de la page suivante ; absent sur la dernière page. */
+            nextCursor?: string;
+        };
+        UserSearchResults: {
+            items: components["schemas"]["UserSummary"][];
+        };
+        /** @description Relation après l'action, et compteur d'abonnés du compte suivi. */
+        FollowStatus: {
+            /** @description L'appelant suit ce compte. */
+            following: boolean;
+            followerCount: number;
+        };
         /** @description URL publiques des variantes WebP d'une image (ADR-008). */
         ImageVariants: {
             /**
@@ -420,6 +532,24 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
+        /** @description Entrée non conforme au schéma (`validation_failed`) ou curseur invalide (`invalid_cursor`). */
+        InvalidInput: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
+        /** @description On ne peut pas se suivre soi-même (`cannot_follow_self`). */
+        CannotFollowSelf: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
         /** @description Profil inexistant ou invisible pour l'appelant (`user_not_found`). */
         UserNotFound: {
             headers: {
@@ -440,6 +570,9 @@ export interface components {
         };
     };
     parameters: {
+        UserId: string;
+        /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+        Cursor: string;
         MediaId: string;
     };
     requestBodies: never;
@@ -662,6 +795,160 @@ export interface operations {
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["UserNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    followUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description J'ai suivi ce compte. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowStatus"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Compte privé (`account_private`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Compte introuvable ou invisible (`user_not_found`), ou onboarding non terminé (`profile_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            422: components["responses"]["CannotFollowSelf"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    unfollowUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Je ne suis plus ce compte. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowStatus"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["UserNotFound"];
+            422: components["responses"]["CannotFollowSelf"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listFollowers: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page d'abonnés. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["UserNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listFollowing: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page d'abonnements. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["UserNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    searchUsers: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Comptes trouvés (liste vide si aucun). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSearchResults"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
             500: components["responses"]["InternalError"];
         };
     };

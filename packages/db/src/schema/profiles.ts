@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   date,
+  index,
   integer,
   pgTable,
   text,
@@ -42,6 +43,9 @@ export const profiles = pgTable(
   },
   (table) => [
     uniqueIndex('profiles_username_key').on(table.username),
+    // Recherche d'utilisateurs par correspondance partielle (`ILIKE`, `pg_trgm`, ADR-007).
+    index('profiles_username_trgm_idx').using('gin', sql`${table.username} gin_trgm_ops`),
+    index('profiles_full_name_trgm_idx').using('gin', sql`${table.fullName} gin_trgm_ops`),
     // Règles d'ADR-007 et d'ADR-018, aussi vérifiées par le contrat et le domaine.
     check('profiles_username_format', sql`${table.username} ~ '^[a-z0-9._]{1,30}$'`),
     check(

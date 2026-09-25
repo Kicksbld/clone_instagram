@@ -3,7 +3,7 @@
  * `code` est stable et documenté dans le contrat (ADR-003).
  */
 export abstract class DomainError extends Error {
-  abstract readonly kind: 'not_found' | 'forbidden' | 'conflict' | 'business_rule';
+  abstract readonly kind: 'bad_request' | 'not_found' | 'forbidden' | 'conflict' | 'business_rule';
 
   constructor(
     readonly code: string,
@@ -12,6 +12,11 @@ export abstract class DomainError extends Error {
     super(message);
     this.name = new.target.name;
   }
+}
+
+/** Entrée valide pour le schéma mais inexploitable, comme un curseur mal formé (400). */
+export class BadRequestError extends DomainError {
+  readonly kind = 'bad_request';
 }
 
 /** Ressource absente ou invisible pour l'appelant (404, jamais 403 : ADR-006). */

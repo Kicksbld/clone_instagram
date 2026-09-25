@@ -29,13 +29,14 @@ struct UserProfile: Equatable, Identifiable {
     let fullName: String
     let bio: String
     let isPrivate: Bool
-    let followerCount: Int
+    /// Modifié par un follow ou un unfollow (valeur renvoyée par l'API).
+    var followerCount: Int
     let followingCount: Int
     let postCount: Int
     let avatar: ImageVariants?
-    /// Je suis ce compte.
-    let isFollowing: Bool
-    /// Ce compte me suit (« Vous suit »).
+    /// Je suis ce compte ; modifié de façon optimiste par le bouton Suivre (ADR-010).
+    var isFollowing: Bool
+    /// Ce compte me suit (« Suivre en retour »).
     let followsMe: Bool
     /// Je peux voir ses contenus ; `false` pour un compte privé que je ne suis pas.
     let canViewContent: Bool

@@ -1,8 +1,9 @@
-import { validate, version } from 'uuid';
+import { validate } from 'uuid';
 
 /**
  * Curseur de pagination : couple (created_at, id) du dernier élément renvoyé (ADR-007).
  * `createdAt` est à la milliseconde : les colonnes de curseur sont en `timestamptz(3)` (ADR-007).
+ * `id` est un UUID de toute version : v7 pour nos lignes, v4 pour les profils (id Supabase Auth).
  */
 export interface Cursor {
   createdAt: Date;
@@ -47,7 +48,7 @@ export function decodeCursor(raw: string): Cursor {
   if (Number.isNaN(createdAt.getTime()) || createdAt.toISOString() !== iso) {
     throw new InvalidCursorError();
   }
-  if (!validate(id) || version(id) !== 7) throw new InvalidCursorError();
+  if (!validate(id)) throw new InvalidCursorError();
 
   return { createdAt, id };
 }

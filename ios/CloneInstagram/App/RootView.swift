@@ -49,11 +49,12 @@ struct RootView: View {
             )
             .id(entry)
         case let .home(profile):
-            HomeView {
+            HomeView { openSearch in
                 MyProfileView(
                     profile: profile,
                     onRefresh: viewModel.refreshProfile,
                     onSignOut: { Task { await viewModel.signOut() } },
+                    onFollowAccounts: openSearch,
                     editProfile: {
                         EditProfileView(
                             viewModel: EditProfileViewModel(
@@ -65,13 +66,14 @@ struct RootView: View {
                         )
                     }
                 )
+                .modifier(SocialDestinations(dependencies: dependencies, viewerId: profile.id, onFollowChange: viewModel.refreshProfile))
             } searchTab: {
-                UserLookupView()
-                    .navigationDestination(for: ProfileRoute.self) { route in
-                        UserProfileView(
-                            viewModel: UserProfileViewModel(username: route.username, identity: dependencies.identity)
-                        )
-                    }
+                SearchView(viewModel: SearchViewModel(social: dependencies.social))
+                    .modifier(SocialDestinations(
+                        dependencies: dependencies,
+                        viewerId: profile.id,
+                        onFollowChange: viewModel.refreshProfile
+                    ))
             }
         case let .failed(message):
             ContentUnavailableView {
@@ -83,5 +85,46 @@ struct RootView: View {
                 Button("Se déconnecter") { Task { await viewModel.signOut() } }
             }
         }
+    }
+}
+
+/// Destinations partagées des onglets Profil et Recherche : profil d'un autre compte et listes
+/// d'abonnés. Déclarées ici : une feature n'importe pas une autre (ADR-010).
+private struct SocialDestinations: ViewModifier {
+    let dependencies: AppDependencies
+    let viewerId: String
+    /// Après un follow ou un unfollow : mon profil (compteur « suivi(e)s ») est rechargé.
+    let onFollowChange: () async -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .navigationDestination(for: ProfileRoute.self) { route in
+                UserProfileView(
+                    viewModel: UserProfileViewModel(
+                        username: route.username,
+                        viewerId: viewerId,
+                        identity: dependencies.identity,
+                        social: dependencies.social,
+                        onFollowChange: onFollowChange
+                    )
+                )
+            }
+            .navigationDestination(for: FollowListRoute.self) { route in
+                FollowListsView(
+                    route: route,
+                    followers: listViewModel(.followers, route),
+                    following: listViewModel(.following, route)
+                )
+            }
+    }
+
+    private func listViewModel(_ kind: FollowListKind, _ route: FollowListRoute) -> FollowListViewModel {
+        FollowListViewModel(
+            kind: kind,
+            userId: route.userId,
+            viewerId: viewerId,
+            social: dependencies.social,
+            onFollowChange: onFollowChange
+        )
     }
 }

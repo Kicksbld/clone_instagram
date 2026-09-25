@@ -32,7 +32,12 @@ info:
     | `media_not_ready` | 409 | Le média n'est pas encore `ready` |
     | `media_already_attached` | 409 | Le média est déjà utilisé, ou l'a été (un média ne sert qu'une fois) |
     | `media_purpose_mismatch` | 422 | Le `purpose` du média ne correspond pas à l'usage demandé |
-    | `user_not_found` | 404 | Profil inexistant ou invisible pour l'appelant (blocage dans un sens ou dans l'autre, compte non actif : ADR-006) |
+    | `user_not_found` | 404 | Profil inexistant ou invisible pour l'appelant (blocage dans un sens ou dans l'autre, compte non actif : ADR-006) ; liste d'abonnés d'un compte privé non suivi |
+    | `account_private` | 403 | Suivre un compte privé (demandes d'abonnement en P1) |
+    | `cannot_follow_self` | 422 | Se suivre ou ne plus se suivre soi-même |
+    | `invalid_cursor` | 400 | Curseur de pagination mal formé |
+
+    Pagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).
 servers:
   - url: /
     description: Même origine ; l'hôte dépend de l'environnement (local ou démo, ADR-009).
@@ -47,6 +52,8 @@ tags:
     description: Upload présigné et traitement des médias (ADR-008)
   - name: users
     description: Profils des autres utilisateurs, selon la politique de visibilité (ADR-006)
+  - name: social
+    description: Abonnements, listes d'abonnés et recherche d'utilisateurs (ADR-006)
 paths:
   /health:
     get:
@@ -233,6 +240,148 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '404':
           $ref: '#/components/responses/UserNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/users/{id}/follow:
+    put:
+      operationId: followUser
+      tags: [social]
+      summary: Suivre un utilisateur
+      description: |
+        Idempotent : suivre un compte déjà suivi renvoie `200` sans changer les compteurs. Refusé vers un compte privé non suivi (`403 account_private`, demandes d'abonnement en P1).
+        Compte inexistant, bloqué dans un sens ou dans l'autre, ou non actif : `404 user_not_found` (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: J'ai suivi ce compte.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FollowStatus'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          description: Compte privé (`account_private`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '404':
+          description: Compte introuvable ou invisible (`user_not_found`), ou onboarding non terminé (`profile_not_found`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          $ref: '#/components/responses/CannotFollowSelf'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: unfollowUser
+      tags: [social]
+      summary: Ne plus suivre un utilisateur
+      description: |
+        Idempotent : sans abonnement, renvoie `200` sans changer les compteurs. Possible vers un compte privé. Compte inexistant ou invisible : `404 user_not_found`.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Je ne suis plus ce compte.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FollowStatus'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '422':
+          $ref: '#/components/responses/CannotFollowSelf'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/users/{id}/followers:
+    get:
+      operationId: listFollowers
+      tags: [social]
+      summary: Abonnés d'un utilisateur
+      description: |
+        Comptes qui suivent cet utilisateur, abonnement le plus récent en premier, par pages de 20. Réservé à qui peut voir ses contenus (compte public, soi-même ou abonné) ; sinon `404 user_not_found`.
+        Les comptes bloqués dans un sens ou dans l'autre avec l'appelant et les comptes non actifs n'apparaissent pas.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page d'abonnés.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/users/{id}/following:
+    get:
+      operationId: listFollowing
+      tags: [social]
+      summary: Abonnements d'un utilisateur
+      description: |
+        Comptes suivis par cet utilisateur, abonnement le plus récent en premier, par pages de 20. Mêmes règles de visibilité que `GET /v1/users/{id}/followers`.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page d'abonnements.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/search/users:
+    get:
+      operationId: searchUsers
+      tags: [social]
+      summary: Rechercher des utilisateurs
+      description: |
+        Correspondance partielle sur le username ou le nom, insensible à la casse ; `q` est nettoyé (espaces en début et en fin, `@` initial). 30 résultats au plus, sans pagination.
+        Tri : username exact, username qui commence par `q`, comptes suivis, similarité, nombre d'abonnés. Comptes bloqués dans un sens ou dans l'autre et comptes non actifs absents ; comptes privés présents (ADR-006).
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+      responses:
+        '200':
+          description: Comptes trouvés (liste vide si aucun).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSearchResults'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalError'
   /v1/media/uploads:
@@ -508,6 +657,61 @@ components:
         followedBy:
           type: boolean
           description: Ce profil suit l'appelant.
+    UserSummary:
+      type: object
+      description: Compte dans une liste ou un résultat de recherche, vu par l'appelant.
+      additionalProperties: false
+      required: [id, username, fullName, isPrivate, relationship]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          $ref: '#/components/schemas/Username'
+        fullName:
+          $ref: '#/components/schemas/FullName'
+        isPrivate:
+          type: boolean
+        avatar:
+          $ref: '#/components/schemas/ImageVariants'
+          description: Photo de profil ; absente si aucune photo.
+        relationship:
+          $ref: '#/components/schemas/Relationship'
+    UserPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/UserSummary'
+        nextCursor:
+          type: string
+          description: Curseur de la page suivante ; absent sur la dernière page.
+    UserSearchResults:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/UserSummary'
+    FollowStatus:
+      type: object
+      description: Relation après l'action, et compteur d'abonnés du compte suivi.
+      additionalProperties: false
+      required: [following, followerCount]
+      properties:
+        following:
+          type: boolean
+          description: L'appelant suit ce compte.
+        followerCount:
+          type: integer
+          minimum: 0
     ImageVariants:
       type: object
       description: URL publiques des variantes WebP d'une image (ADR-008).
@@ -626,6 +830,22 @@ components:
           description: Code stable, destiné au client (ex. `validation_failed`, `username_taken`).
           examples: ['route_not_found']
   parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Valeur de `nextCursor` de la page précédente ; opaque.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
     MediaId:
       name: id
       in: path
@@ -654,6 +874,18 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     MediaNotFound:
       description: Média inexistant ou d'un autre utilisateur (`media_not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    InvalidInput:
+      description: Entrée non conforme au schéma (`validation_failed`) ou curseur invalide (`invalid_cursor`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    CannotFollowSelf:
+      description: On ne peut pas se suivre soi-même (`cannot_follow_self`).
       content:
         application/problem+json:
           schema:

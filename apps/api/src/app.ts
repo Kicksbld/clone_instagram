@@ -11,6 +11,10 @@ import {
   registerMediaRoutes,
 } from './modules/media/infrastructure/http/media-routes.ts';
 import {
+  registerSocialRoutes,
+  type SocialUseCases,
+} from './modules/social/infrastructure/http/social-routes.ts';
+import {
   decorateAuthentication,
   requireAuthentication,
 } from './shared/infrastructure/auth/authentication.ts';
@@ -26,6 +30,7 @@ export interface AppDependencies {
   tokenVerifier: TokenVerifier;
   identity: IdentityUseCases;
   media: MediaUseCases;
+  social: SocialUseCases;
   mediaUrls: PublicMediaUrls;
 }
 
@@ -61,6 +66,7 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
     requireAuthentication(v1, dependencies.tokenVerifier);
     registerIdentityRoutes(v1, dependencies.identity, dependencies.mediaUrls);
     registerMediaRoutes(v1, dependencies.media, dependencies.mediaUrls);
+    registerSocialRoutes(v1, dependencies.social, dependencies.mediaUrls);
     done();
   });
 

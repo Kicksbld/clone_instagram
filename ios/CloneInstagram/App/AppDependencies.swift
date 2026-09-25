@@ -5,6 +5,7 @@ struct AppDependencies {
     let auth: any AuthService
     let identity: any IdentityService
     let uploads: any UploadService
+    let social: any SocialService
 
     static func live(bundle: Bundle = .main) -> AppDependencies {
         let auth: any AuthService = if let configuration = try? SupabaseConfiguration(bundle: bundle) {
@@ -13,13 +14,19 @@ struct AppDependencies {
             UnavailableAuthService()
         }
         guard let configuration = try? APIConfiguration(bundle: bundle) else {
-            return AppDependencies(auth: auth, identity: UnavailableIdentityService(), uploads: UnavailableUploadService())
+            return AppDependencies(
+                auth: auth,
+                identity: UnavailableIdentityService(),
+                uploads: UnavailableUploadService(),
+                social: UnavailableSocialService()
+            )
         }
         let client = APIClientFactory.makeClient(configuration: configuration) { await auth.accessToken() }
         return AppDependencies(
             auth: auth,
             identity: APIIdentityService(client: client),
-            uploads: UploadManager(media: APIMediaService(client: client), uploader: BackgroundFileUploader.shared)
+            uploads: UploadManager(media: APIMediaService(client: client), uploader: BackgroundFileUploader.shared),
+            social: APISocialService(client: client)
         )
     }
 }

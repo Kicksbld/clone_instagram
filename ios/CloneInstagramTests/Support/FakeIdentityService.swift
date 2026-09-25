@@ -106,6 +106,7 @@ extension UserProfile {
     static func fixture(
         username: String = "lea.martin",
         isPrivate: Bool = false,
+        isFollowing: Bool = false,
         followsMe: Bool = false,
         canViewContent: Bool = true
     ) -> UserProfile {
@@ -119,7 +120,7 @@ extension UserProfile {
             followingCount: 2,
             postCount: 0,
             avatar: nil,
-            isFollowing: false,
+            isFollowing: isFollowing,
             followsMe: followsMe,
             canViewContent: canViewContent
         )

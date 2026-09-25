@@ -8,7 +8,7 @@ Projet de cours : un clone d'Instagram composé de trois produits.
 
 Le projet tourne dans deux environnements : en local pour le développement, et sur une démo hébergée (Supabase Cloud, Railway, Vercel). Les deux sont en place (§ 7).
 
-> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. T1 (démo hébergée : Supabase Cloud, Railway, Vercel) est terminée. T2 (inscription par email ou Apple, connexion, onboarding) est terminée. T3 (pipeline image et photo de profil) est terminée. T4 (profils et politique de visibilité) est en cours. Détail dans le [plan P0](docs/plan/P0.md).
+> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. T1 (démo hébergée : Supabase Cloud, Railway, Vercel) est terminée. T2 (inscription par email ou Apple, connexion, onboarding) est terminée. T3 (pipeline image et photo de profil) est terminée. T4 (profils et politique de visibilité) est terminée. T5 (suivre, listes d'abonnés, recherche) est en cours. Détail dans le [plan P0](docs/plan/P0.md).
 
 ---
 
