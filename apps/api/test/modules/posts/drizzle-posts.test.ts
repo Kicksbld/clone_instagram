@@ -5,6 +5,8 @@ import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { MediaAlreadyAttachedError } from '../../../src/modules/media/domain/errors.ts';
 import { DrizzleMediaRepository } from '../../../src/modules/media/infrastructure/persistence/drizzle-media-repository.ts';
 import { CreatePost } from '../../../src/modules/posts/application/use-cases/create-post.ts';
+import { DeletePost } from '../../../src/modules/posts/application/use-cases/delete-post.ts';
+import { PostNotFoundError } from '../../../src/modules/posts/domain/errors.ts';
 import {
   DrizzlePostReader,
   DrizzlePostRepository,
@@ -29,6 +31,13 @@ const createPost = new CreatePost(
   })),
   uuidV7Generator,
   clock,
+);
+
+const deletePost = new DeletePost(
+  new DrizzleUnitOfWork(db, (tx: Executor) => ({
+    media: new DrizzleMediaRepository(tx),
+    posts: new DrizzlePostRepository(tx),
+  })),
 );
 
 afterEach(async () => {
@@ -103,6 +112,26 @@ describe('CreatePost sur Postgres', () => {
     expect(profile?.postCount).toBe(1);
   });
 
+  it('carrousel : médias relus dans l’ordre de mediaIds', async () => {
+    const author = await givenProfile();
+    const photos = [
+      await givenReadyPhoto(author),
+      await givenReadyPhoto(author),
+      await givenReadyPhoto(author),
+    ].reverse();
+
+    const post = await createPost.execute({
+      authorId: author,
+      kind: 'post',
+      caption: '',
+      mediaIds: photos,
+    });
+
+    expect(post.media.map((item) => item.variants.large)).toEqual(
+      photos.map((id) => `${id}/large.webp`),
+    );
+  });
+
   it('média déjà utilisé : refus, rien n’est écrit', async () => {
     const author = await givenProfile();
     const photo = await givenReadyPhoto(author);
@@ -165,5 +194,53 @@ describe('DrizzlePostReader', () => {
       reader.listByAuthor({ authorId: author, after: null, limit: 12 }),
     ).resolves.toEqual({ items: [], next: null });
     await expect(reader.findById(newId())).resolves.toBeNull();
+  });
+});
+
+describe('DeletePost sur Postgres', () => {
+  it('suppression logique, médias détachés et post_count décrémenté dans une transaction', async () => {
+    const author = await givenProfile();
+    const photos = [await givenReadyPhoto(author), await givenReadyPhoto(author)];
+    const post = await createPost.execute({
+      authorId: author,
+      kind: 'post',
+      caption: '',
+      mediaIds: photos,
+    });
+
+    await deletePost.execute({ authorId: author, postId: post.id });
+
+    const [row] = await db.select().from(posts).where(eq(posts.id, post.id));
+    expect(row?.deletedAt).not.toBeNull();
+    await expect(reader.findById(post.id)).resolves.toBeNull();
+    const rows = await db.select().from(media).where(inArray(media.id, photos));
+    expect(rows.every((photo) => photo.detachedAt !== null)).toBe(true);
+    const [profile] = await db.select().from(profiles).where(eq(profiles.id, author));
+    expect(profile?.postCount).toBe(0);
+  });
+
+  it('double suppression : refus, le compteur ne baisse qu’une fois', async () => {
+    const author = await givenProfile();
+    const postId = await publish(author);
+    await publish(author);
+
+    await deletePost.execute({ authorId: author, postId });
+    await expect(deletePost.execute({ authorId: author, postId })).rejects.toBeInstanceOf(
+      PostNotFoundError,
+    );
+
+    const [profile] = await db.select().from(profiles).where(eq(profiles.id, author));
+    expect(profile?.postCount).toBe(1);
+  });
+
+  it('post d’un autre auteur : refus, rien ne change', async () => {
+    const [author, other] = [await givenProfile(), await givenProfile()];
+    const postId = await publish(other);
+
+    await expect(deletePost.execute({ authorId: author, postId })).rejects.toBeInstanceOf(
+      PostNotFoundError,
+    );
+
+    await expect(reader.findById(postId)).resolves.not.toBeNull();
   });
 });

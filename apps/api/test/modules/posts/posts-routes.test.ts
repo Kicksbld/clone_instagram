@@ -24,6 +24,17 @@ afterEach(async () => {
 const publish = (body: object) =>
   context.app.inject({ method: 'POST', url: '/v1/posts', headers: auth, payload: body });
 const get = (url: string) => context.app.inject({ method: 'GET', url, headers: auth });
+const remove = (id: string) =>
+  context.app.inject({ method: 'DELETE', url: `/v1/posts/${id}`, headers: auth });
+
+/** Identifiants de `count` images prêtes de `ownerId`. */
+function givenReadyPhotos(ownerId: string, count: number): string[] {
+  return Array.from({ length: count }, (_, index) => {
+    const id = `0199a1b2-0000-7000-d000-${String(index + 1).padStart(12, '0')}`;
+    context.media.addReady({ id, ownerId, purpose: 'post' });
+    return id;
+  });
+}
 
 let mediaCounter = 0;
 /** Publie un post de `authorId` avec une image prête. */
@@ -75,6 +86,18 @@ describe('POST /v1/posts', () => {
     expect((await get('/v1/me')).json()).toMatchObject({ postCount: 1 });
   });
 
+  it('carrousel de 10 photos → 201, médias dans l’ordre de mediaIds', async () => {
+    const photos = givenReadyPhotos(ME, 10).reverse();
+
+    const response = await publish({ kind: 'post', mediaIds: photos });
+
+    expect(response.statusCode).toBe(201);
+    const { media } = response.json<{ media: { variants: { thumb: string } }[] }>();
+    expect(media.map((item) => item.variants.thumb.split('/').at(-2))).toEqual(photos);
+    expect(photos.every((id) => context.media.rows.get(id)?.attachedAt)).toBe(true);
+    expect((await get('/v1/me')).json()).toMatchObject({ postCount: 1 });
+  });
+
   it('sans légende → légende vide', async () => {
     context.media.addReady({ id: PHOTO, ownerId: ME, purpose: 'post' });
 
@@ -85,7 +108,17 @@ describe('POST /v1/posts', () => {
 
   it.each([
     ['un reel (P1)', { kind: 'reel', mediaIds: [PHOTO] }],
-    ['deux médias (carrousel en T6b)', { kind: 'post', mediaIds: [PHOTO, OTHER] }],
+    [
+      '11 médias',
+      {
+        kind: 'post',
+        mediaIds: Array.from(
+          { length: 11 },
+          (_, i) => `0199a1b2-0000-7000-d000-${String(i + 1).padStart(12, '0')}`,
+        ),
+      },
+    ],
+    ['deux fois le même média', { kind: 'post', mediaIds: [PHOTO, PHOTO] }],
     ['aucun média', { kind: 'post', mediaIds: [] }],
     [
       'une légende de 2 201 caractères',
@@ -294,4 +327,61 @@ describe('GET /v1/users/{id}/posts', () => {
       expect(response.json()).toMatchObject({ code: 'invalid_cursor' });
     },
   );
+});
+
+describe('DELETE /v1/posts/{id}', () => {
+  it('mon carrousel → 204, post invisible, médias détachés, post_count décrémenté', async () => {
+    const photos = givenReadyPhotos(ME, 3);
+    const id = (await publish({ kind: 'post', mediaIds: photos })).json<{ id: string }>().id;
+
+    const response = await remove(id);
+
+    expect(response.statusCode).toBe(204);
+    expect(response.body).toBe('');
+    expect((await get(`/v1/posts/${id}`)).statusCode).toBe(404);
+    expect((await get(`/v1/users/${ME}/posts`)).json()).toEqual({ items: [] });
+    expect(photos.every((photo) => context.media.rows.get(photo)?.detachedAt)).toBe(true);
+    expect((await get('/v1/me')).json()).toMatchObject({ postCount: 0 });
+  });
+
+  it('post déjà supprimé → 404 post_not_found, compteur inchangé', async () => {
+    const id = await givenPost(ME);
+    await givenPost(ME);
+    await remove(id);
+
+    const response = await remove(id);
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ code: 'post_not_found' });
+    expect((await get('/v1/me')).json()).toMatchObject({ postCount: 1 });
+  });
+
+  it('post d’un autre utilisateur → 404 post_not_found, rien ne change', async () => {
+    context.profiles.add({ id: OTHER, username: 'lea' });
+    const id = await givenPost(OTHER);
+
+    const response = await remove(id);
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ code: 'post_not_found' });
+    expect(context.posts.rows.get(id)?.deletedAt).toBeNull();
+    expect(context.profiles.rows.get(OTHER)?.postCount).toBe(1);
+  });
+
+  it('post inexistant → 404 post_not_found', async () => {
+    expect((await remove(PHOTO)).json()).toMatchObject({ code: 'post_not_found' });
+  });
+
+  it('identifiant invalide → 400 validation_failed', async () => {
+    const response = await remove('pas-un-uuid');
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: 'validation_failed' });
+  });
+
+  it('sans JWT → 401', async () => {
+    const response = await context.app.inject({ method: 'DELETE', url: `/v1/posts/${PHOTO}` });
+
+    expect(response.statusCode).toBe(401);
+  });
 });

@@ -6,6 +6,8 @@ import { CaptionTooLongError } from './errors.ts';
 export type PostKind = 'post' | 'reel';
 
 export const CAPTION_MAX_LENGTH = 2200;
+/** Carrousel : 10 images au plus (`maxItems` du contrat, `position` 0 à 9 en base). */
+export const POST_MEDIA_MAX = 10;
 /** Grille du profil : 12 posts par page, comme Instagram. */
 export const USER_POSTS_PAGE_SIZE = 12;
 

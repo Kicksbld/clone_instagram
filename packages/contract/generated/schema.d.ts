@@ -227,7 +227,7 @@ export interface paths {
         /**
          * Publier un post
          * @description Crée un post à partir de médias `ready`, à moi, de `purpose` `post`, jamais utilisés (ADR-008) ; ils sont rattachés au post dans l'ordre de `mediaIds`.
-         *     En T6a : une seule image ; le carrousel (jusqu'à 10) arrive en T6b, les reels en P1. Limité à 20 posts par heure (`429 rate_limited`).
+         *     De 1 à 10 images (carrousel) ; les reels arrivent en P1. Limité à 20 posts par heure (`429 rate_limited`).
          */
         post: operations["createPost"];
         delete?: never;
@@ -250,7 +250,12 @@ export interface paths {
         get: operations["getPost"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Supprimer un de mes posts
+         * @description Suppression logique par l'auteur (ADR-007) : le post disparaît de toutes les lectures, `postCount` baisse de 1 et ses médias sont détachés, puis purgés par `purge-orphan-media` (ADR-008).
+         *     Post inexistant, déjà supprimé, invisible ou d'un autre auteur → `404 post_not_found`, jamais `403` (ADR-006).
+         */
+        delete: operations["deletePost"];
         options?: never;
         head?: never;
         patch?: never;
@@ -542,7 +547,7 @@ export interface components {
         CreatePostRequest: {
             kind: components["schemas"]["PostKind"];
             caption?: components["schemas"]["Caption"];
-            /** @description Médias du post, dans l'ordre d'affichage. En T6a, une seule image. */
+            /** @description Médias du post, dans l'ordre d'affichage (1 à 10 images). */
             mediaIds: string[];
         };
         /** @description Auteur d'un post. */
@@ -1155,6 +1160,30 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Post"];
                 };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["PostNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    deletePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Post supprimé. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];

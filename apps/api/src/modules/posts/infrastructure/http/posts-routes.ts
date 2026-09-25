@@ -7,12 +7,14 @@ import { routeSchemaFor } from '../../../../shared/infrastructure/http/contract-
 import { parseCursor } from '../../../../shared/infrastructure/http/cursor.ts';
 import type { PublicMediaUrls } from '../../../../shared/infrastructure/http/public-media-urls.ts';
 import type { CreatePost } from '../../application/use-cases/create-post.ts';
+import type { DeletePost } from '../../application/use-cases/delete-post.ts';
 import type { GetPost } from '../../application/use-cases/get-post.ts';
 import type { ListUserPosts } from '../../application/use-cases/list-user-posts.ts';
 import type { Post } from '../../domain/post.ts';
 
 export interface PostsUseCases {
   createPost: CreatePost;
+  deletePost: DeletePost;
   getPost: GetPost;
   listUserPosts: ListUserPosts;
 }
@@ -74,6 +76,18 @@ export function registerPostsRoutes(
         postId: request.params.id,
       });
       return toPost(post);
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/v1/posts/:id',
+    { schema: routeSchemaFor('deletePost') },
+    async (request, reply): Promise<void> => {
+      await useCases.deletePost.execute({
+        authorId: authenticatedUserId(request),
+        postId: request.params.id,
+      });
+      reply.status(204);
     },
   );
 

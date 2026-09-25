@@ -34,6 +34,29 @@ export class DrizzlePostRepository implements PostRepository {
       .set({ postCount: sql`${profiles.postCount} + 1`, updatedAt: sql`now()` })
       .where(eq(profiles.id, authorId));
   }
+
+  async softDelete(id: string, authorId: string): Promise<string[] | null> {
+    const deleted = await this.db
+      .update(posts)
+      .set({ deletedAt: sql`now()`, updatedAt: sql`now()` })
+      .where(and(eq(posts.id, id), eq(posts.authorId, authorId), isNull(posts.deletedAt)))
+      .returning({ id: posts.id });
+    if (deleted.length === 0) return null;
+
+    const rows = await this.db
+      .select({ mediaId: postMedia.mediaId })
+      .from(postMedia)
+      .where(eq(postMedia.postId, id))
+      .orderBy(asc(postMedia.position));
+    return rows.map((row) => row.mediaId);
+  }
+
+  async decrementPostCount(authorId: string): Promise<void> {
+    await this.db
+      .update(profiles)
+      .set({ postCount: sql`${profiles.postCount} - 1`, updatedAt: sql`now()` })
+      .where(eq(profiles.id, authorId));
+  }
 }
 
 const avatar = aliasedTable(media, 'avatar');

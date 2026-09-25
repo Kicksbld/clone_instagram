@@ -14,12 +14,15 @@ final class FakePostService: PostService {
     var fetchResults: [Result<Post, PostServiceError>] = []
     /// Réponses successives de `listPosts` ; page vide quand la liste est vide.
     var listResults: [Result<PostPage, PostServiceError>] = []
+    /// Erreurs successives de `deletePost` ; succès quand la liste est vide.
+    var deleteErrors: [PostServiceError] = []
 
-    private(set) var created: [(caption: String, mediaId: String)] = []
+    private(set) var created: [(caption: String, mediaIds: [String])] = []
     private(set) var listRequests: [ListRequest] = []
+    private(set) var deleted: [String] = []
 
-    func createPost(caption: String, mediaId: String) async throws(PostServiceError) -> Post {
-        created.append((caption, mediaId))
+    func createPost(caption: String, mediaIds: [String]) async throws(PostServiceError) -> Post {
+        created.append((caption, mediaIds))
         guard !createResults.isEmpty else { return .fixture(caption: caption) }
         return try createResults.removeFirst().get()
     }
@@ -34,21 +37,44 @@ final class FakePostService: PostService {
         guard !listResults.isEmpty else { return PostPage(items: [], nextCursor: nil) }
         return try listResults.removeFirst().get()
     }
+
+    func deletePost(id: String) async throws(PostServiceError) {
+        deleted.append(id)
+        if !deleteErrors.isEmpty {
+            throw deleteErrors.removeFirst()
+        }
+    }
 }
 
 /// Faux envoi par étapes : identifiants de médias programmables, erreurs par étape.
 final class FakeMediaUploading: MediaUploading {
-    var mediaIds = ["0199a1b2-0000-7000-9000-000000000001", "0199a1b2-0000-7000-9000-000000000002"]
+    var mediaIds = (1 ... 9).map { "0199a1b2-0000-7000-9000-00000000000\($0)" }
     var sendErrors: [UploadError] = []
     var waitErrors: [UploadError] = []
     private(set) var sent: [(image: PreparedImage, purpose: MediaPurpose)] = []
     private(set) var waited: [String] = []
     /// Le fichier préparé existait-il au moment de l'envoi ?
     private(set) var fileExistedDuringSend = false
+    /// Erreurs par numéro d'appel (à partir de 1), en plus de `sendErrors` / `waitErrors`.
+    private var sendFailures: [Int: UploadError] = [:]
+    private var waitFailures: [Int: UploadError] = [:]
+
+    /// Le `call`-ième envoi échoue.
+    func failSend(at call: Int, with error: UploadError) {
+        sendFailures[call] = error
+    }
+
+    /// La `call`-ième attente échoue.
+    func failWait(at call: Int, with error: UploadError) {
+        waitFailures[call] = error
+    }
 
     func send(_ image: PreparedImage, purpose: MediaPurpose) async throws(UploadError) -> String {
         sent.append((image, purpose))
         fileExistedDuringSend = FileManager.default.fileExists(atPath: image.fileURL.path(percentEncoded: false))
+        if let error = sendFailures[sent.count] {
+            throw error
+        }
         if !sendErrors.isEmpty {
             throw sendErrors.removeFirst()
         }
@@ -57,6 +83,9 @@ final class FakeMediaUploading: MediaUploading {
 
     func waitUntilProcessed(mediaId: String) async throws(UploadError) {
         waited.append(mediaId)
+        if let error = waitFailures[waited.count] {
+            throw error
+        }
         if !waitErrors.isEmpty {
             throw waitErrors.removeFirst()
         }

@@ -29,7 +29,7 @@ struct APIPostServiceTests {
     @Test func `POST posts converti en Post`() async throws {
         let service = try makeService(json(Self.postJSON, status: 201))
 
-        let post = try await service.createPost(caption: "Salut", mediaId: "0199a1b2-0000-7000-9000-000000000001")
+        let post = try await service.createPost(caption: "Salut", mediaIds: ["0199a1b2-0000-7000-9000-000000000001"])
 
         #expect(post.id == "0199a1b2-0000-7000-a000-000000000001")
         #expect(post.caption == "Salut")
@@ -51,14 +51,14 @@ struct APIPostServiceTests {
     func `erreurs de la publication selon le code`(status: Int, code: String, expected: PostServiceError) async throws {
         let service = try makeService(problem(status, code))
 
-        await #expect(throws: expected) { try await service.createPost(caption: "", mediaId: "0199a1b2-0000-7000-9000-000000000001") }
+        await #expect(throws: expected) { try await service.createPost(caption: "", mediaIds: ["0199a1b2-0000-7000-9000-000000000001"]) }
     }
 
     @Test func `trop de publications (429) → rateLimited`() async throws {
         let service = try makeService(problem(429, "rate_limited"))
 
         await #expect(throws: PostServiceError.rateLimited(retryAfter: nil)) {
-            try await service.createPost(caption: "", mediaId: "0199a1b2-0000-7000-9000-000000000001")
+            try await service.createPost(caption: "", mediaIds: ["0199a1b2-0000-7000-9000-000000000001"])
         }
     }
 
@@ -91,5 +91,19 @@ struct APIPostServiceTests {
         let service = try makeService(.failure)
 
         await #expect(throws: PostServiceError.unreachable) { try await service.fetchPost(id: "0199a1b2-0000-7000-a000-000000000001") }
+    }
+
+    @Test func `DELETE post (204) → succès`() async throws {
+        let service = try makeService(.response(status: 204, contentType: nil, body: nil))
+
+        try await service.deletePost(id: "0199a1b2-0000-7000-a000-000000000001")
+    }
+
+    @Test func `DELETE post déjà supprimé ou d'un autre (404) → postNotFound`() async throws {
+        let service = try makeService(problem(404, "post_not_found"))
+
+        await #expect(throws: PostServiceError.postNotFound) {
+            try await service.deletePost(id: "0199a1b2-0000-7000-a000-000000000001")
+        }
     }
 }
