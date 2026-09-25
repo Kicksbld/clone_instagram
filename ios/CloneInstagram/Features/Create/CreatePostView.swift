@@ -1,10 +1,15 @@
 import PhotosUI
 import SwiftUI
 
-/// Nouvelle publication (wireframe, parcours d'Instagram) : photo et recadrage, puis légende et « Partager ».
+/**
+ Nouvelle publication (wireframe, parcours d'Instagram) : photo et recadrage, puis légende et « Partager ».
+ « Sélectionner plusieurs » passe au carrousel (10 photos au plus, dans l'ordre de sélection).
+ */
 struct CreatePostView: View {
     @State private var viewModel: CreatePostViewModel
     @State private var selection: PhotosPickerItem?
+    @State private var multipleSelection: [PhotosPickerItem] = []
+    @State private var isSelectingMultiple = false
     @State private var isShowingCaption = false
     let onClose: () -> Void
 
@@ -17,12 +22,14 @@ struct CreatePostView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 cropArea
-                PhotosPicker(selection: $selection, matching: .images, preferredItemEncoding: .current) {
-                    Text("Choisir une photo")
+                if viewModel.photos.count > 1 {
+                    SelectedPhotosStrip(viewModel: viewModel)
                 }
-                .photosPickerStyle(.inline)
-                .photosPickerDisabledCapabilities(.selectionActions)
-                .photosPickerAccessoryVisibility(.hidden, edges: .all)
+                pickerHeader
+                picker
+                    .photosPickerStyle(.inline)
+                    .photosPickerDisabledCapabilities(.selectionActions)
+                    .photosPickerAccessoryVisibility(.hidden, edges: .all)
             }
             .navigationTitle("Nouvelle publication")
             .navigationBarTitleDisplayMode(.inline)
@@ -40,14 +47,78 @@ struct CreatePostView: View {
             }
             .onChange(of: selection) { _, item in
                 guard let item else { return }
-                Task {
-                    if let data = try? await item.loadTransferable(type: Data.self) {
-                        await viewModel.loadPhoto(data)
-                    } else {
-                        viewModel.photoLoadFailed()
-                    }
-                }
+                Task { await load([item]) }
             }
+            .onChange(of: multipleSelection) { _, items in
+                Task { await load(items) }
+            }
+            .alert(
+                "Photos illisibles",
+                isPresented: Binding(
+                    get: { viewModel.loadErrorMessage != nil },
+                    set: {
+                        if !$0 {
+                            viewModel.loadErrorMessage = nil
+                        }
+                    }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(viewModel.loadErrorMessage ?? "")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var picker: some View {
+        if isSelectingMultiple {
+            PhotosPicker(
+                selection: $multipleSelection,
+                maxSelectionCount: CreatePostViewModel.maxPhotos,
+                selectionBehavior: .ordered,
+                matching: .images,
+                preferredItemEncoding: .current
+            ) {
+                Text("Choisir des photos")
+            }
+        } else {
+            PhotosPicker(selection: $selection, matching: .images, preferredItemEncoding: .current) {
+                Text("Choisir une photo")
+            }
+        }
+    }
+
+    private var pickerHeader: some View {
+        HStack {
+            Text("Récents")
+                .font(.headline)
+            Spacer()
+            Toggle(isOn: Binding(get: { isSelectingMultiple }, set: setSelectingMultiple)) {
+                Label("Sélectionner plusieurs", systemImage: "square.on.square")
+            }
+            .toggleStyle(.button)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+    }
+
+    /// Bascule simple ↔ plusieurs : la photo affichée reste la première du carrousel, comme sur Instagram.
+    private func setSelectingMultiple(_ isOn: Bool) {
+        isSelectingMultiple = isOn
+        if isOn {
+            multipleSelection = selection.map { [$0] } ?? []
+        } else {
+            selection = multipleSelection.first
+            multipleSelection = []
+            Task { await load(selection.map { [$0] } ?? []) }
+        }
+    }
+
+    private func load(_ items: [PhotosPickerItem]) async {
+        await viewModel.updateSelection(items.map(AnyHashable.init)) { id in
+            guard let item = id.base as? PhotosPickerItem else { return nil }
+            return try? await item.loadTransferable(type: Data.self)
         }
     }
 
@@ -163,6 +234,35 @@ private struct CropView: View {
     }
 }
 
+/// Photos du carrousel, dans l'ordre : toucher une photo l'affiche dans le cadre de recadrage.
+private struct SelectedPhotosStrip: View {
+    let viewModel: CreatePostViewModel
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 4) {
+                ForEach(Array(viewModel.photos.enumerated()), id: \.element.id) { index, photo in
+                    Button {
+                        viewModel.select(photo.id)
+                    } label: {
+                        Image(decorative: photo.image, scale: 1)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 44, height: 44)
+                            .clipped()
+                            .opacity(index == viewModel.selectedIndex ? 1 : 0.5)
+                    }
+                    .accessibilityLabel("Photo \(index + 1) sur \(viewModel.photos.count)")
+                    .accessibilityAddTraits(index == viewModel.selectedIndex ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal)
+        }
+        .scrollIndicators(.hidden)
+        .padding(.vertical, 8)
+    }
+}
+
 /// Légende et partage : la publication part dans la file, l'écran se ferme.
 private struct CaptionView: View {
     let viewModel: CreatePostViewModel
@@ -177,6 +277,14 @@ private struct CaptionView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 72, height: 72)
+                        .overlay(alignment: .topTrailing) {
+                            if viewModel.photos.count > 1 {
+                                Image(systemName: "square.fill.on.square.fill")
+                                    .font(.caption)
+                                    .padding(4)
+                                    .accessibilityLabel("\(viewModel.photos.count) photos")
+                            }
+                        }
                 }
                 TextField("Ajouter une légende…", text: $viewModel.caption, axis: .vertical)
                     .lineLimit(3 ... 12)

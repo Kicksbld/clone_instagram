@@ -2,8 +2,8 @@ import CoreGraphics
 import Foundation
 import Observation
 
-/// Nouvelle publication (T6a : une photo) : choix, recadrage comme Instagram, légende, puis ajout à la
-/// file de publication, qui continue sans l'écran.
+/// Nouvelle publication : 1 à 10 photos, recadrage comme Instagram, légende, puis ajout à la file de
+/// publication, qui continue sans l'écran.
 @Observable
 final class CreatePostViewModel {
     enum PhotoState {
@@ -13,14 +13,35 @@ final class CreatePostViewModel {
         case failed(message: String)
     }
 
-    static let captionMaxLength = 2200
+    /// Une photo choisie et son cadrage (propre à chaque photo, comme sur Instagram).
+    struct EditablePhoto: Identifiable {
+        /// Élément du sélecteur de photos d'où vient la photo.
+        let id: AnyHashable
+        let image: CGImage
+        var zoom = 1.0
+        /// Centre de la zone gardée, en pixels de la photo.
+        var center: CGPoint
 
-    private(set) var photo: PhotoState = .empty
-    /// Cadre carré (1:1) ; sinon ratio de la photo, borné entre 3:4 et 1.91:1.
+        var size: CGSize {
+            CGSize(width: image.width, height: image.height)
+        }
+    }
+
+    static let captionMaxLength = 2200
+    /// Carrousel : 10 photos au plus (contrat `POST /v1/posts`).
+    static let maxPhotos = 10
+
+    /// Photos choisies, dans l'ordre de sélection (ordre du carrousel).
+    private(set) var photos: [EditablePhoto] = []
+    /// Photo affichée dans le cadre de recadrage.
+    private(set) var selectedIndex = 0
+    private(set) var isLoading = false
+    /// Toutes les photos choisies sont illisibles.
+    private(set) var loadFailed = false
+    /// Certaines photos n'ont pas pu être ouvertes (alerte) ; `nil` une fois fermée.
+    var loadErrorMessage: String?
+    /// Cadre carré (1:1) ; sinon ratio de la première photo, borné entre 3:4 et 1.91:1.
     private(set) var isSquare = false
-    private(set) var zoom = 1.0
-    /// Centre de la zone gardée, en pixels de la photo.
-    private(set) var center = CGPoint.zero
     var caption = "" {
         didSet {
             if caption.count > Self.captionMaxLength {
@@ -50,25 +71,45 @@ final class CreatePostViewModel {
         self.decode = decode
     }
 
-    var image: CGImage? {
-        if case let .loaded(image) = photo {
-            image
+    var photo: PhotoState {
+        if isLoading, photos.isEmpty {
+            .loading
+        } else if let image {
+            .loaded(image)
+        } else if loadFailed {
+            .failed(message: UploadError.message(for: .unreadableImage))
         } else {
-            nil
+            .empty
         }
     }
 
+    private var selected: EditablePhoto? {
+        photos.indices.contains(selectedIndex) ? photos[selectedIndex] : nil
+    }
+
+    var image: CGImage? {
+        selected?.image
+    }
+
     var imageSize: CGSize {
-        image.map { CGSize(width: $0.width, height: $0.height) } ?? .zero
+        selected?.size ?? .zero
     }
 
-    /// Ratio largeur / hauteur du cadre.
+    var zoom: Double {
+        selected?.zoom ?? 1
+    }
+
+    var center: CGPoint {
+        selected?.center ?? .zero
+    }
+
+    /// Ratio largeur / hauteur du cadre, commun à toutes les photos : celui de la première.
     var aspectRatio: Double {
-        guard imageSize.height > 0 else { return 1 }
-        return isSquare ? 1 : ImageCropper.clampedAspectRatio(imageSize.width / imageSize.height)
+        guard let first = photos.first, first.size.height > 0 else { return 1 }
+        return isSquare ? 1 : ImageCropper.clampedAspectRatio(first.size.width / first.size.height)
     }
 
-    /// Zone gardée, en pixels de la photo.
+    /// Zone gardée de la photo affichée, en pixels de la photo.
     var cropRect: CGRect {
         cropRect(zoom: zoom, center: center)
     }
@@ -77,64 +118,114 @@ final class CreatePostViewModel {
         ImageCropper.cropRect(imageSize: imageSize, aspectRatio: aspectRatio, zoom: zoom, center: center)
     }
 
-    /// Aperçu recadré (écran légende).
+    /// Aperçu recadré de la première photo (écran légende).
     var croppedPreview: CGImage? {
-        image?.cropping(to: cropRect.integral)
+        guard let first = photos.first else { return nil }
+        return first.image.cropping(to: cropRect(of: first).integral)
     }
 
     var canContinue: Bool {
-        image != nil
+        !photos.isEmpty && !isLoading
     }
 
+    /// Une seule photo (mode simple du sélecteur).
     func loadPhoto(_ data: Data) async {
+        await updateSelection([AnyHashable(UUID())]) { _ in data }
+    }
+
+    /**
+     Nouvelle sélection du sélecteur, dans l'ordre : les photos déjà chargées gardent leur cadrage, les
+     nouvelles sont chargées par `data` ; la dernière ajoutée devient la photo affichée.
+     */
+    func updateSelection(_ ids: [AnyHashable], data: (AnyHashable) async -> Data?) async {
         loadGeneration += 1
         let generation = loadGeneration
-        photo = .loading
-        do {
-            let image = try await decode(data)
-            // Une autre photo a été choisie entre-temps.
+        let ids = Array(ids.prefix(Self.maxPhotos))
+        let previousId = selected?.id
+        let loaded = Dictionary(photos.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        isLoading = true
+        loadFailed = false
+
+        var result: [EditablePhoto] = []
+        var failures = 0
+        var added: AnyHashable?
+        for id in ids {
+            if let photo = loaded[id] {
+                result.append(photo)
+                continue
+            }
+            guard let bytes = await data(id), let image = try? await decode(bytes) else {
+                failures += 1
+                continue
+            }
+            // Une autre sélection a été faite entre-temps.
             guard generation == loadGeneration else { return }
-            photo = .loaded(image)
+            let size = CGSize(width: image.width, height: image.height)
+            result.append(EditablePhoto(id: id, image: image, center: CGPoint(x: size.width / 2, y: size.height / 2)))
+            added = id
+        }
+        guard generation == loadGeneration else { return }
+
+        photos = result
+        isLoading = false
+        loadFailed = result.isEmpty && failures > 0
+        if result.count <= 1 {
             isSquare = false
-            resetCrop()
-        } catch {
-            guard generation == loadGeneration else { return }
-            photo = .failed(message: UploadError.message(for: .unreadableImage))
+        }
+        let shown = added ?? previousId
+        selectedIndex = result.firstIndex { $0.id == shown } ?? max(result.count - 1, 0)
+        if failures > 0, !result.isEmpty {
+            loadErrorMessage = "Certaines photos n'ont pas pu être ouvertes."
         }
     }
 
     func photoLoadFailed() {
-        photo = .failed(message: UploadError.message(for: .unreadableImage))
+        photos = []
+        isLoading = false
+        loadFailed = true
     }
 
-    /// Bouton d'agrandissement : carré ↔ ratio d'origine.
+    /// Affiche une photo du carrousel dans le cadre de recadrage.
+    func select(_ id: AnyHashable) {
+        if let index = photos.firstIndex(where: { $0.id == id }) {
+            selectedIndex = index
+        }
+    }
+
+    /// Bouton d'agrandissement : carré ↔ ratio d'origine, pour toutes les photos.
     func toggleSquare() {
         isSquare.toggle()
-        resetCrop()
+        for index in photos.indices {
+            photos[index].zoom = 1
+            photos[index].center = CGPoint(x: photos[index].size.width / 2, y: photos[index].size.height / 2)
+        }
     }
 
-    /// Fin d'un geste : zoom et centre retenus, ramenés dans la photo.
+    /// Fin d'un geste : zoom et centre de la photo affichée retenus, ramenés dans la photo.
     func commitCrop(zoom: Double, center: CGPoint) {
-        self.zoom = min(max(zoom, 1), ImageCropper.maxZoom)
-        let rect = cropRect(zoom: self.zoom, center: center)
-        self.center = CGPoint(x: rect.midX, y: rect.midY)
+        guard photos.indices.contains(selectedIndex) else { return }
+        photos[selectedIndex].zoom = min(max(zoom, 1), ImageCropper.maxZoom)
+        let rect = cropRect(zoom: photos[selectedIndex].zoom, center: center)
+        photos[selectedIndex].center = CGPoint(x: rect.midX, y: rect.midY)
     }
 
-    /// Recadre, prépare et ajoute la photo à la file ; `true` si l'écran peut se fermer.
+    /// Recadre, prépare et ajoute les photos à la file ; `true` si l'écran peut se fermer.
     func share() async -> Bool {
-        guard let image, !isSharing else { return false }
+        guard !photos.isEmpty, !isSharing else { return false }
         isSharing = true
         defer { isSharing = false }
-        let data: Data
-        do {
-            data = try await ImageCropper.jpegData(of: image, croppedTo: cropRect)
-        } catch {
-            shareErrorMessage = UploadError.message(for: .unreadableImage)
-            return false
+        var images: [Data] = []
+        for photo in photos {
+            do {
+                try await images.append(ImageCropper.jpegData(of: photo.image, croppedTo: cropRect(of: photo)))
+            } catch {
+                shareErrorMessage = UploadError.message(for: .unreadableImage)
+                return false
+            }
         }
         do {
             try await publisher.publish(
-                imageData: data,
+                images: images,
                 caption: caption.trimmingCharacters(in: .whitespacesAndNewlines),
                 authorId: authorId
             )
@@ -145,8 +236,7 @@ final class CreatePostViewModel {
         }
     }
 
-    private func resetCrop() {
-        zoom = 1
-        center = CGPoint(x: imageSize.width / 2, y: imageSize.height / 2)
+    private func cropRect(of photo: EditablePhoto) -> CGRect {
+        ImageCropper.cropRect(imageSize: photo.size, aspectRatio: aspectRatio, zoom: photo.zoom, center: photo.center)
     }
 }

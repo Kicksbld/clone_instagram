@@ -9,6 +9,7 @@ import { CompleteUpload } from '../../src/modules/media/application/use-cases/co
 import { GetMedia } from '../../src/modules/media/application/use-cases/get-media.ts';
 import { RequestUpload } from '../../src/modules/media/application/use-cases/request-upload.ts';
 import { CreatePost } from '../../src/modules/posts/application/use-cases/create-post.ts';
+import { DeletePost } from '../../src/modules/posts/application/use-cases/delete-post.ts';
 import { GetPost } from '../../src/modules/posts/application/use-cases/get-post.ts';
 import { ListUserPosts } from '../../src/modules/posts/application/use-cases/list-user-posts.ts';
 import { FollowUser } from '../../src/modules/social/application/use-cases/follow-user.ts';
@@ -87,6 +88,7 @@ export function buildTestApp() {
           sequentialIds('0199a1b2-0000-7000-a000-'),
           clock,
         ),
+        deletePost: new DeletePost(new InMemoryUnitOfWork({ media, posts })),
         getPost: new GetPost(posts, relationships),
         listUserPosts: new ListUserPosts(graph, relationships, posts),
       },

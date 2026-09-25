@@ -21,9 +21,14 @@ struct PublishQueueTests {
         }
     }
 
-    private func publish(_ queue: PublishQueue, caption: String = "Salut") async throws {
-        try await queue.publish(imageData: Data("photo".utf8), caption: caption, authorId: Self.authorId)
+    private func publish(_ queue: PublishQueue, caption: String = "Salut", photos: Int = 1) async throws {
+        let images = Array(repeating: Data("photo".utf8), count: photos)
+        try await queue.publish(images: images, caption: caption, authorId: Self.authorId)
         await queue.waitUntilIdle()
+    }
+
+    private static func mediaId(_ number: Int) -> String {
+        "0199a1b2-0000-7000-9000-00000000000\(number)"
     }
 
     @Test func `photo envoyée, traitée, puis post créé ; file vidée et fichier supprimé`() async throws {
@@ -35,7 +40,7 @@ struct PublishQueueTests {
         #expect(uploads.fileExistedDuringSend)
         #expect(uploads.waited == ["0199a1b2-0000-7000-9000-000000000001"])
         #expect(posts.created.map(\.caption) == ["Salut"])
-        #expect(posts.created.map(\.mediaId) == ["0199a1b2-0000-7000-9000-000000000001"])
+        #expect(posts.created.map(\.mediaIds) == [[Self.mediaId(1)]])
         #expect(queue.items.isEmpty)
         #expect(queue.publishedCount == 1)
         #expect(store.load().isEmpty)
@@ -73,7 +78,7 @@ struct PublishQueueTests {
         await queue.waitUntilIdle()
 
         #expect(uploads.sent.count == 2)
-        #expect(posts.created.map(\.mediaId) == ["0199a1b2-0000-7000-9000-000000000002"])
+        #expect(posts.created.map(\.mediaIds) == [[Self.mediaId(2)]])
     }
 
     @Test func `traitement trop long : Réessayer reprend l'attente, sans renvoyer le fichier`() async throws {
@@ -117,17 +122,14 @@ struct PublishQueueTests {
         let fileName = "photo.jpg"
         try FileManager.default.createDirectory(at: store.directory, withIntermediateDirectories: true)
         try Data("jpeg".utf8).write(to: store.directory.appending(path: fileName))
-        store.save([PendingPost(
-            id: UUID(),
-            authorId: Self.authorId,
-            caption: "Reprise",
+        let media = PendingMedia(
             fileName: fileName,
             sizeBytes: 4,
             width: 1080,
             height: 1440,
-            step: step,
             mediaId: step == .upload ? nil : "0199a1b2-0000-7000-9000-00000000000a"
-        )])
+        )
+        store.save([PendingPost(id: UUID(), authorId: Self.authorId, caption: "Reprise", media: [media], step: step)])
         let queue = makeQueue()
         #expect(queue.items.count == 1)
 
@@ -141,10 +143,8 @@ struct PublishQueueTests {
     }
 
     @Test func `relance avec un autre compte : la publication est abandonnée`() async {
-        store.save([PendingPost(
-            id: UUID(), authorId: "autre", caption: "", fileName: "x.jpg", sizeBytes: 4, width: 1, height: 1, step: .create,
-            mediaId: "0199a1b2-0000-7000-9000-00000000000a"
-        )])
+        let media = PendingMedia(fileName: "x.jpg", sizeBytes: 4, width: 1, height: 1, mediaId: "0199a1b2-0000-7000-9000-00000000000a")
+        store.save([PendingPost(id: UUID(), authorId: "autre", caption: "", media: [media], step: .create)])
         let queue = makeQueue()
 
         queue.resume(for: Self.authorId)
@@ -165,7 +165,8 @@ struct PublishQueueTests {
 
         #expect(queue.items.isEmpty)
         #expect(store.load().isEmpty)
-        #expect(!FileManager.default.fileExists(atPath: queue.fileURL(of: failed).path(percentEncoded: false)))
+        let file = try #require(queue.fileURL(of: failed))
+        #expect(!FileManager.default.fileExists(atPath: file.path(percentEncoded: false)))
     }
 
     @Test func `photo illisible : unreadableImage, rien n'est ajouté`() async {
@@ -174,8 +175,68 @@ struct PublishQueueTests {
         }
 
         await #expect(throws: UploadError.unreadableImage) {
-            try await queue.publish(imageData: Data(), caption: "", authorId: Self.authorId)
+            try await queue.publish(images: [Data()], caption: "", authorId: Self.authorId)
         }
         #expect(queue.items.isEmpty)
+    }
+
+    @Test func `carrousel de 3 photos : envoyées dans l'ordre, puis un seul post avec les 3 médias`() async throws {
+        let queue = makeQueue()
+
+        try await publish(queue, photos: 3)
+
+        #expect(uploads.sent.count == 3)
+        #expect(uploads.waited == [Self.mediaId(1), Self.mediaId(2), Self.mediaId(3)])
+        #expect(posts.created.map(\.mediaIds) == [[Self.mediaId(1), Self.mediaId(2), Self.mediaId(3)]])
+        #expect(queue.items.isEmpty)
+        #expect(queue.publishedCount == 1)
+    }
+
+    @Test func `deuxième photo en échec : tout le post échoue, Réessayer n'envoie que les photos restantes`() async throws {
+        let queue = makeQueue()
+        uploads.failSend(at: 2, with: .transferFailed)
+
+        try await publish(queue, photos: 3)
+
+        let failed = try #require(queue.items.first)
+        #expect(failed.failureMessage == UploadError.message(for: .transferFailed))
+        #expect(failed.media.map(\.mediaId) == [Self.mediaId(1), nil, nil])
+        #expect(posts.created.isEmpty)
+
+        queue.retry(failed.id)
+        await queue.waitUntilIdle()
+
+        #expect(uploads.sent.count == 4)
+        #expect(posts.created.map(\.mediaIds) == [[Self.mediaId(1), Self.mediaId(2), Self.mediaId(3)]])
+        #expect(queue.items.isEmpty)
+    }
+
+    @Test func `photo refusée par le worker : Réessayer ne renvoie qu'elle`() async throws {
+        let queue = makeQueue()
+        uploads.failWait(at: 2, with: .rejected(.processingError))
+
+        try await publish(queue, photos: 2)
+
+        let failed = try #require(queue.items.first)
+        #expect(failed.step == .upload)
+        #expect(failed.media.map(\.mediaId) == [Self.mediaId(1), nil])
+
+        queue.retry(failed.id)
+        await queue.waitUntilIdle()
+
+        #expect(uploads.sent.count == 3)
+        #expect(posts.created.map(\.mediaIds) == [[Self.mediaId(1), Self.mediaId(3)]])
+    }
+
+    @Test func `supprimer un carrousel en échec : toutes ses photos locales sont supprimées`() async throws {
+        let queue = makeQueue()
+        uploads.failSend(at: 1, with: .unreachable)
+        try await publish(queue, photos: 3)
+        let failed = try #require(queue.items.first)
+
+        queue.discard(failed.id)
+
+        let files = try FileManager.default.contentsOfDirectory(atPath: store.directory.path(percentEncoded: false))
+        #expect(files.filter { $0.hasSuffix(".jpg") }.isEmpty)
     }
 }

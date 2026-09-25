@@ -1,10 +1,13 @@
 import NukeUI
 import SwiftUI
 
-/// Détail d'un post (wireframe, comme Instagram) : auteur, photo à son ratio, actions, légende et date.
-/// Les actions (J'aime, Commenter, Partager, Enregistrer) arrivent en T8 et T9 : désactivées d'ici là.
+/// Détail d'un post (wireframe, comme Instagram) : auteur et menu « … », photos (carrousel) au ratio de la
+/// première, actions, légende et date. Les actions (J'aime, Commenter, Partager, Enregistrer) arrivent en T8
+/// et T9 : désactivées d'ici là.
 struct PostDetailView: View {
     @State private var viewModel: PostDetailViewModel
+    @State private var isConfirmingDelete = false
+    @Environment(\.dismiss) private var dismiss
 
     init(viewModel: PostDetailViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -15,6 +18,33 @@ struct PostDetailView: View {
             .navigationTitle("Publications")
             .navigationBarTitleDisplayMode(.inline)
             .task { await viewModel.load() }
+            .alert("Supprimer la publication ?", isPresented: $isConfirmingDelete) {
+                Button("Supprimer", role: .destructive) {
+                    Task {
+                        if await viewModel.delete() {
+                            dismiss()
+                        }
+                    }
+                }
+                Button("Annuler", role: .cancel) {}
+            } message: {
+                Text("Cette publication sera définitivement supprimée.")
+            }
+            .alert(
+                "Suppression impossible",
+                isPresented: Binding(
+                    get: { viewModel.deleteErrorMessage != nil },
+                    set: {
+                        if !$0 {
+                            viewModel.deleteErrorMessage = nil
+                        }
+                    }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(viewModel.deleteErrorMessage ?? "")
+            }
     }
 
     @ViewBuilder
@@ -24,7 +54,11 @@ struct PostDetailView: View {
             ProgressView()
         case let .loaded(post):
             ScrollView {
-                PostView(post: post)
+                PostView(
+                    post: post,
+                    isDeleting: viewModel.isDeleting,
+                    onDelete: viewModel.canDelete ? { isConfirmingDelete = true } : nil
+                )
             }
             .refreshable { await viewModel.load() }
         case .notFound:
@@ -47,22 +81,41 @@ struct PostDetailView: View {
 
 private struct PostView: View {
     let post: Post
+    let isDeleting: Bool
+    /// Menu « … » → « Supprimer » ; `nil` si le post n'est pas à moi.
+    let onDelete: (() -> Void)?
+    /// Photo affichée du carrousel.
+    @State private var page = 0
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            NavigationLink(value: ProfileRoute(username: post.author.username)) {
-                HStack(spacing: 8) {
-                    AvatarView(avatar: post.author.avatar, size: 32)
-                    Text(post.author.username)
-                        .font(.subheadline.weight(.semibold))
+            HStack {
+                NavigationLink(value: ProfileRoute(username: post.author.username)) {
+                    HStack(spacing: 8) {
+                        AvatarView(avatar: post.author.avatar, size: 32)
+                        Text(post.author.username)
+                            .font(.subheadline.weight(.semibold))
+                    }
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                if let onDelete {
+                    if isDeleting {
+                        ProgressView()
+                    } else {
+                        Menu("Plus d'options", systemImage: "ellipsis") {
+                            Button("Supprimer", systemImage: "trash", role: .destructive, action: onDelete)
+                        }
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(.primary)
+                    }
                 }
             }
-            .buttonStyle(.plain)
             .padding(.horizontal)
 
-            if let media = post.cover {
-                photo(media)
+            if let cover = post.cover {
+                carousel(ratio: cover.aspectRatio)
             }
 
             actions
@@ -82,10 +135,36 @@ private struct PostView: View {
         .padding(.vertical, 8)
     }
 
-    /// Photo pleine largeur à son ratio ; jamais de Liquid Glass sur le contenu (ADR-010).
-    private func photo(_ media: PostMediaItem) -> some View {
+    /**
+     Photos pleine largeur au ratio de la première (toutes recadrées au même ratio à la publication),
+     balayées une à une ; compteur « 1/3 » en haut à droite, comme Instagram. Jamais de Liquid Glass sur
+     le contenu (ADR-010).
+     */
+    private func carousel(ratio: Double) -> some View {
+        TabView(selection: $page) {
+            ForEach(Array(post.media.enumerated()), id: \.offset) { index, media in
+                photo(media, index: index)
+                    .tag(index)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .aspectRatio(ratio, contentMode: .fit)
+        .overlay(alignment: .topTrailing) {
+            if post.media.count > 1 {
+                Text("\(page + 1)/\(post.media.count)")
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.regularMaterial, in: .capsule)
+                    .padding(12)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private func photo(_ media: PostMediaItem, index: Int) -> some View {
         Color.secondary.opacity(0.1)
-            .aspectRatio(media.aspectRatio, contentMode: .fit)
             .overlay {
                 GeometryReader { proxy in
                     LazyImage(url: media.variants.url(forPixelWidth: proxy.size.width * displayScale)) { state in
@@ -97,7 +176,13 @@ private struct PostView: View {
                 }
             }
             .clipped()
-            .accessibilityLabel(post.caption.isEmpty ? "Photo" : post.caption)
+            .accessibilityElement()
+            .accessibilityLabel(photoLabel(index))
+    }
+
+    private func photoLabel(_ index: Int) -> String {
+        let label = post.caption.isEmpty ? "Photo" : post.caption
+        return post.media.count > 1 ? "\(label), photo \(index + 1) sur \(post.media.count)" : label
     }
 
     /// Provisoire : J'aime (T8), Commenter (T9), Partager et Enregistrer (plus tard).
@@ -112,5 +197,23 @@ private struct PostView: View {
         .labelStyle(.iconOnly)
         .font(.title3)
         .disabled(true)
+        .overlay {
+            if post.media.count > 1 {
+                pageDots
+            }
+        }
+    }
+
+    /// Points de pagination du carrousel, centrés sous la photo (comme Instagram).
+    private var pageDots: some View {
+        HStack(spacing: 4) {
+            ForEach(post.media.indices, id: \.self) { index in
+                Circle()
+                    .fill(index == page ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
+                    .frame(width: 6, height: 6)
+            }
+        }
+        .accessibilityElement()
+        .accessibilityLabel("Photo \(page + 1) sur \(post.media.count)")
     }
 }

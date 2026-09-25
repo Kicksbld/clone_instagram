@@ -15,6 +15,13 @@ export interface NewPost {
 export interface PostRepository {
   create(post: NewPost): Promise<void>;
   incrementPostCount(authorId: string): Promise<void>;
+  /**
+   * Suppression logique, seulement si le post est à `authorId` et pas encore supprimé (écriture
+   * conditionnelle : une double suppression ne passe qu'une fois). Renvoie les médias du post, ou
+   * `null` si aucune ligne n'est touchée.
+   */
+  softDelete(id: string, authorId: string): Promise<string[] | null>;
+  decrementPostCount(authorId: string): Promise<void>;
 }
 
 export interface AuthorPostsQuery {

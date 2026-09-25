@@ -4,6 +4,8 @@ import SwiftUI
 struct RootView: View {
     let dependencies: AppDependencies
     @State private var viewModel: RootViewModel
+    /// Incrémenté à chaque post supprimé : grille et compteurs de mon profil se rechargent.
+    @State private var deletedPostCount = 0
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
@@ -56,7 +58,7 @@ struct RootView: View {
                     onSignOut: signOut,
                     onFollowAccounts: openSearch,
                     posts: ProfilePostsViewModel(userId: profile.id, posts: dependencies.posts),
-                    postsReloadToken: dependencies.publishQueue.publishedCount,
+                    postsReloadToken: postsRevision,
                     editProfile: {
                         EditProfileView(
                             viewModel: EditProfileViewModel(
@@ -68,13 +70,19 @@ struct RootView: View {
                         )
                     }
                 )
-                .modifier(SocialDestinations(dependencies: dependencies, viewerId: profile.id, onFollowChange: viewModel.refreshProfile))
+                .modifier(SocialDestinations(
+                    dependencies: dependencies,
+                    viewerId: profile.id,
+                    onFollowChange: viewModel.refreshProfile,
+                    onPostDeleted: { deletedPostCount += 1 }
+                ))
             } searchTab: {
                 SearchView(viewModel: SearchViewModel(social: dependencies.social))
                     .modifier(SocialDestinations(
                         dependencies: dependencies,
                         viewerId: profile.id,
-                        onFollowChange: viewModel.refreshProfile
+                        onFollowChange: viewModel.refreshProfile,
+                        onPostDeleted: { deletedPostCount += 1 }
                     ))
             } createPost: { close in
                 CreatePostView(
@@ -82,9 +90,10 @@ struct RootView: View {
                     onClose: close
                 )
             }
-            // Reprise des publications interrompues (fermeture de l'app) ; compteurs rechargés après chaque post.
+            // Reprise des publications interrompues (fermeture de l'app) ; compteurs rechargés après chaque
+            // post publié ou supprimé.
             .task(id: profile.id) { dependencies.publishQueue.resume(for: profile.id) }
-            .onChange(of: dependencies.publishQueue.publishedCount) {
+            .onChange(of: postsRevision) {
                 Task { await viewModel.refreshProfile() }
             }
         case let .failed(message):
@@ -97,6 +106,11 @@ struct RootView: View {
                 Button("Se déconnecter", action: signOut)
             }
         }
+    }
+
+    /// Change à chaque post publié ou supprimé.
+    private var postsRevision: Int {
+        dependencies.publishQueue.publishedCount + deletedPostCount
     }
 
     /// Les publications en attente ne sont jamais reprises pour un autre compte.
@@ -113,6 +127,8 @@ private struct SocialDestinations: ViewModifier {
     let viewerId: String
     /// Après un follow ou un unfollow : mon profil (compteur « suivi(e)s ») est rechargé.
     let onFollowChange: () async -> Void
+    /// Après la suppression d'un de mes posts.
+    let onPostDeleted: () -> Void
 
     func body(content: Content) -> some View {
         content
@@ -129,7 +145,14 @@ private struct SocialDestinations: ViewModifier {
                 )
             }
             .navigationDestination(for: PostRoute.self) { route in
-                PostDetailView(viewModel: PostDetailViewModel(postId: route.postId, posts: dependencies.posts))
+                PostDetailView(
+                    viewModel: PostDetailViewModel(
+                        postId: route.postId,
+                        viewerId: viewerId,
+                        posts: dependencies.posts,
+                        onDeleted: onPostDeleted
+                    )
+                )
             }
             .navigationDestination(for: FollowListRoute.self) { route in
                 FollowListsView(

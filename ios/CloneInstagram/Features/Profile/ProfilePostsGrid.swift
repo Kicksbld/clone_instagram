@@ -2,7 +2,7 @@ import NukeUI
 import SwiftUI
 
 /// Grille des publications d'un profil, comme Instagram : 3 colonnes, vignettes 3:4 recadrées au centre,
-/// un toucher ouvre le post. Rechargée quand `reloadToken` change (post publié).
+/// un toucher ouvre le post. Rechargée quand `reloadToken` change (post publié ou supprimé).
 struct ProfilePostsGrid: View {
     @State private var viewModel: ProfilePostsViewModel
     var reloadToken = 0
@@ -47,10 +47,11 @@ struct ProfilePostsGrid: View {
         LazyVGrid(columns: columns, spacing: 1) {
             ForEach(viewModel.posts) { post in
                 NavigationLink(value: PostRoute(postId: post.id)) {
-                    PostThumbnail(media: post.cover)
+                    PostThumbnail(media: post.cover, isCarousel: post.media.count > 1)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(post.caption.isEmpty ? "Publication" : post.caption)
+                .accessibilityValue(post.media.count > 1 ? "\(post.media.count) photos" : "")
                 .task {
                     if viewModel.shouldLoadMore(after: post) {
                         await viewModel.loadMore()
@@ -72,9 +73,11 @@ struct ProfilePostsGrid: View {
     }
 }
 
-/// Vignette 3:4 de la grille : image recadrée au centre, variante adaptée à la largeur (ADR-010).
+/// Vignette 3:4 de la grille : première image recadrée au centre, variante adaptée à la largeur (ADR-010) ;
+/// icône carrousel en haut à droite, comme Instagram.
 private struct PostThumbnail: View {
     let media: PostMediaItem?
+    let isCarousel: Bool
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
@@ -93,5 +96,15 @@ private struct PostThumbnail: View {
                 }
             }
             .clipped()
+            .overlay(alignment: .topTrailing) {
+                if isCarousel {
+                    Image(systemName: "square.fill.on.square.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.white)
+                        .shadow(radius: 2)
+                        .padding(6)
+                        .accessibilityHidden(true)
+                }
+            }
     }
 }

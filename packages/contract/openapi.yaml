@@ -37,7 +37,7 @@ info:
     | `account_private` | 403 | Suivre un compte privé (demandes d'abonnement en P1) |
     | `cannot_follow_self` | 422 | Se suivre ou ne plus se suivre soi-même |
     | `invalid_cursor` | 400 | Curseur de pagination mal formé |
-    | `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) |
+    | `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |
 
     Pagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).
 servers:
@@ -391,7 +391,7 @@ paths:
       summary: Publier un post
       description: |
         Crée un post à partir de médias `ready`, à moi, de `purpose` `post`, jamais utilisés (ADR-008) ; ils sont rattachés au post dans l'ordre de `mediaIds`.
-        En T6a : une seule image ; le carrousel (jusqu'à 10) arrive en T6b, les reels en P1. Limité à 20 posts par heure (`429 rate_limited`).
+        De 1 à 10 images (carrousel) ; les reels arrivent en P1. Limité à 20 posts par heure (`429 rate_limited`).
       requestBody:
         required: true
         content:
@@ -446,6 +446,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Post'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/PostNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deletePost
+      tags: [posts]
+      summary: Supprimer un de mes posts
+      description: |
+        Suppression logique par l'auteur (ADR-007) : le post disparaît de toutes les lectures, `postCount` baisse de 1 et ses médias sont détachés, puis purgés par `purge-orphan-media` (ADR-008).
+        Post inexistant, déjà supprimé, invisible ou d'un autre auteur → `404 post_not_found`, jamais `403` (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      responses:
+        '204':
+          description: Post supprimé.
         '400':
           $ref: '#/components/responses/ValidationFailed'
         '401':
@@ -920,9 +940,9 @@ components:
           $ref: '#/components/schemas/Caption'
         mediaIds:
           type: array
-          description: Médias du post, dans l'ordre d'affichage. En T6a, une seule image.
+          description: Médias du post, dans l'ordre d'affichage (1 à 10 images).
           minItems: 1
-          maxItems: 1
+          maxItems: 10
           uniqueItems: true
           items:
             type: string

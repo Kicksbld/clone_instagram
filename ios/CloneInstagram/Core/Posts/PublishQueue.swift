@@ -5,11 +5,11 @@ import Observation
 nonisolated struct PendingPost: Codable, Equatable, Identifiable {
     /// Prochaine étape à exécuter ; chaque étape franchie est enregistrée avant la suivante.
     enum Step: String, Codable {
-        /// Photo préparée : intention d'upload, envoi du fichier, `complete`.
+        /// Photos préparées : intention d'upload, envoi du fichier, `complete`, photo par photo.
         case upload
-        /// Média envoyé : traitement par le worker.
+        /// Médias envoyés : traitement par le worker.
         case processing
-        /// Média prêt : création du post.
+        /// Médias prêts : création du post.
         case create
     }
 
@@ -17,15 +17,22 @@ nonisolated struct PendingPost: Codable, Equatable, Identifiable {
     /// Profil qui publie : une publication n'est jamais reprise pour un autre compte.
     let authorId: String
     let caption: String
+    /// Photos du post (1 à 10), dans l'ordre d'affichage.
+    var media: [PendingMedia]
+    var step: Step
+    /// Échec affiché dans le bandeau (« Réessayer », « Supprimer ») ; `nil` pendant la publication.
+    var failureMessage: String?
+}
+
+/// Une photo d'une publication en attente.
+nonisolated struct PendingMedia: Codable, Equatable {
     /// Photo JPEG préparée (sans métadonnées), dans le dossier de la file.
     let fileName: String
     let sizeBytes: Int
     let width: Int
     let height: Int
-    var step: Step
+    /// Renseigné une fois la photo envoyée : une relance ne la renvoie pas.
     var mediaId: String?
-    /// Échec affiché dans le bandeau (« Réessayer », « Supprimer ») ; `nil` pendant la publication.
-    var failureMessage: String?
 }
 
 /// Stockage de la file : état en JSON et photos préparées, dans un même dossier.
@@ -62,16 +69,17 @@ nonisolated struct FilePendingPostStore: PendingPostStore {
     }
 }
 
-/// Publier une photo : utilisé par l'écran de création.
+/// Publier une ou plusieurs photos : utilisé par l'écran de création.
 protocol PostPublishing: AnyObject {
-    /// Prépare la photo et l'ajoute à la file ; la suite (envoi, traitement, création) continue sans l'écran.
-    func publish(imageData: Data, caption: String, authorId: String) async throws(UploadError)
+    /// Prépare les photos et les ajoute à la file ; la suite (envoi, traitement, création) continue sans l'écran.
+    func publish(images: [Data], caption: String, authorId: String) async throws(UploadError)
 }
 
 /**
- File de publication (ADR-008) : photo préparée → envoi → traitement → `POST /v1/posts`, chaque étape
+ File de publication (ADR-008) : photos préparées → envoi → traitement → `POST /v1/posts`, chaque étape
  enregistrée. Au lancement, `resume` reprend là où la publication s'était arrêtée. Alimente le bandeau
- « Publication en cours » ; un échec y propose « Réessayer » ou « Supprimer ».
+ « Publication en cours » ; comme sur Instagram, une photo en échec fait échouer tout le post, et
+ « Réessayer » ne refait que ce qui n'a pas abouti (les photos déjà envoyées ne sont pas renvoyées).
  */
 @Observable
 final class PublishQueue: PostPublishing {
@@ -102,27 +110,28 @@ final class PublishQueue: PostPublishing {
         items = store.load()
     }
 
-    func fileURL(of item: PendingPost) -> URL {
-        store.directory.appending(path: item.fileName)
+    /// Première photo : vignette du bandeau.
+    func fileURL(of item: PendingPost) -> URL? {
+        item.media.first.map(fileURL(of:))
     }
 
-    func publish(imageData: Data, caption: String, authorId: String) async throws(UploadError) {
-        let image: PreparedImage
-        do {
-            image = try await prepare(imageData, store.directory)
-        } catch {
-            throw .unreadableImage
+    func publish(images: [Data], caption: String, authorId: String) async throws(UploadError) {
+        var media: [PendingMedia] = []
+        for data in images {
+            do {
+                let image = try await prepare(data, store.directory)
+                media.append(PendingMedia(
+                    fileName: image.fileURL.lastPathComponent,
+                    sizeBytes: image.sizeBytes,
+                    width: image.width,
+                    height: image.height
+                ))
+            } catch {
+                removeFiles(of: media)
+                throw .unreadableImage
+            }
         }
-        let item = PendingPost(
-            id: UUID(),
-            authorId: authorId,
-            caption: caption,
-            fileName: image.fileURL.lastPathComponent,
-            sizeBytes: image.sizeBytes,
-            width: image.width,
-            height: image.height,
-            step: .upload
-        )
+        let item = PendingPost(id: UUID(), authorId: authorId, caption: caption, media: media, step: .upload)
         items.append(item)
         persist()
         start(item.id)
@@ -143,11 +152,11 @@ final class PublishQueue: PostPublishing {
         start(id)
     }
 
-    /// Abandonne la publication : photo locale supprimée ; un média déjà envoyé sera purgé (ADR-008).
+    /// Abandonne la publication : photos locales supprimées ; un média déjà envoyé sera purgé (ADR-008).
     func discard(_ id: UUID) {
         tasks.removeValue(forKey: id)?.cancel()
         guard let item = items.first(where: { $0.id == id }) else { return }
-        try? FileManager.default.removeItem(at: fileURL(of: item))
+        removeFiles(of: item.media)
         items.removeAll { $0.id == id }
         persist()
     }
@@ -188,56 +197,71 @@ final class PublishQueue: PostPublishing {
         }
     }
 
+    /// Envoie une à une les photos pas encore envoyées ; chaque envoi réussi est enregistré.
     private func upload(_ item: PendingPost) async {
-        let image = PreparedImage(
-            fileURL: fileURL(of: item),
-            sizeBytes: item.sizeBytes,
-            mimeType: "image/jpeg",
-            width: item.width,
-            height: item.height
-        )
-        do {
-            let mediaId = try await uploads.send(image, purpose: .post)
-            update(item.id) {
-                $0.mediaId = mediaId
-                $0.step = .processing
+        for (index, media) in item.media.enumerated() where media.mediaId == nil {
+            let image = PreparedImage(
+                fileURL: fileURL(of: media),
+                sizeBytes: media.sizeBytes,
+                mimeType: "image/jpeg",
+                width: media.width,
+                height: media.height
+            )
+            do {
+                let mediaId = try await uploads.send(image, purpose: .post)
+                update(item.id) { $0.media[index].mediaId = mediaId }
+            } catch {
+                fail(item.id, UploadError.message(for: error))
+                return
             }
-        } catch {
-            fail(item.id, UploadError.message(for: error))
         }
+        update(item.id) { $0.step = .processing }
     }
 
     private func waitForProcessing(_ item: PendingPost) async {
-        guard let mediaId = item.mediaId else {
-            update(item.id) { $0.step = .upload }
-            return
-        }
-        do {
-            try await uploads.waitUntilProcessed(mediaId: mediaId)
-            update(item.id) { $0.step = .create }
-        } catch {
-            // Média refusé par le worker : « Réessayer » repart d'un nouvel envoi.
-            if case .rejected = error {
+        for (index, media) in item.media.enumerated() {
+            guard let mediaId = media.mediaId else {
                 update(item.id) { $0.step = .upload }
+                return
             }
-            fail(item.id, UploadError.message(for: error))
+            do {
+                try await uploads.waitUntilProcessed(mediaId: mediaId)
+            } catch {
+                // Photo refusée par le worker : « Réessayer » ne renvoie qu'elle.
+                if case .rejected = error {
+                    update(item.id) {
+                        $0.media[index].mediaId = nil
+                        $0.step = .upload
+                    }
+                }
+                fail(item.id, UploadError.message(for: error))
+                return
+            }
         }
+        update(item.id) { $0.step = .create }
     }
 
     private func create(_ item: PendingPost) async {
-        guard let mediaId = item.mediaId else {
+        let mediaIds = item.media.compactMap(\.mediaId)
+        guard mediaIds.count == item.media.count else {
             update(item.id) { $0.step = .upload }
             return
         }
         do {
-            _ = try await posts.createPost(caption: item.caption, mediaId: mediaId)
+            _ = try await posts.createPost(caption: item.caption, mediaIds: mediaIds)
         } catch .mediaAlreadyAttached {
             // Le post a déjà été créé (réponse perdue avant la fermeture de l'app) : publication réussie.
         } catch .mediaNotReady {
             update(item.id) { $0.step = .processing }
             return
         } catch .mediaNotFound, .mediaPurposeMismatch {
-            update(item.id) { $0.step = .upload }
+            // Médias inutilisables : « Réessayer » renvoie toutes les photos.
+            update(item.id) {
+                for index in $0.media.indices {
+                    $0.media[index].mediaId = nil
+                }
+                $0.step = .upload
+            }
             fail(item.id, Self.genericMessage)
             return
         } catch {
@@ -260,6 +284,16 @@ final class PublishQueue: PostPublishing {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         change(&items[index])
         persist()
+    }
+
+    private func fileURL(of media: PendingMedia) -> URL {
+        store.directory.appending(path: media.fileName)
+    }
+
+    private func removeFiles(of media: [PendingMedia]) {
+        for item in media {
+            try? FileManager.default.removeItem(at: fileURL(of: item))
+        }
     }
 
     private func persist() {

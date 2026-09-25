@@ -33,20 +33,22 @@ nonisolated enum PostServiceError: Error, Equatable {
 
 /// Posts (module `posts` de l'API) ; partagé par la file de publication et les features Profile et Post.
 protocol PostService: Sendable {
-    /// `POST /v1/posts` : une seule image en T6a (carrousel en T6b).
-    func createPost(caption: String, mediaId: String) async throws(PostServiceError) -> Post
+    /// `POST /v1/posts` : 1 à 10 images (carrousel), dans l'ordre d'affichage.
+    func createPost(caption: String, mediaIds: [String]) async throws(PostServiceError) -> Post
     /// `GET /v1/posts/{id}`.
     func fetchPost(id: String) async throws(PostServiceError) -> Post
     /// `GET /v1/users/{id}/posts` ; `cursor` = `nextCursor` de la page précédente.
     func listPosts(of userId: String, cursor: String?) async throws(PostServiceError) -> PostPage
+    /// `DELETE /v1/posts/{id}` : un de mes posts ; déjà supprimé ou d'un autre → `postNotFound`.
+    func deletePost(id: String) async throws(PostServiceError)
 }
 
 /// `PostService` sur le client généré (ADR-003) : convertit DTO et erreurs en modèles de l'app.
 struct APIPostService: PostService {
     let client: any APIProtocol
 
-    func createPost(caption: String, mediaId: String) async throws(PostServiceError) -> Post {
-        let body = Components.Schemas.CreatePostRequest(kind: .post, caption: caption, mediaIds: [mediaId])
+    func createPost(caption: String, mediaIds: [String]) async throws(PostServiceError) -> Post {
+        let body = Components.Schemas.CreatePostRequest(kind: .post, caption: caption, mediaIds: mediaIds)
         let output = try await call { try await client.createPost(body: .json(body)) }
         switch output {
         case let .created(response):
@@ -109,6 +111,24 @@ struct APIPostService: PostService {
         }
     }
 
+    func deletePost(id: String) async throws(PostServiceError) {
+        let output = try await call { try await client.deletePost(path: .init(id: id)) }
+        switch output {
+        case .noContent:
+            return
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .notFound(response):
+            throw Self.error(404) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
     /// Erreur réseau ou corps non conforme au contrat → `unreachable`.
     private func call<Output>(_ operation: () async throws -> Output) async throws(PostServiceError) -> Output {
         do {
@@ -146,7 +166,7 @@ struct APIPostService: PostService {
 
 /// Utilisé quand l'URL de l'API est absente ou invalide.
 struct UnavailablePostService: PostService {
-    func createPost(caption _: String, mediaId _: String) async throws(PostServiceError) -> Post {
+    func createPost(caption _: String, mediaIds _: [String]) async throws(PostServiceError) -> Post {
         throw .unreachable
     }
 
@@ -155,6 +175,10 @@ struct UnavailablePostService: PostService {
     }
 
     func listPosts(of _: String, cursor _: String?) async throws(PostServiceError) -> PostPage {
+        throw .unreachable
+    }
+
+    func deletePost(id _: String) async throws(PostServiceError) {
         throw .unreachable
     }
 }
