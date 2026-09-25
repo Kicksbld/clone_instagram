@@ -67,6 +67,16 @@ struct ImagePreparerTests {
         #expect(bytes.range(of: Data("iPhone 17".utf8)) == nil)
     }
 
+    /// Régression T6a : la file de publication prépare dans « Application Support », chemin avec une espace.
+    @Test func `dossier dont le chemin contient une espace`() async throws {
+        let directory = directory.appending(path: "Application Support")
+        defer { try? FileManager.default.removeItem(at: self.directory) }
+
+        let prepared = try await ImagePreparer.prepare(photo(width: 400, height: 300), in: directory)
+
+        #expect(prepared.sizeBytes == (try Data(contentsOf: prepared.fileURL)).count)
+    }
+
     @Test func `HEIC converti en JPEG`() async throws {
         let original = try photo(width: 1200, height: 900, type: .heic, orientation: 1)
 

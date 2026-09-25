@@ -58,7 +58,7 @@ nonisolated enum ImagePreparer {
         // Seule propriété écrite : la qualité de compression. Aucune métadonnée de la source n'est recopiée.
         CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: compressionQuality] as CFDictionary)
         guard CGImageDestinationFinalize(destination),
-              let size = try? FileManager.default.attributesOfItem(atPath: fileURL.path())[.size] as? Int
+              let size = try? FileManager.default.attributesOfItem(atPath: fileURL.path(percentEncoded: false))[.size] as? Int
         else { throw .writeFailed }
 
         return PreparedImage(fileURL: fileURL, sizeBytes: size, mimeType: "image/jpeg", width: image.width, height: image.height)

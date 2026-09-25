@@ -125,8 +125,14 @@ final class CreatePostViewModel {
         guard let image, !isSharing else { return false }
         isSharing = true
         defer { isSharing = false }
+        let data: Data
         do {
-            let data = try await ImageCropper.jpegData(of: image, croppedTo: cropRect)
+            data = try await ImageCropper.jpegData(of: image, croppedTo: cropRect)
+        } catch {
+            shareErrorMessage = UploadError.message(for: .unreadableImage)
+            return false
+        }
+        do {
             try await publisher.publish(
                 imageData: data,
                 caption: caption.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -134,7 +140,7 @@ final class CreatePostViewModel {
             )
             return true
         } catch {
-            shareErrorMessage = UploadError.message(for: .unreadableImage)
+            shareErrorMessage = UploadError.message(for: error)
             return false
         }
     }
