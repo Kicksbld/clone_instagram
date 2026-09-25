@@ -143,4 +143,44 @@ struct APIIdentityServiceTests {
 
         await #expect(throws: IdentityServiceError.unexpectedResponse(statusCode: 404)) { try await service.fetchMe() }
     }
+
+    // MARK: - Profil d'un autre utilisateur
+
+    private static let userProfileJSON = """
+    {"id":"0199a1b2-5eed-7000-8000-000000000003","username":"chloe.petit","fullName":"Chloé Petit",\
+    "bio":"Voyages","isPrivate":true,"followerCount":2,"followingCount":1,"postCount":0,\
+    "relationship":{"following":false,"followedBy":true},"canViewContent":false}
+    """
+
+    @Test func `GET /users/{username} converti en modèle de l'app`() async throws {
+        let service = try makeService(.response(status: 200, contentType: "application/json", body: Self.userProfileJSON))
+
+        let profile = try await service.fetchUserProfile(username: "chloe.petit")
+
+        #expect(profile == UserProfile(
+            id: "0199a1b2-5eed-7000-8000-000000000003",
+            username: "chloe.petit",
+            fullName: "Chloé Petit",
+            bio: "Voyages",
+            isPrivate: true,
+            followerCount: 2,
+            followingCount: 1,
+            postCount: 0,
+            avatar: nil,
+            isFollowing: false,
+            followsMe: true,
+            canViewContent: false
+        ))
+    }
+
+    @Test(arguments: [
+        (404, "user_not_found", IdentityServiceError.userNotFound),
+        (400, "validation_failed", .invalidInput),
+        (401, "unauthenticated", .unauthenticated),
+    ])
+    func `erreurs de GET /users/{username} selon le code`(status: Int, code: String, expected: IdentityServiceError) async throws {
+        let service = try makeService(problem(status, code))
+
+        await #expect(throws: expected) { try await service.fetchUserProfile(username: "lea.martin") }
+    }
 }

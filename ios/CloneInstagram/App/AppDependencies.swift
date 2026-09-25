@@ -52,4 +52,8 @@ struct UnavailableIdentityService: IdentityService {
     func removeAvatar() async throws(IdentityServiceError) -> Profile {
         throw .unreachable
     }
+
+    func fetchUserProfile(username _: String) async throws(IdentityServiceError) -> UserProfile {
+        throw .unreachable
+    }
 }

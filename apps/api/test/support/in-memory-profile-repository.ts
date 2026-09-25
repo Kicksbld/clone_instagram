@@ -42,6 +42,10 @@ export class InMemoryProfileRepository implements ProfileRepository {
     return Promise.resolve(this.rows.get(id) ?? null);
   }
 
+  findByUsername(username: string): Promise<Profile | null> {
+    return Promise.resolve([...this.rows.values()].find((p) => p.username === username) ?? null);
+  }
+
   /** Photo de profil d'après `avatarMediaId`, avec les variantes du média. */
   private withAvatar(profile: Profile, avatarMediaId: string | null): Profile {
     const variants = avatarMediaId ? this.media?.rows.get(avatarMediaId)?.variants : null;

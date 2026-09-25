@@ -1,11 +1,10 @@
 import SwiftUI
 
 /// Accueil (wireframe) : onglets d'Instagram, contenus à venir dans les prochaines tranches.
-/// L'écran « Modifier le profil » est fourni par le routeur racine : une feature n'en importe pas une autre.
-struct HomeView<EditProfile: View>: View {
-    let profile: Profile
-    let onSignOut: () -> Void
-    @ViewBuilder let editProfile: () -> EditProfile
+/// Les écrans Profil et Recherche sont fournis par le routeur racine : une feature n'en importe pas une autre.
+struct HomeView<ProfileTab: View, SearchTab: View>: View {
+    @ViewBuilder let profileTab: () -> ProfileTab
+    @ViewBuilder let searchTab: () -> SearchTab
 
     var body: some View {
         TabView {
@@ -28,27 +27,10 @@ struct HomeView<EditProfile: View>: View {
                 placeholder("Messages", systemImage: "paperplane")
             }
             Tab("Recherche", systemImage: "magnifyingglass") {
-                placeholder("Recherche", systemImage: "magnifyingglass")
+                NavigationStack(root: searchTab)
             }
             Tab("Profil", systemImage: "person.crop.circle") {
-                NavigationStack {
-                    VStack(spacing: 8) {
-                        AvatarView(avatar: profile.avatar, size: 86)
-                        Text(profile.fullName)
-                            .font(.headline)
-                        if !profile.bio.isEmpty {
-                            Text(profile.bio)
-                        }
-                        NavigationLink("Modifier le profil", destination: editProfile)
-                            .buttonStyle(.bordered)
-                        Spacer()
-                        // Provisoire jusqu'aux paramètres (T12).
-                        Button("Se déconnecter", action: onSignOut)
-                    }
-                    .padding()
-                    .navigationTitle(profile.username)
-                    .navigationBarTitleDisplayMode(.inline)
-                }
+                NavigationStack(root: profileTab)
             }
         }
     }

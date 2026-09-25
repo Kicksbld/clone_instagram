@@ -7,6 +7,13 @@ export class ProfileNotFoundError extends NotFoundError {
   }
 }
 
+/** Profil inexistant ou invisible pour l'appelant : 404, jamais 403 (ADR-006). */
+export class UserNotFoundError extends NotFoundError {
+  constructor() {
+    super('user_not_found', 'Ce profil n’existe pas ou n’est pas disponible.');
+  }
+}
+
 export class UsernameTakenError extends ConflictError {
   constructor() {
     super('username_taken', 'Ce nom d’utilisateur est déjà pris.');

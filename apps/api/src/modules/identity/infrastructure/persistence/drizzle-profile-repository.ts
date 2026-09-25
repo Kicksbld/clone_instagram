@@ -1,5 +1,5 @@
 import { media, profiles, type Executor, type ImageVariantPaths, type ProfileRow } from '@clone/db';
-import { and, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql, type SQL } from 'drizzle-orm';
 
 import type {
   NewProfile,
@@ -55,13 +55,21 @@ function translateUniqueViolation(error: unknown): unknown {
 export class DrizzleProfileRepository implements ProfileRepository {
   constructor(private readonly db: Executor) {}
 
-  async findById(id: string): Promise<Profile | null> {
+  findById(id: string): Promise<Profile | null> {
+    return this.findOne(eq(profiles.id, id));
+  }
+
+  findByUsername(username: string): Promise<Profile | null> {
+    return this.findOne(eq(profiles.username, username));
+  }
+
+  private async findOne(where: SQL): Promise<Profile | null> {
     // Photo de profil : variantes du média attaché (toujours `ready`, ADR-008).
     const [row] = await this.db
       .select({ profile: profiles, avatarVariants: media.variants })
       .from(profiles)
       .leftJoin(media, eq(media.id, profiles.avatarMediaId))
-      .where(eq(profiles.id, id))
+      .where(where)
       .limit(1);
     return row ? toProfile(row.profile, row.avatarVariants) : null;
   }

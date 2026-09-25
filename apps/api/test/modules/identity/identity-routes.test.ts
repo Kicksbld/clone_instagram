@@ -178,3 +178,103 @@ describe('GET /v1/usernames/{username}/availability', () => {
     expect(response.json()).toMatchObject({ code: 'validation_failed' });
   });
 });
+
+describe('GET /v1/users/{username}', () => {
+  const get = (username: string, headers: Record<string, string> = auth) =>
+    context.app.inject({
+      method: 'GET',
+      url: `/v1/users/${encodeURIComponent(username)}`,
+      headers,
+    });
+
+  beforeEach(() => {
+    context.profiles.add({ id: ME, username: 'killian' });
+  });
+
+  it('renvoie le profil public au format du contrat, sans date de naissance ni statut', async () => {
+    context.profiles.add({
+      id: OTHER,
+      username: 'lea',
+      fullName: 'Léa',
+      bio: 'Photo',
+      followerCount: 3,
+    });
+    context.relationships.follow(ME, OTHER);
+
+    const response = await get('lea');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      id: OTHER,
+      username: 'lea',
+      fullName: 'Léa',
+      bio: 'Photo',
+      isPrivate: false,
+      followerCount: 3,
+      followingCount: 0,
+      postCount: 0,
+      relationship: { following: true, followedBy: false },
+      canViewContent: true,
+    });
+  });
+
+  it('compte privé non suivi → 200, contenus invisibles', async () => {
+    context.profiles.add({ id: OTHER, username: 'lea', isPrivate: true });
+
+    const response = await get('lea');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ isPrivate: true, canViewContent: false });
+  });
+
+  it.each([
+    [
+      'bloqué par moi',
+      () => {
+        context.relationships.block(ME, OTHER);
+      },
+    ],
+    [
+      'qui me bloque',
+      () => {
+        context.relationships.block(OTHER, ME);
+      },
+    ],
+    [
+      'suspendu',
+      () => {
+        context.profiles.add({ id: OTHER, username: 'lea', status: 'suspended' });
+      },
+    ],
+  ])('compte %s → 404 user_not_found', async (_, arrange) => {
+    context.profiles.add({ id: OTHER, username: 'lea' });
+    arrange();
+
+    const response = await get('lea');
+
+    expect(response.statusCode).toBe(404);
+    expect(response.headers['content-type']).toContain('application/problem+json');
+    expect(response.json()).toMatchObject({ code: 'user_not_found' });
+  });
+
+  it('username inexistant → 404 user_not_found', async () => {
+    const response = await get('personne');
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ code: 'user_not_found' });
+  });
+
+  it('username au mauvais format → 400', async () => {
+    const response = await get('Lea');
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: 'validation_failed' });
+  });
+
+  it('sans JWT → 401', async () => {
+    const response = await get('killian', {});
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({ code: 'unauthenticated' });
+  });
+});

@@ -18,6 +18,20 @@ struct RootViewModelTests {
         #expect(viewModel.route == .welcome)
     }
 
+    @Test func `tirer pour rafraîchir → profil relu ; erreur → profil conservé`() async {
+        let identity = FakeIdentityService()
+        let refreshed = Profile.fixture(bio: "Nouvelle bio")
+        identity.meResults = [.success(.fixture()), .success(refreshed), .failure(.unreachable)]
+        let viewModel = RootViewModel(auth: FakeAuthService(currentProvider: .email), identity: identity)
+        await viewModel.start()
+
+        await viewModel.refreshProfile()
+        #expect(viewModel.route == .home(refreshed))
+
+        await viewModel.refreshProfile()
+        #expect(viewModel.route == .home(refreshed))
+    }
+
     @Test func `sans session → bienvenue`() async {
         let viewModel = RootViewModel(auth: FakeAuthService(), identity: FakeIdentityService())
 

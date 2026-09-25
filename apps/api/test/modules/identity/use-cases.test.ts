@@ -3,16 +3,19 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { CheckUsernameAvailability } from '../../../src/modules/identity/application/use-cases/check-username-availability.ts';
 import { CompleteOnboarding } from '../../../src/modules/identity/application/use-cases/complete-onboarding.ts';
 import { GetMe } from '../../../src/modules/identity/application/use-cases/get-me.ts';
+import { GetProfile } from '../../../src/modules/identity/application/use-cases/get-profile.ts';
 import { UpdateMe } from '../../../src/modules/identity/application/use-cases/update-me.ts';
 import {
   AgeRequirementNotMetError,
   ProfileAlreadyExistsError,
   ProfileNotFoundError,
   UsernameTakenError,
+  UserNotFoundError,
 } from '../../../src/modules/identity/domain/errors.ts';
 import { InMemoryUnitOfWork } from '../../support/fakes.ts';
 import { InMemoryMediaRepository } from '../../support/in-memory-media-repository.ts';
 import { InMemoryProfileRepository } from '../../support/in-memory-profile-repository.ts';
+import { InMemoryRelationshipReader } from '../../support/in-memory-relationship-reader.ts';
 
 const NOW = new Date('2026-09-25T12:00:00.000Z');
 const clock = { now: () => NOW };
@@ -164,6 +167,85 @@ describe('CheckUsernameAvailability', () => {
       username: 'killian',
       available: false,
       suggestions: ['killian.', 'killian1', 'killian2'],
+    });
+  });
+});
+
+describe('GetProfile', () => {
+  let relationships: InMemoryRelationshipReader;
+  let getProfile: GetProfile;
+
+  beforeEach(() => {
+    relationships = new InMemoryRelationshipReader();
+    getProfile = new GetProfile(profiles, relationships);
+    profiles.add({ id: ME, username: 'killian' });
+  });
+
+  const view = (username: string) => getProfile.execute({ viewerId: ME, username });
+
+  it('profil public : relation et contenus visibles', async () => {
+    profiles.add({ id: OTHER, username: 'lea' });
+    relationships.follow(OTHER, ME);
+
+    await expect(view('lea')).resolves.toMatchObject({
+      profile: { id: OTHER, username: 'lea' },
+      relationship: { following: false, followedBy: true },
+      canViewContent: true,
+    });
+  });
+
+  it('compte privé non suivi : en-tête visible, contenus invisibles', async () => {
+    profiles.add({ id: OTHER, username: 'lea', isPrivate: true });
+
+    await expect(view('lea')).resolves.toMatchObject({ canViewContent: false });
+  });
+
+  it('compte privé suivi : contenus visibles', async () => {
+    profiles.add({ id: OTHER, username: 'lea', isPrivate: true });
+    relationships.follow(ME, OTHER);
+
+    await expect(view('lea')).resolves.toMatchObject({
+      relationship: { following: true, followedBy: false },
+      canViewContent: true,
+    });
+  });
+
+  it.each([
+    [
+      'je le bloque',
+      () => {
+        relationships.block(ME, OTHER);
+      },
+    ],
+    [
+      'il me bloque',
+      () => {
+        relationships.block(OTHER, ME);
+      },
+    ],
+  ])('blocage (%s) → user_not_found', async (_, block) => {
+    profiles.add({ id: OTHER, username: 'lea' });
+    block();
+
+    await expect(view('lea')).rejects.toBeInstanceOf(UserNotFoundError);
+  });
+
+  it.each(['suspended', 'banned'] as const)('compte %s → user_not_found', async (status) => {
+    profiles.add({ id: OTHER, username: 'lea', status });
+
+    await expect(view('lea')).rejects.toBeInstanceOf(UserNotFoundError);
+  });
+
+  it('username inexistant → user_not_found', async () => {
+    await expect(view('personne')).rejects.toBeInstanceOf(UserNotFoundError);
+  });
+
+  it('mon propre profil, même privé', async () => {
+    profiles.add({ id: ME, username: 'killian', isPrivate: true });
+
+    await expect(view('killian')).resolves.toMatchObject({
+      relationship: { following: false, followedBy: false },
+      canViewContent: true,
     });
   });
 });

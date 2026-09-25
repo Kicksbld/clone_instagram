@@ -49,16 +49,30 @@ struct RootView: View {
             )
             .id(entry)
         case let .home(profile):
-            HomeView(profile: profile, onSignOut: { Task { await viewModel.signOut() } }, editProfile: {
-                EditProfileView(
-                    viewModel: EditProfileViewModel(
-                        profile: profile,
-                        identity: dependencies.identity,
-                        uploads: dependencies.uploads,
-                        onUpdated: viewModel.updateProfile
-                    )
+            HomeView {
+                MyProfileView(
+                    profile: profile,
+                    onRefresh: viewModel.refreshProfile,
+                    onSignOut: { Task { await viewModel.signOut() } },
+                    editProfile: {
+                        EditProfileView(
+                            viewModel: EditProfileViewModel(
+                                profile: profile,
+                                identity: dependencies.identity,
+                                uploads: dependencies.uploads,
+                                onUpdated: viewModel.updateProfile
+                            )
+                        )
+                    }
                 )
-            })
+            } searchTab: {
+                UserLookupView()
+                    .navigationDestination(for: ProfileRoute.self) { route in
+                        UserProfileView(
+                            viewModel: UserProfileViewModel(username: route.username, identity: dependencies.identity)
+                        )
+                    }
+            }
         case let .failed(message):
             ContentUnavailableView {
                 Label("Connexion impossible", systemImage: "wifi.exclamationmark")

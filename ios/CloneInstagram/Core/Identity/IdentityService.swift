@@ -5,6 +5,8 @@ import OpenAPIRuntime
 enum IdentityServiceError: Error, Equatable {
     /// Onboarding non terminé (`404 profile_not_found`).
     case profileNotFound
+    /// Profil inexistant ou invisible pour moi (`404 user_not_found`, ADR-006).
+    case userNotFound
     /// `409 username_taken`.
     case usernameTaken
     /// `409 profile_already_exists`.
@@ -32,7 +34,7 @@ struct ProfileChanges: Equatable {
     var avatarMediaId: String?
 }
 
-/// Profil de l'utilisateur authentifié et onboarding (module `identity` de l'API, ADR-018).
+/// Profil de l'utilisateur authentifié, onboarding (ADR-018) et profils des autres (ADR-006).
 protocol IdentityService: Sendable {
     func fetchMe() async throws(IdentityServiceError) -> Profile
     func checkUsername(_ username: String) async throws(IdentityServiceError) -> UsernameAvailability
@@ -40,6 +42,8 @@ protocol IdentityService: Sendable {
     func updateMe(_ changes: ProfileChanges) async throws(IdentityServiceError) -> Profile
     /// Retire ma photo de profil (`DELETE /v1/me/avatar`).
     func removeAvatar() async throws(IdentityServiceError) -> Profile
+    /// Profil d'un autre utilisateur (`GET /v1/users/{username}`).
+    func fetchUserProfile(username: String) async throws(IdentityServiceError) -> UserProfile
 }
 
 /// `IdentityService` sur le client généré (ADR-003) : convertit DTO et erreurs en modèles de l'app.
@@ -148,6 +152,24 @@ struct APIIdentityService: IdentityService {
         }
     }
 
+    func fetchUserProfile(username: String) async throws(IdentityServiceError) -> UserProfile {
+        let output = try await call { try await client.getUserProfile(path: .init(username: username)) }
+        switch output {
+        case let .ok(response):
+            return try UserProfile(Self.unwrap { try response.body.json })
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .notFound(response):
+            throw Self.error(404) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
     /// Erreur réseau ou corps non conforme au contrat → `unreachable`.
     private func call<Output>(_ operation: () async throws -> Output) async throws(IdentityServiceError) -> Output {
         do {
@@ -169,6 +191,7 @@ struct APIIdentityService: IdentityService {
     private static func error(_ status: Int, _ problem: () throws -> Components.Schemas.ProblemDetails) -> IdentityServiceError {
         switch (try? problem())?.code {
         case "profile_not_found": .profileNotFound
+        case "user_not_found": .userNotFound
         case "username_taken": .usernameTaken
         case "profile_already_exists": .profileAlreadyExists
         case "age_requirement_not_met": .ageRequirementNotMet
@@ -193,6 +216,25 @@ private extension Profile {
             followingCount: dto.followingCount,
             postCount: dto.postCount,
             avatar: dto.avatar.flatMap(ImageVariants.init)
+        )
+    }
+}
+
+private extension UserProfile {
+    init(_ dto: Components.Schemas.UserProfile) {
+        self.init(
+            id: dto.id,
+            username: dto.username,
+            fullName: dto.fullName,
+            bio: dto.bio,
+            isPrivate: dto.isPrivate,
+            followerCount: dto.followerCount,
+            followingCount: dto.followingCount,
+            postCount: dto.postCount,
+            avatar: dto.avatar.flatMap(ImageVariants.init),
+            isFollowing: dto.relationship.following,
+            followsMe: dto.relationship.followedBy,
+            canViewContent: dto.canViewContent
         )
     }
 }

@@ -1,6 +1,7 @@
 import type { ImageVariantPaths } from '../../../shared/domain/image-variants.ts';
+import type { AccountStatus } from '../../../shared/domain/visibility.ts';
 
-export type AccountStatus = 'active' | 'suspended' | 'banned';
+export type { AccountStatus };
 
 /** Photo de profil : média attaché et ses variantes (ADR-008). */
 export interface Avatar {

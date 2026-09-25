@@ -17,6 +17,7 @@ export interface ProfileChanges {
 
 export interface ProfileRepository {
   findById(id: string): Promise<Profile | null>;
+  findByUsername(username: string): Promise<Profile | null>;
   /** Lève `ProfileAlreadyExistsError` ou `UsernameTakenError` (contraintes d'unicité). */
   create(profile: NewProfile): Promise<Profile>;
   /** `null` si le profil n'existe pas ; lève `UsernameTakenError`. */

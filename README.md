@@ -8,7 +8,7 @@ Projet de cours : un clone d'Instagram composé de trois produits.
 
 Le projet tourne dans deux environnements : en local pour le développement, et sur une démo hébergée (Supabase Cloud, Railway, Vercel). Les deux sont en place (§ 7).
 
-> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. T1 (démo hébergée : Supabase Cloud, Railway, Vercel) est terminée. T2 (inscription par email ou Apple, connexion, onboarding) est terminée. T3 (pipeline image et photo de profil) est en cours. Détail dans le [plan P0](docs/plan/P0.md).
+> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. T1 (démo hébergée : Supabase Cloud, Railway, Vercel) est terminée. T2 (inscription par email ou Apple, connexion, onboarding) est terminée. T3 (pipeline image et photo de profil) est terminée. T4 (profils et politique de visibilité) est en cours. Détail dans le [plan P0](docs/plan/P0.md).
 
 ---
 
@@ -129,7 +129,7 @@ supabase stop --no-backup      # supprime la base locale
 docker compose down -v         # supprime le conteneur et les données Redis
 ```
 
-Au prochain `supabase start`, relancer `pnpm db:migrate` (puis `pnpm db:seed` quand un seed existera).
+Au prochain `supabase start`, relancer `pnpm db:migrate`, puis `pnpm db:seed`.
 
 ## 6. Commandes utiles
 
@@ -142,7 +142,7 @@ Au prochain `supabase start`, relancer `pnpm db:migrate` (puis `pnpm db:seed` qu
 | `pnpm build` | Build de production de l'API, du worker et du backoffice |
 | `pnpm contract:generate` | Valide `openapi.yaml`, régénère les types des clients et met à jour la copie de l'app iOS |
 | `pnpm db:migrate` | Applique les migrations Drizzle |
-| `pnpm db:seed` | Remplit la base avec des données de démo (vide pour l'instant) |
+| `pnpm db:seed` | Crée les profils de démo (publics, privés, un suspendu) et leurs relations ; relançable sans doublon. Avec `SEED_VIEWER_USERNAME=<ton username>` (compte déjà créé dans l'app), relie aussi ton compte à ces profils : il suit `lea.martin` et `chloe.petit` (privé), `hugo.bernard` et `nathan.durand` le suivent, `emma.leroy` le bloque et il bloque `tom.fournier` |
 | `pnpm test:supabase` | Vérifie contre un vrai Supabase qu'aucune table n'est lisible avec la clé publique, et l'upload présigné et les URL publiques des médias (hors CI, voir § 7) |
 | `supabase status` | Affiche les clés locales de Supabase (l'API de Supabase est sur http://127.0.0.1:54321) |
 
@@ -183,6 +183,10 @@ Même code qu'en local ; seule la configuration change (variables dans Railway e
   - variables du service `api` sur Railway : `REDIS_URL` (référence au service Redis, comme pour le worker), `SUPABASE_SERVICE_ROLE_KEY` (clé « Secret » de Supabase Cloud, Settings → API Keys) et `PUBLIC_MEDIA_BASE_URL` (`https://<ref>.supabase.co`) ;
   - variables du service `worker` : `DATABASE_URL` (Session pooler, comme l'API), `SUPABASE_URL` (`https://<ref>.supabase.co`) et `SUPABASE_SERVICE_ROLE_KEY`, en plus de `REDIS_URL` ;
   - limites du bucket `uploads` (20 Mo, JPEG et PNG) reportées sur Supabase Cloud : `supabase seed buckets --linked`.
+- **Profils de démo (T4)** : après le déploiement (tables `follows` et `blocks` créées par la migration), lancer le seed contre Supabase Cloud depuis le Mac, avec l'URL du Session pooler :
+  ```bash
+  DATABASE_URL=<URL du Session pooler> SEED_VIEWER_USERNAME=<ton username> pnpm db:seed
+  ```
 - **Vérifier la clé publique de la démo** :
   ```bash
   SUPABASE_URL=https://<ref>.supabase.co SUPABASE_PUBLISHABLE_KEY=<clé publishable> pnpm test:supabase
@@ -236,4 +240,6 @@ Principes clés :
 | Storage local : bucket `uploads`, `media-public` ou `media-private` absent | `supabase seed buckets` (crée les buckets déclarés dans `supabase/config.toml`) |
 | Railway : l'API ne démarre pas après un déploiement | Onglet *Deployments* → logs du pré-déploiement (migration) puis du démarrage ; vérifier les variables du service |
 | Démo : `500` et table absente dans Supabase | La migration n'a pas tourné : vérifier la *Pre-deploy Command* du service `api` (tableau du § 7), puis *Redeploy* |
+| `pnpm db:seed` : « SEED_VIEWER_USERNAME : aucun profil » | Terminer l'onboarding de ce compte dans l'app (dans le même environnement), ou vérifier le username |
+| App iOS : « Cette page n'est pas disponible » sur un profil du seed | Normal pour `ines.moreau` (suspendu), `emma.leroy` et `tom.fournier` (blocages) ; sinon, lancer `pnpm db:seed` sur cet environnement |
 | Xcode : fichier `.xcconfig` introuvable | Lancer `ios/scripts/bootstrap.sh` (crée `Local.xcconfig` et `Demo.xcconfig`) |
