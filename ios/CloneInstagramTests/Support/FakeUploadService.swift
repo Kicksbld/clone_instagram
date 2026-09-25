@@ -72,7 +72,7 @@ final class FakeFileUploader: FileUploader {
 
     func upload(fileURL: URL, to url: URL, contentType: String) async throws(FileUploadError) {
         uploads.append(Upload(fileURL: fileURL, url: url, contentType: contentType))
-        fileExistedDuringUpload = FileManager.default.fileExists(atPath: fileURL.path())
+        fileExistedDuringUpload = FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false))
         if let error {
             throw error
         }

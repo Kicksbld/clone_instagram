@@ -45,7 +45,7 @@ struct UploadManagerTests {
         #expect(media.statusRequests == 3)
         // Fichier temporaire supprimé après l'envoi.
         let fileURL = try #require(uploader.uploads.first?.fileURL)
-        #expect(!FileManager.default.fileExists(atPath: fileURL.path()))
+        #expect(!FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)))
     }
 
     @Test(arguments: [MediaFailureReason.invalidImage, .fileTooLarge, .processingError])

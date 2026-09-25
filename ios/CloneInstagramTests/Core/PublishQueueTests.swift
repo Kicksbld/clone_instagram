@@ -40,7 +40,7 @@ struct PublishQueueTests {
         #expect(queue.publishedCount == 1)
         #expect(store.load().isEmpty)
         let sentFile = try #require(uploads.sent.first?.image.fileURL)
-        #expect(!FileManager.default.fileExists(atPath: sentFile.path()))
+        #expect(!FileManager.default.fileExists(atPath: sentFile.path(percentEncoded: false)))
     }
 
     @Test func `envoi en échec : publication gardée avec un message, puis Réessayer la termine`() async throws {
@@ -165,7 +165,7 @@ struct PublishQueueTests {
 
         #expect(queue.items.isEmpty)
         #expect(store.load().isEmpty)
-        #expect(!FileManager.default.fileExists(atPath: queue.fileURL(of: failed).path()))
+        #expect(!FileManager.default.fileExists(atPath: queue.fileURL(of: failed).path(percentEncoded: false)))
     }
 
     @Test func `photo illisible : unreadableImage, rien n'est ajouté`() async {

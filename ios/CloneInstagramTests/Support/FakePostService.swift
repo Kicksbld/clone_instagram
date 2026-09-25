@@ -48,7 +48,7 @@ final class FakeMediaUploading: MediaUploading {
 
     func send(_ image: PreparedImage, purpose: MediaPurpose) async throws(UploadError) -> String {
         sent.append((image, purpose))
-        fileExistedDuringSend = FileManager.default.fileExists(atPath: image.fileURL.path())
+        fileExistedDuringSend = FileManager.default.fileExists(atPath: image.fileURL.path(percentEncoded: false))
         if !sendErrors.isEmpty {
             throw sendErrors.removeFirst()
         }
@@ -65,7 +65,7 @@ final class FakeMediaUploading: MediaUploading {
 
 /// File enregistrée dans un dossier temporaire propre au test.
 struct TemporaryPendingPostStore: PendingPostStore {
-    let directory = FileManager.default.temporaryDirectory.appending(path: "publish-queue-tests-\(UUID().uuidString)")
+    let directory = FileManager.default.temporaryDirectory.appending(path: "publish queue tests \(UUID().uuidString)")
     private var file: FilePendingPostStore {
         FilePendingPostStore(directory: directory)
     }
