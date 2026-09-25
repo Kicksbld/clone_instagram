@@ -44,15 +44,27 @@ importers:
       '@clone/contract':
         specifier: workspace:*
         version: link:../../packages/contract
+      '@clone/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
       ajv-formats:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.20.0)
+      drizzle-orm:
+        specifier: ^0.45.3
+        version: 0.45.3(postgres@3.4.9)
       fastify:
         specifier: ^5.12.5
         version: 5.12.5
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
       zod:
         specifier: ^4.6.5
         version: 4.6.5

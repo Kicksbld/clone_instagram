@@ -5,5 +5,11 @@
 // URL de l'API. Simulateur : localhost. iPhone physique : IP du Mac (ex. http:/$()/192.168.1.20:3000).
 API_BASE_URL = http:/$()/localhost:3000
 
+// URL de Supabase Auth. Simulateur : localhost. iPhone physique : IP du Mac (ex. http:/$()/192.168.1.20:54321).
+SUPABASE_URL = http:/$()/localhost:54321
+
+// Clé publique (publishable) de Supabase, non secrète : « Publishable » de `supabase status`.
+SUPABASE_PUBLISHABLE_KEY =
+
 // Team ID Apple du compte développeur (Sign in with Apple, achat intégré).
 DEVELOPMENT_TEAM = CNLG2XPDKN

@@ -7,6 +7,10 @@ import { z } from 'zod';
 const configSchema = z.object({
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+  // Clés de vérification des JWT lues sur `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` (ADR-018).
+  SUPABASE_URL: z.url({ protocol: /^https?$/ }),
+  SUPABASE_JWT_ISSUER: z.url({ protocol: /^https?$/ }),
 });
 
 export type Config = z.infer<typeof configSchema>;

@@ -18,6 +18,9 @@ force_unwrapping: error
 trailing_comma:
   mandatory_comma: true
 force_cast: error
+# Un `switch` sur toutes les étapes ou routes d'un écran reste lisible : seuls les autres branchements comptent.
+cyclomatic_complexity:
+  ignores_case_statements: true
 force_try: error
 line_length:
   warning: 140

@@ -3,7 +3,7 @@
   "info": {
     "title": "Clone Instagram API",
     "version": "0.1.0",
-    "description": "Contrat unique des échanges entre l'API, l'app iOS et le backoffice (ADR-003).\n\n- Routes métier préfixées par `/v1` ; `GET /health` est hors version.\n- JSON UTF-8, identifiants UUID v7, dates ISO 8601 UTC.\n- Authentification : `Authorization: Bearer <JWT Supabase>` sur toutes les routes sauf `GET /health`.\n- Erreurs : Problem Details (RFC 9457), `Content-Type: application/problem+json`, avec un `code` stable.\n\nCodes d'erreur transverses :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |\n| `route_not_found` | 404 | Route inexistante |\n| `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |\n"
+    "description": "Contrat unique des échanges entre l'API, l'app iOS et le backoffice (ADR-003).\n\n- Routes métier préfixées par `/v1` ; `GET /health` est hors version.\n- JSON UTF-8, identifiants UUID v7, dates ISO 8601 UTC.\n- Authentification : `Authorization: Bearer <JWT Supabase>` sur toutes les routes sauf `GET /health`.\n- Erreurs : Problem Details (RFC 9457), `Content-Type: application/problem+json`, avec un `code` stable.\n\nCodes d'erreur transverses :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |\n| `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |\n| `route_not_found` | 404 | Route inexistante |\n| `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |\n\nCodes d'erreur métier :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `profile_not_found` | 404 | L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé) |\n| `username_taken` | 409 | Username déjà utilisé par un autre profil |\n| `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |\n| `age_requirement_not_met` | 422 | Moins de 13 ans à la date du jour (UTC) |\n"
   },
   "servers": [
     {
@@ -20,6 +20,10 @@
     {
       "name": "system",
       "description": "Supervision de l'API"
+    },
+    {
+      "name": "identity",
+      "description": "Profil de l'utilisateur authentifié, onboarding, usernames"
     }
   ],
   "paths": {
@@ -110,6 +114,1347 @@
           }
         }
       }
+    },
+    "/v1/me": {
+      "get": {
+        "operationId": "getMe",
+        "tags": [
+          "identity"
+        ],
+        "summary": "Mon profil",
+        "description": "Profil de l'utilisateur authentifié, dont sa date de naissance et le statut du compte. `404 profile_not_found` tant que l'onboarding n'est pas terminé.",
+        "responses": {
+          "200": {
+            "description": "Mon profil.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Profil de l'utilisateur authentifié.",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "username",
+                    "fullName",
+                    "bio",
+                    "birthDate",
+                    "isPrivate",
+                    "status",
+                    "followerCount",
+                    "followingCount",
+                    "postCount",
+                    "createdAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Identifiant Supabase Auth."
+                    },
+                    "username": {
+                      "type": "string",
+                      "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                      "minLength": 1,
+                      "maxLength": 30,
+                      "pattern": "^[a-z0-9._]{1,30}$",
+                      "examples": [
+                        "killian.b"
+                      ]
+                    },
+                    "fullName": {
+                      "type": "string",
+                      "description": "Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.",
+                      "minLength": 1,
+                      "maxLength": 30,
+                      "pattern": "\\S",
+                      "examples": [
+                        "Killian Boularand"
+                      ]
+                    },
+                    "bio": {
+                      "type": "string",
+                      "description": "150 caractères au plus ; chaîne vide si aucune bio.",
+                      "maxLength": 150
+                    },
+                    "birthDate": {
+                      "type": "string",
+                      "format": "date",
+                      "description": "Renvoyée à son seul propriétaire."
+                    },
+                    "isPrivate": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "suspended",
+                        "banned"
+                      ]
+                    },
+                    "followerCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "followingCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "postCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Onboarding non terminé (`profile_not_found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateMe",
+        "tags": [
+          "identity"
+        ],
+        "summary": "Modifier mon profil",
+        "description": "Modifie le nom, la bio ou le username. Seuls les champs présents sont modifiés ; une bio vide efface la bio.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Au moins un champ.",
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                    "minLength": 1,
+                    "maxLength": 30,
+                    "pattern": "^[a-z0-9._]{1,30}$",
+                    "examples": [
+                      "killian.b"
+                    ]
+                  },
+                  "fullName": {
+                    "type": "string",
+                    "description": "Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.",
+                    "minLength": 1,
+                    "maxLength": 30,
+                    "pattern": "\\S",
+                    "examples": [
+                      "Killian Boularand"
+                    ]
+                  },
+                  "bio": {
+                    "type": "string",
+                    "description": "150 caractères au plus ; chaîne vide si aucune bio.",
+                    "maxLength": 150
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profil modifié.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Profil de l'utilisateur authentifié.",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "username",
+                    "fullName",
+                    "bio",
+                    "birthDate",
+                    "isPrivate",
+                    "status",
+                    "followerCount",
+                    "followingCount",
+                    "postCount",
+                    "createdAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Identifiant Supabase Auth."
+                    },
+                    "username": {
+                      "type": "string",
+                      "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                      "minLength": 1,
+                      "maxLength": 30,
+                      "pattern": "^[a-z0-9._]{1,30}$",
+                      "examples": [
+                        "killian.b"
+                      ]
+                    },
+                    "fullName": {
+                      "type": "string",
+                      "description": "Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.",
+                      "minLength": 1,
+                      "maxLength": 30,
+                      "pattern": "\\S",
+                      "examples": [
+                        "Killian Boularand"
+                      ]
+                    },
+                    "bio": {
+                      "type": "string",
+                      "description": "150 caractères au plus ; chaîne vide si aucune bio.",
+                      "maxLength": 150
+                    },
+                    "birthDate": {
+                      "type": "string",
+                      "format": "date",
+                      "description": "Renvoyée à son seul propriétaire."
+                    },
+                    "isPrivate": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "suspended",
+                        "banned"
+                      ]
+                    },
+                    "followerCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "followingCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "postCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Onboarding non terminé (`profile_not_found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Username déjà utilisé (`username_taken`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/onboarding": {
+      "post": {
+        "operationId": "completeOnboarding",
+        "tags": [
+          "identity"
+        ],
+        "summary": "Créer mon profil (fin de l'onboarding)",
+        "description": "Appelé à l'acceptation des conditions (ADR-018). Crée le profil de l'utilisateur authentifié.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "username",
+                  "fullName",
+                  "birthDate"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                    "minLength": 1,
+                    "maxLength": 30,
+                    "pattern": "^[a-z0-9._]{1,30}$",
+                    "examples": [
+                      "killian.b"
+                    ]
+                  },
+                  "fullName": {
+                    "type": "string",
+                    "description": "Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.",
+                    "minLength": 1,
+                    "maxLength": 30,
+                    "pattern": "\\S",
+                    "examples": [
+                      "Killian Boularand"
+                    ]
+                  },
+                  "birthDate": {
+                    "type": "string",
+                    "format": "date",
+                    "examples": [
+                      "2000-01-31"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Profil créé.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Profil de l'utilisateur authentifié.",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "username",
+                    "fullName",
+                    "bio",
+                    "birthDate",
+                    "isPrivate",
+                    "status",
+                    "followerCount",
+                    "followingCount",
+                    "postCount",
+                    "createdAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Identifiant Supabase Auth."
+                    },
+                    "username": {
+                      "type": "string",
+                      "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                      "minLength": 1,
+                      "maxLength": 30,
+                      "pattern": "^[a-z0-9._]{1,30}$",
+                      "examples": [
+                        "killian.b"
+                      ]
+                    },
+                    "fullName": {
+                      "type": "string",
+                      "description": "Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.",
+                      "minLength": 1,
+                      "maxLength": 30,
+                      "pattern": "\\S",
+                      "examples": [
+                        "Killian Boularand"
+                      ]
+                    },
+                    "bio": {
+                      "type": "string",
+                      "description": "150 caractères au plus ; chaîne vide si aucune bio.",
+                      "maxLength": 150
+                    },
+                    "birthDate": {
+                      "type": "string",
+                      "format": "date",
+                      "description": "Renvoyée à son seul propriétaire."
+                    },
+                    "isPrivate": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "suspended",
+                        "banned"
+                      ]
+                    },
+                    "followerCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "followingCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "postCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Username déjà utilisé (`username_taken`) ou profil déjà créé (`profile_already_exists`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Moins de 13 ans (`age_requirement_not_met`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/usernames/{username}/availability": {
+      "get": {
+        "operationId": "getUsernameAvailability",
+        "tags": [
+          "identity"
+        ],
+        "summary": "Disponibilité d'un username",
+        "description": "Vérifiée en direct pendant l'onboarding. Si le username est pris, jusqu'à 3 usernames libres dérivés du candidat sont suggérés. Un username au mauvais format est refusé en `400`. Le username de l'appelant lui-même est disponible pour lui.",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+              "minLength": 1,
+              "maxLength": 30,
+              "pattern": "^[a-z0-9._]{1,30}$",
+              "examples": [
+                "killian.b"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Disponibilité du username.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "username",
+                    "available",
+                    "suggestions"
+                  ],
+                  "properties": {
+                    "username": {
+                      "type": "string",
+                      "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                      "minLength": 1,
+                      "maxLength": 30,
+                      "pattern": "^[a-z0-9._]{1,30}$",
+                      "examples": [
+                        "killian.b"
+                      ]
+                    },
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "suggestions": {
+                      "type": "array",
+                      "description": "Vide si le username est disponible ; sinon jusqu'à 3 usernames libres.",
+                      "maxItems": 3,
+                      "items": {
+                        "type": "string",
+                        "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                        "minLength": 1,
+                        "maxLength": 30,
+                        "pattern": "^[a-z0-9._]{1,30}$",
+                        "examples": [
+                          "killian.b"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -132,6 +1477,231 @@
           "status": {
             "type": "string",
             "const": "ok"
+          }
+        }
+      },
+      "Username": {
+        "type": "string",
+        "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+        "minLength": 1,
+        "maxLength": 30,
+        "pattern": "^[a-z0-9._]{1,30}$",
+        "examples": [
+          "killian.b"
+        ]
+      },
+      "FullName": {
+        "type": "string",
+        "description": "Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.",
+        "minLength": 1,
+        "maxLength": 30,
+        "pattern": "\\S",
+        "examples": [
+          "Killian Boularand"
+        ]
+      },
+      "Bio": {
+        "type": "string",
+        "description": "150 caractères au plus ; chaîne vide si aucune bio.",
+        "maxLength": 150
+      },
+      "AccountStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "suspended",
+          "banned"
+        ]
+      },
+      "Me": {
+        "type": "object",
+        "description": "Profil de l'utilisateur authentifié.",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "username",
+          "fullName",
+          "bio",
+          "birthDate",
+          "isPrivate",
+          "status",
+          "followerCount",
+          "followingCount",
+          "postCount",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifiant Supabase Auth."
+          },
+          "username": {
+            "type": "string",
+            "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+            "minLength": 1,
+            "maxLength": 30,
+            "pattern": "^[a-z0-9._]{1,30}$",
+            "examples": [
+              "killian.b"
+            ]
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.",
+            "minLength": 1,
+            "maxLength": 30,
+            "pattern": "\\S",
+            "examples": [
+              "Killian Boularand"
+            ]
+          },
+          "bio": {
+            "type": "string",
+            "description": "150 caractères au plus ; chaîne vide si aucune bio.",
+            "maxLength": 150
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Renvoyée à son seul propriétaire."
+          },
+          "isPrivate": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "suspended",
+              "banned"
+            ]
+          },
+          "followerCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "followingCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "postCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CompleteOnboardingRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "username",
+          "fullName",
+          "birthDate"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+            "minLength": 1,
+            "maxLength": 30,
+            "pattern": "^[a-z0-9._]{1,30}$",
+            "examples": [
+              "killian.b"
+            ]
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.",
+            "minLength": 1,
+            "maxLength": 30,
+            "pattern": "\\S",
+            "examples": [
+              "Killian Boularand"
+            ]
+          },
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "examples": [
+              "2000-01-31"
+            ]
+          }
+        }
+      },
+      "UpdateMeRequest": {
+        "type": "object",
+        "description": "Au moins un champ.",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+            "minLength": 1,
+            "maxLength": 30,
+            "pattern": "^[a-z0-9._]{1,30}$",
+            "examples": [
+              "killian.b"
+            ]
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.",
+            "minLength": 1,
+            "maxLength": 30,
+            "pattern": "\\S",
+            "examples": [
+              "Killian Boularand"
+            ]
+          },
+          "bio": {
+            "type": "string",
+            "description": "150 caractères au plus ; chaîne vide si aucune bio.",
+            "maxLength": 150
+          }
+        }
+      },
+      "UsernameAvailability": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "username",
+          "available",
+          "suggestions"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+            "minLength": 1,
+            "maxLength": 30,
+            "pattern": "^[a-z0-9._]{1,30}$",
+            "examples": [
+              "killian.b"
+            ]
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "suggestions": {
+            "type": "array",
+            "description": "Vide si le username est disponible ; sinon jusqu'à 3 usernames libres.",
+            "maxItems": 3,
+            "items": {
+              "type": "string",
+              "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+              "minLength": 1,
+              "maxLength": 30,
+              "pattern": "^[a-z0-9._]{1,30}$",
+              "examples": [
+                "killian.b"
+              ]
+            }
           }
         }
       },
@@ -185,6 +1755,226 @@
       }
     },
     "responses": {
+      "ValidationFailed": {
+        "description": "Entrée non conforme au schéma (`validation_failed`).",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "type": "object",
+              "description": "Erreur au format Problem Details (RFC 9457).",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "title",
+                "status",
+                "detail",
+                "code"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "format": "uri-reference",
+                  "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                  "examples": [
+                    "about:blank"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Résumé lisible du statut HTTP.",
+                  "examples": [
+                    "Not Found"
+                  ]
+                },
+                "status": {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 599,
+                  "examples": [
+                    404
+                  ]
+                },
+                "detail": {
+                  "type": "string",
+                  "description": "Explication lisible de cette occurrence."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                  "examples": [
+                    "route_not_found"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "Unauthenticated": {
+        "description": "JWT absent ou invalide (`unauthenticated`).",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "type": "object",
+              "description": "Erreur au format Problem Details (RFC 9457).",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "title",
+                "status",
+                "detail",
+                "code"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "format": "uri-reference",
+                  "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                  "examples": [
+                    "about:blank"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Résumé lisible du statut HTTP.",
+                  "examples": [
+                    "Not Found"
+                  ]
+                },
+                "status": {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 599,
+                  "examples": [
+                    404
+                  ]
+                },
+                "detail": {
+                  "type": "string",
+                  "description": "Explication lisible de cette occurrence."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                  "examples": [
+                    "route_not_found"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "ProfileNotFound": {
+        "description": "Onboarding non terminé (`profile_not_found`).",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "type": "object",
+              "description": "Erreur au format Problem Details (RFC 9457).",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "title",
+                "status",
+                "detail",
+                "code"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "format": "uri-reference",
+                  "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                  "examples": [
+                    "about:blank"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Résumé lisible du statut HTTP.",
+                  "examples": [
+                    "Not Found"
+                  ]
+                },
+                "status": {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 599,
+                  "examples": [
+                    404
+                  ]
+                },
+                "detail": {
+                  "type": "string",
+                  "description": "Explication lisible de cette occurrence."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                  "examples": [
+                    "route_not_found"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "UsernameTaken": {
+        "description": "Username déjà utilisé (`username_taken`).",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "type": "object",
+              "description": "Erreur au format Problem Details (RFC 9457).",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "title",
+                "status",
+                "detail",
+                "code"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "format": "uri-reference",
+                  "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                  "examples": [
+                    "about:blank"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Résumé lisible du statut HTTP.",
+                  "examples": [
+                    "Not Found"
+                  ]
+                },
+                "status": {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 599,
+                  "examples": [
+                    404
+                  ]
+                },
+                "detail": {
+                  "type": "string",
+                  "description": "Explication lisible de cette occurrence."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                  "examples": [
+                    "route_not_found"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
       "InternalError": {
         "description": "Erreur inattendue (`internal_error`).",
         "content": {

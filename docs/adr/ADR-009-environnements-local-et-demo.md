@@ -35,7 +35,7 @@ Décisions sources : D29 (remplace D19), D31.
 | `DATABASE_URL` | API, worker |
 | `SUPABASE_URL` | API, worker |
 | `SUPABASE_SERVICE_ROLE_KEY` | API, worker |
-| `SUPABASE_JWT_ISSUER` / clés de vérification | API |
+| `SUPABASE_JWT_ISSUER` (clés publiques lues sur `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`, ADR-018) | API |
 | `REDIS_URL` | API, worker |
 | `PUBLIC_MEDIA_BASE_URL` | API (URL joignable depuis l'iPhone) |
 | `API_PORT`, `LOG_LEVEL` | API |

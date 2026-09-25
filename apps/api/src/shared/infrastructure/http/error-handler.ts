@@ -4,6 +4,7 @@ import type { ProblemDetails } from '@clone/contract';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import { DomainError } from '../../domain/errors.ts';
+import { UnauthenticatedError } from '../auth/token-verifier.ts';
 
 /** Gestionnaire d'erreurs unique : toute erreur devient un Problem Details (ADR-003, ADR-005). */
 
@@ -31,6 +32,9 @@ function isClientError(error: unknown): error is Error & { statusCode: number } 
 
 export function registerErrorHandling(app: FastifyInstance): void {
   app.setErrorHandler((error: unknown, request, reply) => {
+    if (error instanceof UnauthenticatedError) {
+      return sendProblem(reply, problem(401, error.code, error.message));
+    }
     if (error instanceof DomainError) {
       return sendProblem(reply, problem(STATUS_BY_KIND[error.kind], error.code, error.message));
     }

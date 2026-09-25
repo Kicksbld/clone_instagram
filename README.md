@@ -8,7 +8,7 @@ Projet de cours : un clone d'Instagram composé de trois produits.
 
 Le projet tourne dans deux environnements : en local pour le développement, et sur une démo hébergée (Supabase Cloud, Railway, Vercel). Les deux sont en place (§ 7).
 
-> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. T1 (démo hébergée : Supabase Cloud, Railway, Vercel) est terminée. Détail dans le [plan P0](docs/plan/P0.md).
+> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. T1 (démo hébergée : Supabase Cloud, Railway, Vercel) est terminée. T2 (inscription par email ou Apple, connexion, onboarding) est en cours de validation sur la démo. Détail dans le [plan P0](docs/plan/P0.md).
 
 ---
 
@@ -36,6 +36,9 @@ pnpm install
 
 cp .env.example .env     # puis compléter les valeurs locales (voir ci-dessous)
 
+# Clé de signature des JWT en ES256, comme sur Supabase Cloud (ADR-018) ; fichier non versionné.
+echo '[]' > supabase/signing_keys.json && supabase gen signing-key --algorithm ES256 --yes
+
 supabase start           # Postgres, Auth, Storage, Studio (premier lancement : téléchargement des images Docker)
 docker compose up -d     # Redis
 pnpm db:migrate          # applique les migrations
@@ -48,8 +51,11 @@ DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres   # « Data
 REDIS_URL=redis://127.0.0.1:6379
 API_URL=http://127.0.0.1:3000
 SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_JWT_ISSUER=http://127.0.0.1:54321/auth/v1
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_…                          # « Publishable » de `supabase status`
 ```
+
+L'API refuse de démarrer si `DATABASE_URL`, `SUPABASE_URL` ou `SUPABASE_JWT_ISSUER` manque. Elle vérifie les JWT avec les clés publiques de `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`.
 
 > `.env` n'est jamais versionné. Les noms de variables sont les mêmes en local et sur la démo ; seules les valeurs changent.
 
@@ -71,7 +77,7 @@ pnpm dev                 # API + worker + backoffice (Ctrl+C pour arrêter)
 | Backoffice | http://localhost:3001 | « API : ok » |
 | Worker | logs de `pnpm dev` | `Worker démarré` (files `media`, `maintenance`) |
 | Supabase Studio | http://127.0.0.1:54323 | interface d'administration de la base |
-| Mails de test (Mailpit) | http://127.0.0.1:54324 | emails envoyés par Supabase Auth |
+| Mails de test (Mailpit) | http://127.0.0.1:54324 | emails envoyés par Supabase Auth, dont le **code de confirmation** de l'inscription |
 
 ## 4. App iOS
 
@@ -84,12 +90,14 @@ open ios/CloneInstagram.xcodeproj
 
 Le projet Xcode est généré à partir de `ios/project.yml` et n'est pas versionné : relancer `xcodegen generate` (depuis `ios/`) après un `git pull` qui modifie `project.yml`. Au premier build, Xcode demande d'autoriser le plugin `OpenAPIGenerator` : accepter.
 
-**Lancer** : l'API doit tourner (`pnpm dev`). Dans Xcode, choisir le schéma `CloneInstagram` et un simulateur, puis ▶︎. L'écran « État de l'API » doit afficher « API disponible ».
+**Lancer** : Supabase et l'API doivent tourner (`supabase start`, `pnpm dev`). Dans Xcode, choisir le schéma `CloneInstagram` et un simulateur, puis ▶︎. L'écran de bienvenue s'affiche (« Commencer », « J'ai déjà un compte »). À l'inscription, le code de confirmation arrive dans Mailpit (http://127.0.0.1:54324). Les écrans sont des wireframes : le style viendra dans une tranche dédiée.
+
+Chaque `.xcconfig` contient `API_BASE_URL`, `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY` (clé publique, non secrète). Sur iPhone, `API_BASE_URL` et `SUPABASE_URL` utilisent l'IP du Mac.
 
 | Configuration | Schéma | Fichier à compléter (non versionné) | API appelée |
 |---|---|---|---|
 | Local | `CloneInstagram` | `ios/CloneInstagram/Resources/Config/Local.xcconfig` | `http://localhost:3000` (simulateur) ; sur iPhone, l'IP du Mac |
-| Demo | `CloneInstagram-Demo` | `ios/CloneInstagram/Resources/Config/Demo.xcconfig` | API Railway (à partir de T1) |
+| Demo | `CloneInstagram-Demo` | `ios/CloneInstagram/Resources/Config/Demo.xcconfig` | API Railway et Supabase Cloud |
 
 **Tests** (en local, pas de CI macOS) :
 
@@ -126,7 +134,7 @@ Au prochain `supabase start`, relancer `pnpm db:migrate` (puis `pnpm db:seed` qu
 | `pnpm dev` | Lance l'API (port 3000), le worker et le backoffice (port 3001) |
 | `pnpm lint` | ESLint, Prettier et règles d'architecture (dependency-cruiser) |
 | `pnpm typecheck` | Vérification des types TypeScript |
-| `pnpm test` | Tests Vitest de tous les packages |
+| `pnpm test` | Tests Vitest de tous les packages ; les tests d'adapters de l'API utilisent la base locale (`supabase start`, `pnpm db:migrate`) |
 | `pnpm build` | Build de production de l'API, du worker et du backoffice |
 | `pnpm contract:generate` | Valide `openapi.yaml`, régénère les types des clients et met à jour la copie de l'app iOS |
 | `pnpm db:migrate` | Applique les migrations Drizzle |
@@ -151,6 +159,10 @@ Même code qu'en local ; seule la configuration change (variables dans Railway e
 - **Base de données** : Railway se connecte au **Session pooler** de Supabase (IPv4, port 5432) ; la connexion directe de Supabase est en IPv6 uniquement.
 - **Aucune migration à la main** : Railway lance `db:migrate` avant chaque nouvelle version de l'API ; si elle échoue, l'ancienne version reste en ligne.
 - **Services externes** : PostHog (région UE), RevenueCat (entitlement `plus`, offre `default`), App Store Connect (abonnement Clone Plus mensuel, testeur sandbox), Sign in with Apple activé dans Supabase (CLI et Cloud, client ID = bundle ID). Détail dans la fiche T1 du [plan P0](docs/plan/P0.md).
+- **Authentification (T2, ADR-018)** :
+  - variables du service `api` sur Railway : `SUPABASE_URL` (`https://<ref>.supabase.co`) et `SUPABASE_JWT_ISSUER` (`https://<ref>.supabase.co/auth/v1`) ;
+  - Supabase Cloud → Authentication → Emails → SMTP Settings : SMTP d'iCloud Mail (`smtp.mail.me.com`, port 587, identifiant = adresse iCloud complète, mot de passe pour app créé sur appleid.apple.com, expéditeur = cette adresse). Obligatoire : sans SMTP personnel, un projet gratuit ne peut pas modifier ses modèles et l'email ne contiendrait pas le code ;
+  - puis Authentication → Emails → Templates : copier `supabase/templates/confirmation.html` dans « Confirm signup » et `supabase/templates/magic_link.html` dans « Magic Link » (sujet « Votre code de confirmation ») ; confirmation de l'email activée.
 - **Vérifier la clé publique de la démo** :
   ```bash
   SUPABASE_URL=https://<ref>.supabase.co SUPABASE_PUBLISHABLE_KEY=<clé publishable> pnpm test:supabase
@@ -193,9 +205,13 @@ Principes clés :
 | `supabase start` : « already running » ou conteneur `created` | `supabase stop`, puis `supabase start` |
 | `pnpm` introuvable ou mauvaise version | `corepack enable` (avec Node 24 actif : `nvm use`) |
 | L'API refuse de démarrer : « Configuration invalide » | Compléter `.env` (la variable fautive est nommée dans le message) |
+| `supabase start` : « failed to read signing keys » | Générer la clé : `echo '[]' > supabase/signing_keys.json && supabase gen signing-key --algorithm ES256 --yes` |
+| API : `401 unauthenticated` avec un utilisateur connecté | Vérifier `SUPABASE_JWT_ISSUER` (`<SUPABASE_URL>/auth/v1`) et que Supabase signe en ES256 (clé de signature générée, `supabase stop` puis `supabase start`) |
+| Pas d'email de code à l'inscription | En local : Mailpit (http://127.0.0.1:54324). Sur la démo : vérifier le SMTP iCloud dans Supabase (mot de passe pour app valide) et les courriers indésirables ; logs dans Supabase → Logs → Auth |
+| Démo : l'email contient un lien au lieu d'un code | Les modèles de `supabase/templates/` n'ont pas été copiés dans Supabase Cloud (SMTP personnel requis pour les modifier) |
 | Backoffice : « API : injoignable » | Vérifier que l'API tourne (`/health`) et que `API_URL` est renseignée dans `.env` |
 | Port 3000 ou 3001 déjà utilisé | Arrêter l'autre processus : `lsof -ti tcp:3000 \| xargs kill` |
-| App iOS : « API injoignable » | Vérifier que `pnpm dev` tourne ; sur iPhone, mettre l'IP du Mac dans `Local.xcconfig` (même Wi-Fi) et accepter l'accès au réseau local |
+| App iOS : « Connexion impossible » ou « Impossible de joindre le serveur » | Vérifier que `supabase start` et `pnpm dev` tournent ; sur iPhone, mettre l'IP du Mac dans `API_BASE_URL` et `SUPABASE_URL` de `Local.xcconfig` (même Wi-Fi) et accepter l'accès au réseau local |
 | Xcode : « Plugin must be enabled » ou build bloqué sur `OpenAPIGenerator` | Autoriser le plugin dans Xcode ; en ligne de commande, ajouter `-skipPackagePluginValidation` |
 | Storage local : bucket `uploads`, `media-public` ou `media-private` absent | `supabase seed buckets` (crée les buckets déclarés dans `supabase/config.toml`) |
 | Railway : l'API ne démarre pas après un déploiement | Onglet *Deployments* → logs du pré-déploiement (migration) puis du démarrage ; vérifier les variables du service |

@@ -46,6 +46,10 @@ packages:
   Nuke:
     url: https://github.com/kean/Nuke
     exactVersion: 13.2.0
+  # Module `Auth` uniquement (ADR-004, ADR-010).
+  supabase-swift:
+    url: https://github.com/supabase/supabase-swift
+    exactVersion: 2.55.2
 
 targets:
   CloneInstagram:
@@ -62,6 +66,11 @@ targets:
     configFiles:
       Local: CloneInstagram/Resources/Config/Local.xcconfig
       Demo: CloneInstagram/Resources/Config/Demo.xcconfig
+    # Sign in with Apple (ADR-018) ; fichier généré par XcodeGen.
+    entitlements:
+      path: CloneInstagram/Resources/Config/CloneInstagram.entitlements
+      properties:
+        com.apple.developer.applesignin: [Default]
     settings:
       base:
         PRODUCT_NAME: CloneInstagram
@@ -94,6 +103,8 @@ targets:
         product: OpenAPIURLSession
       - package: Nuke
         product: Nuke
+      - package: supabase-swift
+        product: Auth
     preBuildScripts:
       - name: SwiftLint et SwiftFormat
         basedOnDependencyAnalysis: false

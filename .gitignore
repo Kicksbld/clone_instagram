@@ -11,3 +11,4 @@ supabase/.branches/
 supabase/.temp/
 next-env.d.ts
 .vercel/
+supabase/signing_keys.json
