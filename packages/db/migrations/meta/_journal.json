@@ -15,6 +15,13 @@
       "when": 1790334814703,
       "tag": "0001_media",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790338525100,
+      "tag": "0002_follows_blocks",
+      "breakpoints": true
     }
   ]
 }

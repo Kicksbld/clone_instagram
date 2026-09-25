@@ -53,6 +53,14 @@ describe('DrizzleProfileRepository', () => {
     await expect(repository.findById(newId())).resolves.toBeNull();
   });
 
+  it('relit un profil par son username', async () => {
+    const input = newProfile();
+    const profile = await repository.create(input);
+
+    await expect(repository.findByUsername(input.username)).resolves.toEqual(profile);
+    await expect(repository.findByUsername(`${input.username}x`)).resolves.toBeNull();
+  });
+
   it('même id → ProfileAlreadyExistsError', async () => {
     const input = newProfile();
     await repository.create(input);

@@ -12,7 +12,7 @@ Architecture hexagonale par module : [ADR-005](../../docs/adr/ADR-005-backend-fa
 | Route HTTP | `src/modules/<module>/infrastructure/http/` |
 | Adapter Drizzle | `src/modules/<module>/infrastructure/persistence/` |
 | Visibilité, erreurs de base (`DomainError`…) | `src/shared/domain/` |
-| Ports transverses (`UnitOfWork`, `Clock`, `IdGenerator`, `JobQueue`…) | `src/shared/application/` |
+| Ports transverses (`UnitOfWork`, `Clock`, `IdGenerator`, `JobQueue`, `RelationshipReader`…) | `src/shared/application/` |
 | Config, gestion d'erreurs, schémas du contrat, auth, adapter BullMQ | `src/shared/infrastructure/` |
 | Assemblage des dépendances | `src/main.ts` (manuel, sans conteneur DI) ; l'app HTTP est construite par `src/app.ts` |
 | Tests | `test/` (Vitest ; routes via `fastify.inject`) |
@@ -24,6 +24,7 @@ Architecture hexagonale par module : [ADR-005](../../docs/adr/ADR-005-backend-fa
 - **Authentification** : toute route `/v1` est enregistrée dans le scope de `app.ts`, qui vérifie le JWT Supabase (ES256, JWKS, ADR-018) ; la route lit l'utilisateur par `authenticatedUserId(request)` et le passe au use case.
 - **Module de référence (T2)** : `modules/identity` — domaine pur, port `ProfileRepository`, use cases, adapter Drizzle qui traduit les violations d'unicité en erreurs métier, routes typées par le contrat.
 - **Tests** : use cases et routes avec les adapters en mémoire (`test/support/test-app.ts`, JWT de test dans `test/support/tokens.ts`) ; adapters Drizzle sur un vrai Postgres (`test/support/database.ts`, schéma à jour par `pnpm db:migrate`).
+- **Lecture visible** (ADR-006) : le use case lit la relation par le port `RelationshipReader` (`shared/application`), puis applique `canViewProfile` / `canViewContent`… de `shared/domain/visibility.ts` ; invisible → `NotFoundError`. Référence : `GetProfile` (`modules/identity`).
 - **Use case de référence** : `LikePost` (ADR-005) — autorisation et visibilité dans le use case, `UnitOfWork` si plusieurs tables, compteur modifié seulement si une ligne change.
 - **Variable d'environnement** : l'ajouter au schéma de `shared/infrastructure/config.ts` et à `.env.example`.
 

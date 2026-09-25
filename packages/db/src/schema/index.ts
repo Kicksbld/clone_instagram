@@ -16,3 +16,4 @@ export {
   type NewMediaRow,
   STORAGE_BUCKETS,
 } from './media.ts';
+export { blocks, follows, type BlockRow, type FollowRow } from './social.ts';

@@ -137,7 +137,7 @@ final class EditProfileViewModel {
         case .invalidInput: "Vérifiez les informations saisies."
         case .unreachable: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
         case .unauthenticated: "Votre session a expiré. Reconnectez-vous."
-        case .profileNotFound, .profileAlreadyExists, .ageRequirementNotMet, .unexpectedResponse:
+        case .profileNotFound, .userNotFound, .profileAlreadyExists, .ageRequirementNotMet, .unexpectedResponse:
             "Une erreur est survenue. Réessayez."
         }
     }

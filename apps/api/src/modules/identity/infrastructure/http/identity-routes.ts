@@ -7,6 +7,7 @@ import type { PublicMediaUrls } from '../../../../shared/infrastructure/http/pub
 import type { CheckUsernameAvailability } from '../../application/use-cases/check-username-availability.ts';
 import type { CompleteOnboarding } from '../../application/use-cases/complete-onboarding.ts';
 import type { GetMe } from '../../application/use-cases/get-me.ts';
+import type { GetProfile, ProfileView } from '../../application/use-cases/get-profile.ts';
 import type { RemoveAvatar } from '../../application/use-cases/remove-avatar.ts';
 import type { UpdateMe } from '../../application/use-cases/update-me.ts';
 import type { Profile } from '../../domain/profile.ts';
@@ -17,9 +18,11 @@ export interface IdentityUseCases {
   removeAvatar: RemoveAvatar;
   completeOnboarding: CompleteOnboarding;
   checkUsernameAvailability: CheckUsernameAvailability;
+  getProfile: GetProfile;
 }
 
 type Me = components['schemas']['Me'];
+type UserProfile = components['schemas']['UserProfile'];
 type JsonBody<Operation extends keyof operations> = operations[Operation] extends {
   requestBody: { content: { 'application/json': infer Body } };
 }
@@ -36,6 +39,21 @@ export function registerIdentityRoutes(
     ...profile,
     ...(avatar && { avatar: urls.of(avatar.variants) }),
     createdAt: createdAt.toISOString(),
+  });
+
+  // Profil public : ni date de naissance, ni statut, ni date de création.
+  const toUserProfile = ({ profile, relationship, canViewContent }: ProfileView): UserProfile => ({
+    id: profile.id,
+    username: profile.username,
+    fullName: profile.fullName,
+    bio: profile.bio,
+    isPrivate: profile.isPrivate,
+    followerCount: profile.followerCount,
+    followingCount: profile.followingCount,
+    postCount: profile.postCount,
+    ...(profile.avatar && { avatar: urls.of(profile.avatar.variants) }),
+    relationship,
+    canViewContent,
   });
 
   app.get('/v1/me', { schema: routeSchemaFor('getMe') }, async (request): Promise<Me> => {
@@ -83,6 +101,18 @@ export function registerIdentityRoutes(
         userId: authenticatedUserId(request),
         username: request.params.username,
       });
+    },
+  );
+
+  app.get<{ Params: { username: string } }>(
+    '/v1/users/:username',
+    { schema: routeSchemaFor('getUserProfile') },
+    async (request): Promise<UserProfile> => {
+      const view = await useCases.getProfile.execute({
+        viewerId: authenticatedUserId(request),
+        username: request.params.username,
+      });
+      return toUserProfile(view);
     },
   );
 }

@@ -22,6 +22,25 @@ struct Profile: Equatable, Identifiable {
     var avatar: ImageVariants?
 }
 
+/// Profil d'un autre utilisateur, vu par moi (`GET /v1/users/{username}`, ADR-006).
+struct UserProfile: Equatable, Identifiable {
+    let id: String
+    let username: String
+    let fullName: String
+    let bio: String
+    let isPrivate: Bool
+    let followerCount: Int
+    let followingCount: Int
+    let postCount: Int
+    let avatar: ImageVariants?
+    /// Je suis ce compte.
+    let isFollowing: Bool
+    /// Ce compte me suit (« Vous suit »).
+    let followsMe: Bool
+    /// Je peux voir ses contenus ; `false` pour un compte privé que je ne suis pas.
+    let canViewContent: Bool
+}
+
 /// Disponibilité d'un username (ADR-018).
 struct UsernameAvailability: Equatable {
     let username: String

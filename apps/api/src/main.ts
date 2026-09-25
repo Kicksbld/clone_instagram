@@ -6,6 +6,7 @@ import { buildApp } from './app.ts';
 import { CheckUsernameAvailability } from './modules/identity/application/use-cases/check-username-availability.ts';
 import { CompleteOnboarding } from './modules/identity/application/use-cases/complete-onboarding.ts';
 import { GetMe } from './modules/identity/application/use-cases/get-me.ts';
+import { GetProfile } from './modules/identity/application/use-cases/get-profile.ts';
 import { RemoveAvatar } from './modules/identity/application/use-cases/remove-avatar.ts';
 import { UpdateMe } from './modules/identity/application/use-cases/update-me.ts';
 import { DrizzleProfileRepository } from './modules/identity/infrastructure/persistence/drizzle-profile-repository.ts';
@@ -18,6 +19,7 @@ import { createJwtVerifier, supabaseJwks } from './shared/infrastructure/auth/to
 import { loadConfig } from './shared/infrastructure/config.ts';
 import { publicMediaUrls } from './shared/infrastructure/http/public-media-urls.ts';
 import { BullMqJobQueue } from './shared/infrastructure/jobs/bullmq-job-queue.ts';
+import { DrizzleRelationshipReader } from './shared/infrastructure/persistence/drizzle-relationship-reader.ts';
 import { DrizzleUnitOfWork } from './shared/infrastructure/persistence/drizzle-unit-of-work.ts';
 import { systemClock } from './shared/infrastructure/system-clock.ts';
 import { uuidV7Generator } from './shared/infrastructure/uuid-v7-generator.ts';
@@ -27,6 +29,7 @@ const database = createDatabase(config.DATABASE_URL);
 
 const profiles = new DrizzleProfileRepository(database.db);
 const media = new DrizzleMediaRepository(database.db);
+const relationships = new DrizzleRelationshipReader(database.db);
 const avatarTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   profiles: new DrizzleProfileRepository(tx),
   media: new DrizzleMediaRepository(tx),
@@ -55,6 +58,7 @@ const app = buildApp({
       removeAvatar: new RemoveAvatar(avatarTransaction),
       completeOnboarding: new CompleteOnboarding(profiles, systemClock),
       checkUsernameAvailability: new CheckUsernameAvailability(profiles),
+      getProfile: new GetProfile(profiles, relationships),
     },
     media: {
       requestUpload: new RequestUpload(media, storage, uuidV7Generator),

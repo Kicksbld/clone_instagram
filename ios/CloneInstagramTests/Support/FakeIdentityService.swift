@@ -18,11 +18,14 @@ final class FakeIdentityService: IdentityService {
     var onboardingResults: [Result<Profile, IdentityServiceError>] = []
     var updateError: IdentityServiceError?
     var removeAvatarError: IdentityServiceError?
+    /// Réponses successives de `fetchUserProfile` ; `userNotFound` quand la liste est vide.
+    var userProfileResults: [Result<UserProfile, IdentityServiceError>] = []
 
     private(set) var checkedUsernames: [String] = []
     private(set) var onboardingRequests: [OnboardingRequest] = []
     private(set) var updates: [ProfileChanges] = []
     private(set) var removeAvatarCount = 0
+    private(set) var fetchedUsernames: [String] = []
 
     func fetchMe() async throws(IdentityServiceError) -> Profile {
         guard !meResults.isEmpty else { throw .profileNotFound }
@@ -67,6 +70,12 @@ final class FakeIdentityService: IdentityService {
         }
         return .fixture()
     }
+
+    func fetchUserProfile(username: String) async throws(IdentityServiceError) -> UserProfile {
+        fetchedUsernames.append(username)
+        guard !userProfileResults.isEmpty else { throw .userNotFound }
+        return try userProfileResults.removeFirst().get()
+    }
 }
 
 extension ImageVariants {
@@ -89,6 +98,30 @@ extension Profile {
             followerCount: 0,
             followingCount: 0,
             postCount: 0
+        )
+    }
+}
+
+extension UserProfile {
+    static func fixture(
+        username: String = "lea.martin",
+        isPrivate: Bool = false,
+        followsMe: Bool = false,
+        canViewContent: Bool = true
+    ) -> UserProfile {
+        UserProfile(
+            id: "0199a1b2-5eed-7000-8000-000000000001",
+            username: username,
+            fullName: "Léa Martin",
+            bio: "Photographe",
+            isPrivate: isPrivate,
+            followerCount: 4,
+            followingCount: 2,
+            postCount: 0,
+            avatar: nil,
+            isFollowing: false,
+            followsMe: followsMe,
+            canViewContent: canViewContent
         )
     }
 }

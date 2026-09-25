@@ -108,6 +108,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/users/{username}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Profil d'un utilisateur
+         * @description Profil public d'un utilisateur et sa relation avec l'appelant. Un profil inexistant, bloqué dans un sens ou dans l'autre, ou dont le compte n'est pas actif renvoie `404 user_not_found`, jamais `403` (ADR-006).
+         *     Un compte privé non suivi reste visible (en-tête, compteurs, bio) avec `canViewContent: false`. L'appelant peut lire son propre profil ; l'app utilise `GET /v1/me` pour le sien.
+         */
+        get: operations["getUserProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/media/uploads": {
         parameters: {
             query?: never;
@@ -243,6 +264,30 @@ export interface components {
             /** @description Vide si le username est disponible ; sinon jusqu'à 3 usernames libres. */
             suggestions: components["schemas"]["Username"][];
         };
+        /** @description Profil public d'un utilisateur, vu par l'appelant (sans date de naissance ni statut). */
+        UserProfile: {
+            /** Format: uuid */
+            id: string;
+            username: components["schemas"]["Username"];
+            fullName: components["schemas"]["FullName"];
+            bio: components["schemas"]["Bio"];
+            isPrivate: boolean;
+            followerCount: number;
+            followingCount: number;
+            postCount: number;
+            /** @description Photo de profil ; absente si aucune photo. */
+            avatar?: components["schemas"]["ImageVariants"];
+            relationship: components["schemas"]["Relationship"];
+            /** @description L'appelant peut voir les contenus (posts) ; `false` pour un compte privé qu'il ne suit pas (ADR-006). */
+            canViewContent: boolean;
+        };
+        /** @description Relation entre l'appelant et le profil ; les deux valeurs sont `false` sur son propre profil. */
+        Relationship: {
+            /** @description L'appelant suit ce profil. */
+            following: boolean;
+            /** @description Ce profil suit l'appelant. */
+            followedBy: boolean;
+        };
         /** @description URL publiques des variantes WebP d'une image (ADR-008). */
         ImageVariants: {
             /**
@@ -368,6 +413,15 @@ export interface components {
         };
         /** @description Média inexistant ou d'un autre utilisateur (`media_not_found`). */
         MediaNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
+        /** @description Profil inexistant ou invisible pour l'appelant (`user_not_found`). */
+        UserNotFound: {
             headers: {
                 [name: string]: unknown;
             };
@@ -582,6 +636,32 @@ export interface operations {
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getUserProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                username: components["schemas"]["Username"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Le profil. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfile"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["UserNotFound"];
             500: components["responses"]["InternalError"];
         };
     };

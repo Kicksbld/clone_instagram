@@ -32,6 +32,7 @@ info:
     | `media_not_ready` | 409 | Le média n'est pas encore `ready` |
     | `media_already_attached` | 409 | Le média est déjà utilisé, ou l'a été (un média ne sert qu'une fois) |
     | `media_purpose_mismatch` | 422 | Le `purpose` du média ne correspond pas à l'usage demandé |
+    | `user_not_found` | 404 | Profil inexistant ou invisible pour l'appelant (blocage dans un sens ou dans l'autre, compte non actif : ADR-006) |
 servers:
   - url: /
     description: Même origine ; l'hôte dépend de l'environnement (local ou démo, ADR-009).
@@ -44,6 +45,8 @@ tags:
     description: Profil de l'utilisateur authentifié, onboarding, usernames
   - name: media
     description: Upload présigné et traitement des médias (ADR-008)
+  - name: users
+    description: Profils des autres utilisateurs, selon la politique de visibilité (ADR-006)
 paths:
   /health:
     get:
@@ -201,6 +204,35 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/users/{username}:
+    get:
+      operationId: getUserProfile
+      tags: [users]
+      summary: Profil d'un utilisateur
+      description: |
+        Profil public d'un utilisateur et sa relation avec l'appelant. Un profil inexistant, bloqué dans un sens ou dans l'autre, ou dont le compte n'est pas actif renvoie `404 user_not_found`, jamais `403` (ADR-006).
+        Un compte privé non suivi reste visible (en-tête, compteurs, bio) avec `canViewContent: false`. L'appelant peut lire son propre profil ; l'app utilise `GET /v1/me` pour le sien.
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Username'
+      responses:
+        '200':
+          description: Le profil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
   /v1/media/uploads:
@@ -418,6 +450,64 @@ components:
           maxItems: 3
           items:
             $ref: '#/components/schemas/Username'
+    UserProfile:
+      type: object
+      description: Profil public d'un utilisateur, vu par l'appelant (sans date de naissance ni statut).
+      additionalProperties: false
+      required:
+        [
+          id,
+          username,
+          fullName,
+          bio,
+          isPrivate,
+          followerCount,
+          followingCount,
+          postCount,
+          relationship,
+          canViewContent,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          $ref: '#/components/schemas/Username'
+        fullName:
+          $ref: '#/components/schemas/FullName'
+        bio:
+          $ref: '#/components/schemas/Bio'
+        isPrivate:
+          type: boolean
+        followerCount:
+          type: integer
+          minimum: 0
+        followingCount:
+          type: integer
+          minimum: 0
+        postCount:
+          type: integer
+          minimum: 0
+        avatar:
+          $ref: '#/components/schemas/ImageVariants'
+          description: Photo de profil ; absente si aucune photo.
+        relationship:
+          $ref: '#/components/schemas/Relationship'
+        canViewContent:
+          type: boolean
+          description: L'appelant peut voir les contenus (posts) ; `false` pour un compte privé qu'il ne suit pas (ADR-006).
+    Relationship:
+      type: object
+      description: Relation entre l'appelant et le profil ; les deux valeurs sont `false` sur son propre profil.
+      additionalProperties: false
+      required: [following, followedBy]
+      properties:
+        following:
+          type: boolean
+          description: L'appelant suit ce profil.
+        followedBy:
+          type: boolean
+          description: Ce profil suit l'appelant.
     ImageVariants:
       type: object
       description: URL publiques des variantes WebP d'une image (ADR-008).
@@ -564,6 +654,12 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     MediaNotFound:
       description: Média inexistant ou d'un autre utilisateur (`media_not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    UserNotFound:
+      description: Profil inexistant ou invisible pour l'appelant (`user_not_found`).
       content:
         application/problem+json:
           schema:

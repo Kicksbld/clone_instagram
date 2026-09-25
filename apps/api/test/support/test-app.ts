@@ -2,6 +2,7 @@ import { buildApp } from '../../src/app.ts';
 import { CheckUsernameAvailability } from '../../src/modules/identity/application/use-cases/check-username-availability.ts';
 import { CompleteOnboarding } from '../../src/modules/identity/application/use-cases/complete-onboarding.ts';
 import { GetMe } from '../../src/modules/identity/application/use-cases/get-me.ts';
+import { GetProfile } from '../../src/modules/identity/application/use-cases/get-profile.ts';
 import { RemoveAvatar } from '../../src/modules/identity/application/use-cases/remove-avatar.ts';
 import { UpdateMe } from '../../src/modules/identity/application/use-cases/update-me.ts';
 import { CompleteUpload } from '../../src/modules/media/application/use-cases/complete-upload.ts';
@@ -11,6 +12,7 @@ import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-med
 import { FakeMediaStorage, InMemoryJobQueue, InMemoryUnitOfWork, sequentialIds } from './fakes.ts';
 import { InMemoryMediaRepository } from './in-memory-media-repository.ts';
 import { InMemoryProfileRepository } from './in-memory-profile-repository.ts';
+import { InMemoryRelationshipReader } from './in-memory-relationship-reader.ts';
 import { testTokenVerifier } from './tokens.ts';
 
 export const TEST_NOW = new Date('2026-09-25T12:00:00.000Z');
@@ -29,6 +31,7 @@ export function inMemoryAdapters() {
 export function buildTestApp() {
   const { profiles, media, avatarTransaction } = inMemoryAdapters();
   const jobs = new InMemoryJobQueue();
+  const relationships = new InMemoryRelationshipReader();
   const clock = { now: () => TEST_NOW };
   const app = buildApp({
     logLevel: 'silent',
@@ -40,6 +43,7 @@ export function buildTestApp() {
         removeAvatar: new RemoveAvatar(avatarTransaction),
         completeOnboarding: new CompleteOnboarding(profiles, clock),
         checkUsernameAvailability: new CheckUsernameAvailability(profiles),
+        getProfile: new GetProfile(profiles, relationships),
       },
       media: {
         requestUpload: new RequestUpload(media, new FakeMediaStorage(clock.now), sequentialIds()),
@@ -49,5 +53,5 @@ export function buildTestApp() {
       mediaUrls: publicMediaUrls(TEST_MEDIA_BASE_URL),
     },
   });
-  return { app, profiles, media, jobs };
+  return { app, profiles, media, jobs, relationships };
 }
