@@ -1,10 +1,10 @@
-import { decodeCursor, encodeCursor, InvalidCursorError as MalformedCursorError } from '@clone/db';
+import { encodeCursor } from '@clone/db';
 import type { components } from '@clone/contract';
 import type { FastifyInstance } from 'fastify';
 
-import { InvalidCursorError, type PageCursor } from '../../../../shared/domain/pagination.ts';
 import { authenticatedUserId } from '../../../../shared/infrastructure/auth/authentication.ts';
 import { routeSchemaFor } from '../../../../shared/infrastructure/http/contract-schemas.ts';
+import { parseCursor } from '../../../../shared/infrastructure/http/cursor.ts';
 import type { PublicMediaUrls } from '../../../../shared/infrastructure/http/public-media-urls.ts';
 import type { FollowUser } from '../../application/use-cases/follow-user.ts';
 import type { ListFollowers } from '../../application/use-cases/list-followers.ts';
@@ -22,17 +22,6 @@ export interface SocialUseCases {
 }
 
 type UserPage = components['schemas']['UserPage'];
-
-/** Curseur opaque reçu du client (ADR-007) : mal formé → `400 invalid_cursor`. */
-function parseCursor(raw: string | undefined): PageCursor | null {
-  if (raw === undefined) return null;
-  try {
-    return decodeCursor(raw);
-  } catch (error) {
-    if (error instanceof MalformedCursorError) throw new InvalidCursorError();
-    throw error;
-  }
-}
 
 /** Routes du module `social` : authentifiées par le scope `/v1` (voir `app.ts`). */
 export function registerSocialRoutes(

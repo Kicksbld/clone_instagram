@@ -6,6 +6,9 @@ struct AppDependencies {
     let identity: any IdentityService
     let uploads: any UploadService
     let social: any SocialService
+    let posts: any PostService
+    /// Publications en cours, persistées (ADR-008).
+    let publishQueue: PublishQueue
 
     static func live(bundle: Bundle = .main) -> AppDependencies {
         let auth: any AuthService = if let configuration = try? SupabaseConfiguration(bundle: bundle) {
@@ -14,26 +17,45 @@ struct AppDependencies {
             UnavailableAuthService()
         }
         guard let configuration = try? APIConfiguration(bundle: bundle) else {
+            let posts = UnavailablePostService()
             return AppDependencies(
                 auth: auth,
                 identity: UnavailableIdentityService(),
                 uploads: UnavailableUploadService(),
-                social: UnavailableSocialService()
+                social: UnavailableSocialService(),
+                posts: posts,
+                publishQueue: PublishQueue(
+                    store: FilePendingPostStore.applicationSupport,
+                    uploads: UnavailableUploadService(),
+                    posts: posts
+                )
             )
         }
         let client = APIClientFactory.makeClient(configuration: configuration) { await auth.accessToken() }
+        let uploads = UploadManager(media: APIMediaService(client: client), uploader: BackgroundFileUploader.shared)
+        let posts = APIPostService(client: client)
         return AppDependencies(
             auth: auth,
             identity: APIIdentityService(client: client),
-            uploads: UploadManager(media: APIMediaService(client: client), uploader: BackgroundFileUploader.shared),
-            social: APISocialService(client: client)
+            uploads: uploads,
+            social: APISocialService(client: client),
+            posts: posts,
+            publishQueue: PublishQueue(store: FilePendingPostStore.applicationSupport, uploads: uploads, posts: posts)
         )
     }
 }
 
 /// Utilisé quand l'URL de l'API est absente ou invalide.
-struct UnavailableUploadService: UploadService {
+struct UnavailableUploadService: UploadService, MediaUploading {
     func uploadImage(_: Data, purpose _: MediaPurpose) async throws(UploadError) -> String {
+        throw .unreachable
+    }
+
+    func send(_: PreparedImage, purpose _: MediaPurpose) async throws(UploadError) -> String {
+        throw .unreachable
+    }
+
+    func waitUntilProcessed(mediaId _: String) async throws(UploadError) {
         throw .unreachable
     }
 }

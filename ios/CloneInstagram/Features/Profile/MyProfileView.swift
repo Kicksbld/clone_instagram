@@ -1,47 +1,27 @@
 import SwiftUI
 
 /// Mon profil (wireframe) : en-tête depuis `GET /v1/me`, « Modifier le profil », carte « Compléter
-/// votre profil », grille vide. L'écran « Modifier le profil » est fourni par le routeur racine.
+/// votre profil », grille des publications. L'écran « Modifier le profil » est fourni par le routeur racine.
 struct MyProfileView<EditProfile: View>: View {
     let profile: Profile
     let onRefresh: () async -> Void
     let onSignOut: () -> Void
     /// « Suivre des comptes » : ouvre l'onglet Recherche.
     let onFollowAccounts: () -> Void
+    /// Grille de mes publications.
+    let posts: ProfilePostsViewModel
+    /// Change à chaque post publié : la grille se recharge.
+    var postsReloadToken = 0
     @ViewBuilder let editProfile: () -> EditProfile
 
     @State private var isEditing = false
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                ProfileHeaderView(
-                    avatar: profile.avatar,
-                    fullName: profile.fullName,
-                    bio: profile.bio,
-                    postCount: profile.postCount,
-                    followerCount: profile.followerCount,
-                    followingCount: profile.followingCount,
-                    listRoute: { kind in
-                        FollowListRoute(
-                            userId: profile.id,
-                            username: profile.username,
-                            followerCount: profile.followerCount,
-                            followingCount: profile.followingCount,
-                            kind: kind
-                        )
-                    }
-                )
-                Button("Modifier le profil") { isEditing = true }
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity)
-                let completion = ProfileCompletion(profile: profile)
-                if !completion.isComplete {
-                    completionCard(completion)
-                }
-                ProfileEmptyGridView()
+            VStack(spacing: 16) {
+                header
+                ProfilePostsGrid(viewModel: posts, reloadToken: postsReloadToken)
             }
-            .padding()
         }
         .refreshable { await onRefresh() }
         .navigationTitle(profile.username)
@@ -53,6 +33,36 @@ struct MyProfileView<EditProfile: View>: View {
                 Button("Se déconnecter", action: onSignOut)
             }
         }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ProfileHeaderView(
+                avatar: profile.avatar,
+                fullName: profile.fullName,
+                bio: profile.bio,
+                postCount: profile.postCount,
+                followerCount: profile.followerCount,
+                followingCount: profile.followingCount,
+                listRoute: { kind in
+                    FollowListRoute(
+                        userId: profile.id,
+                        username: profile.username,
+                        followerCount: profile.followerCount,
+                        followingCount: profile.followingCount,
+                        kind: kind
+                    )
+                }
+            )
+            Button("Modifier le profil") { isEditing = true }
+                .buttonStyle(.bordered)
+                .frame(maxWidth: .infinity)
+            let completion = ProfileCompletion(profile: profile)
+            if !completion.isComplete {
+                completionCard(completion)
+            }
+        }
+        .padding([.horizontal, .top])
     }
 
     private func completionCard(_ completion: ProfileCompletion) -> some View {

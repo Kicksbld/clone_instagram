@@ -2,9 +2,10 @@ import APIClient
 import Foundation
 import OpenAPIRuntime
 
-/// Usage d'un média (ADR-008) ; `post` arrive en T6a.
+/// Usage d'un média (ADR-008) : il ne peut être rattaché qu'à cet usage.
 nonisolated enum MediaPurpose: Equatable {
     case avatar
+    case post
 }
 
 /// Motif d'échec du traitement d'un média par le worker.
@@ -162,6 +163,7 @@ private extension Components.Schemas.MediaPurpose {
     init(_ purpose: MediaPurpose) {
         switch purpose {
         case .avatar: self = .avatar
+        case .post: self = .post
         }
     }
 }

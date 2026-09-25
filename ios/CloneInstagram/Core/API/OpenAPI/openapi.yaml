@@ -17,6 +17,7 @@ info:
     | `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |
     | `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |
     | `route_not_found` | 404 | Route inexistante |
+    | `rate_limited` | 429 | Trop de requêtes sur une route limitée (ADR-005) ; en-tête `Retry-After` en secondes |
     | `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |
 
     Codes d'erreur métier :
@@ -36,6 +37,7 @@ info:
     | `account_private` | 403 | Suivre un compte privé (demandes d'abonnement en P1) |
     | `cannot_follow_self` | 422 | Se suivre ou ne plus se suivre soi-même |
     | `invalid_cursor` | 400 | Curseur de pagination mal formé |
+    | `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) |
 
     Pagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).
 servers:
@@ -54,6 +56,8 @@ tags:
     description: Profils des autres utilisateurs, selon la politique de visibilité (ADR-006)
   - name: social
     description: Abonnements, listes d'abonnés et recherche d'utilisateurs (ADR-006)
+  - name: posts
+    description: Publication et lecture des posts, selon la politique de visibilité (ADR-006)
 paths:
   /health:
     get:
@@ -355,6 +359,101 @@ paths:
           $ref: '#/components/responses/UserNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v1/users/{id}/posts:
+    get:
+      operationId: listUserPosts
+      tags: [posts]
+      summary: Posts d'un utilisateur
+      description: |
+        Posts non supprimés de cet utilisateur, du plus récent au plus ancien, par pages de 12 (grille du profil). Réservé à qui peut voir ses contenus (compte public, soi-même ou abonné) ; sinon `404 user_not_found` (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page de posts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/posts:
+    post:
+      operationId: createPost
+      tags: [posts]
+      summary: Publier un post
+      description: |
+        Crée un post à partir de médias `ready`, à moi, de `purpose` `post`, jamais utilisés (ADR-008) ; ils sont rattachés au post dans l'ordre de `mediaIds`.
+        En T6a : une seule image ; le carrousel (jusqu'à 10) arrive en T6b, les reels en P1. Limité à 20 posts par heure (`429 rate_limited`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePostRequest'
+      responses:
+        '201':
+          description: Post publié.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: Onboarding non terminé (`profile_not_found`) ou média introuvable (`media_not_found`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Média pas encore prêt (`media_not_ready`) ou déjà utilisé (`media_already_attached`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          description: Média prévu pour un autre usage (`media_purpose_mismatch`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/posts/{id}:
+    get:
+      operationId: getPost
+      tags: [posts]
+      summary: Détail d'un post
+      description: Post inexistant, supprimé, ou dont l'auteur est invisible pour l'appelant (blocage, compte non actif, compte privé non suivi) → `404 post_not_found`, jamais `403` (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      responses:
+        '200':
+          description: Le post.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/PostNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/search/users:
     get:
       operationId: searchUsers
@@ -392,7 +491,7 @@ paths:
       description: |
         Crée le média en `pending_upload` et renvoie une URL d'upload présignée (ADR-008).
         Le fichier est envoyé directement à `uploadUrl` par un `PUT` du contenu brut, avec le `Content-Type` déclaré, avant `expiresAt` ;
-        l'API ne transporte jamais le fichier. En T3 : image JPEG ou PNG de 20 Mo au plus, pour une photo de profil.
+        l'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus, pour une photo de profil (`avatar`) ou un post (`post`).
       requestBody:
         required: true
         content:
@@ -736,8 +835,8 @@ components:
       enum: [image]
     MediaPurpose:
       type: string
-      description: '`post` arrive en T6a.'
-      enum: [avatar]
+      description: Usage prévu du média ; il ne peut être rattaché qu'à cet usage (ADR-008).
+      enum: [avatar, post]
     MediaStatus:
       type: string
       description: '`pending_upload` → `uploaded` → `processing` → `ready` | `failed` (ADR-008).'
@@ -802,6 +901,97 @@ components:
         failureReason:
           $ref: '#/components/schemas/MediaFailureReason'
           description: Présent quand le média est `failed`.
+    PostKind:
+      type: string
+      description: '`reel` arrive en P1.'
+      enum: [post]
+    Caption:
+      type: string
+      description: Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.
+      maxLength: 2200
+    CreatePostRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, mediaIds]
+      properties:
+        kind:
+          $ref: '#/components/schemas/PostKind'
+        caption:
+          $ref: '#/components/schemas/Caption'
+        mediaIds:
+          type: array
+          description: Médias du post, dans l'ordre d'affichage. En T6a, une seule image.
+          minItems: 1
+          maxItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+    PostAuthor:
+      type: object
+      description: Auteur d'un post.
+      additionalProperties: false
+      required: [id, username]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          $ref: '#/components/schemas/Username'
+        avatar:
+          $ref: '#/components/schemas/ImageVariants'
+          description: Photo de profil ; absente si aucune photo.
+    PostMedia:
+      type: object
+      description: Une image d'un post ; `width` et `height` (en pixels) donnent son ratio d'affichage.
+      additionalProperties: false
+      required: [variants, width, height]
+      properties:
+        variants:
+          $ref: '#/components/schemas/ImageVariants'
+        width:
+          type: integer
+          minimum: 1
+        height:
+          type: integer
+          minimum: 1
+    Post:
+      type: object
+      additionalProperties: false
+      required: [id, kind, caption, author, media, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/PostKind'
+        caption:
+          $ref: '#/components/schemas/Caption'
+        author:
+          $ref: '#/components/schemas/PostAuthor'
+        media:
+          type: array
+          description: Médias dans l'ordre d'affichage.
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/PostMedia'
+        createdAt:
+          type: string
+          format: date-time
+    PostPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 12
+          items:
+            $ref: '#/components/schemas/Post'
+        nextCursor:
+          type: string
+          description: Curseur de la page suivante ; absent sur la dernière page.
     ProblemDetails:
       type: object
       description: Erreur au format Problem Details (RFC 9457).
@@ -853,6 +1043,13 @@ components:
       schema:
         type: string
         format: uuid
+    PostId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     ValidationFailed:
       description: Entrée non conforme au schéma (`validation_failed`).
@@ -892,6 +1089,24 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     UserNotFound:
       description: Profil inexistant ou invisible pour l'appelant (`user_not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    PostNotFound:
+      description: Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    RateLimited:
+      description: Trop de requêtes (`rate_limited`) ; réessayer après `Retry-After` secondes.
+      headers:
+        Retry-After:
+          description: Délai avant de réessayer, en secondes.
+          schema:
+            type: integer
+            minimum: 0
       content:
         application/problem+json:
           schema:

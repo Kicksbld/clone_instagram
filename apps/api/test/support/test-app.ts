@@ -8,6 +8,9 @@ import { UpdateMe } from '../../src/modules/identity/application/use-cases/updat
 import { CompleteUpload } from '../../src/modules/media/application/use-cases/complete-upload.ts';
 import { GetMedia } from '../../src/modules/media/application/use-cases/get-media.ts';
 import { RequestUpload } from '../../src/modules/media/application/use-cases/request-upload.ts';
+import { CreatePost } from '../../src/modules/posts/application/use-cases/create-post.ts';
+import { GetPost } from '../../src/modules/posts/application/use-cases/get-post.ts';
+import { ListUserPosts } from '../../src/modules/posts/application/use-cases/list-user-posts.ts';
 import { FollowUser } from '../../src/modules/social/application/use-cases/follow-user.ts';
 import { ListFollowers } from '../../src/modules/social/application/use-cases/list-followers.ts';
 import { ListFollowing } from '../../src/modules/social/application/use-cases/list-following.ts';
@@ -16,6 +19,7 @@ import { UnfollowUser } from '../../src/modules/social/application/use-cases/unf
 import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-media-urls.ts';
 import { FakeMediaStorage, InMemoryJobQueue, InMemoryUnitOfWork, sequentialIds } from './fakes.ts';
 import { InMemoryMediaRepository } from './in-memory-media-repository.ts';
+import { InMemoryPosts } from './in-memory-posts.ts';
 import { InMemoryProfileRepository } from './in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from './in-memory-relationship-reader.ts';
 import { InMemorySocialGraph } from './in-memory-social-graph.ts';
@@ -45,6 +49,13 @@ export function buildTestApp() {
     follows: graph,
     counters: graph,
   });
+  const posts = new InMemoryPosts(profiles, media);
+  const createPostTransaction = new InMemoryUnitOfWork({
+    accounts: graph,
+    media,
+    posts,
+    reader: posts,
+  });
   const clock = { now: () => TEST_NOW };
   const app = buildApp({
     logLevel: 'silent',
@@ -70,8 +81,17 @@ export function buildTestApp() {
         listFollowing: new ListFollowing(graph, relationships, graph),
         searchUsers: new SearchUsers(graph),
       },
+      posts: {
+        createPost: new CreatePost(
+          createPostTransaction,
+          sequentialIds('0199a1b2-0000-7000-a000-'),
+          clock,
+        ),
+        getPost: new GetPost(posts, relationships),
+        listUserPosts: new ListUserPosts(graph, relationships, posts),
+      },
       mediaUrls: publicMediaUrls(TEST_MEDIA_BASE_URL),
     },
   });
-  return { app, profiles, media, jobs, relationships };
+  return { app, profiles, media, jobs, relationships, posts };
 }

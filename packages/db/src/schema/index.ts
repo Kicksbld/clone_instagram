@@ -17,3 +17,12 @@ export {
   STORAGE_BUCKETS,
 } from './media.ts';
 export { blocks, follows, type BlockRow, type FollowRow } from './social.ts';
+export {
+  POST_KINDS,
+  postMedia,
+  posts,
+  type NewPostRow,
+  type PostKind,
+  type PostMediaRow,
+  type PostRow,
+} from './posts.ts';

@@ -26,6 +26,7 @@ Architecture hexagonale par module : [ADR-005](../../docs/adr/ADR-005-backend-fa
 - **Tests** : use cases et routes avec les adapters en mémoire (`test/support/test-app.ts`, JWT de test dans `test/support/tokens.ts`) ; adapters Drizzle sur un vrai Postgres (`test/support/database.ts`, schéma à jour par `pnpm db:migrate`).
 - **Lecture visible** (ADR-006) : le use case lit la relation par le port `RelationshipReader` (`shared/application`), puis applique `canViewProfile` / `canViewContent`… de `shared/domain/visibility.ts` ; invisible → `NotFoundError`. Référence : `GetProfile` (`modules/identity`).
 - **Liste paginée** (ADR-007) : la route décode `?cursor=` (`decodeCursor` de `@clone/db`, mal formé → `InvalidCursorError` de `shared/domain/pagination.ts`, `400 invalid_cursor`) et encode `next` en `nextCursor` ; l'adapter lit `limit + 1` lignes et traduit la visibilité en SQL. Référence : `modules/social` (`ListFollowers`, `DrizzleSocialGraphReader`).
+- **Rate limit** (ADR-005) : aucune limite globale ; la route déclare `config: { rateLimit: { max, timeWindow } }`, comptée par utilisateur authentifié (`shared/infrastructure/http/rate-limit.ts`), refus `429 rate_limited` + `Retry-After`. Référence : `POST /v1/posts`.
 - **Use case de référence** : `LikePost` (ADR-005) — autorisation et visibilité dans le use case, `UnitOfWork` si plusieurs tables, compteur modifié seulement si une ligne change.
 - **Variable d'environnement** : l'ajouter au schéma de `shared/infrastructure/config.ts` et à `.env.example`.
 

@@ -195,6 +195,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/users/{id}/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Posts d'un utilisateur
+         * @description Posts non supprimés de cet utilisateur, du plus récent au plus ancien, par pages de 12 (grille du profil). Réservé à qui peut voir ses contenus (compte public, soi-même ou abonné) ; sinon `404 user_not_found` (ADR-006).
+         */
+        get: operations["listUserPosts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publier un post
+         * @description Crée un post à partir de médias `ready`, à moi, de `purpose` `post`, jamais utilisés (ADR-008) ; ils sont rattachés au post dans l'ordre de `mediaIds`.
+         *     En T6a : une seule image ; le carrousel (jusqu'à 10) arrive en T6b, les reels en P1. Limité à 20 posts par heure (`429 rate_limited`).
+         */
+        post: operations["createPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/posts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Détail d'un post
+         * @description Post inexistant, supprimé, ou dont l'auteur est invisible pour l'appelant (blocage, compte non actif, compte privé non suivi) → `404 post_not_found`, jamais `403` (ADR-006).
+         */
+        get: operations["getPost"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/search/users": {
         parameters: {
             query?: never;
@@ -229,7 +290,7 @@ export interface paths {
          * Demander une intention d'upload
          * @description Crée le média en `pending_upload` et renvoie une URL d'upload présignée (ADR-008).
          *     Le fichier est envoyé directement à `uploadUrl` par un `PUT` du contenu brut, avec le `Content-Type` déclaré, avant `expiresAt` ;
-         *     l'API ne transporte jamais le fichier. En T3 : image JPEG ou PNG de 20 Mo au plus, pour une photo de profil.
+         *     l'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus, pour une photo de profil (`avatar`) ou un post (`post`).
          */
         post: operations["requestMediaUpload"];
         delete?: never;
@@ -424,10 +485,10 @@ export interface components {
          */
         MediaKind: "image";
         /**
-         * @description `post` arrive en T6a.
+         * @description Usage prévu du média ; il ne peut être rattaché qu'à cet usage (ADR-008).
          * @enum {string}
          */
-        MediaPurpose: "avatar";
+        MediaPurpose: "avatar" | "post";
         /**
          * @description `pending_upload` → `uploaded` → `processing` → `ready` | `failed` (ADR-008).
          * @enum {string}
@@ -470,6 +531,49 @@ export interface components {
             variants?: components["schemas"]["ImageVariants"];
             /** @description Présent quand le média est `failed`. */
             failureReason?: components["schemas"]["MediaFailureReason"];
+        };
+        /**
+         * @description `reel` arrive en P1.
+         * @enum {string}
+         */
+        PostKind: "post";
+        /** @description Légende, 2 200 caractères au plus ; chaîne vide si aucune légende. */
+        Caption: string;
+        CreatePostRequest: {
+            kind: components["schemas"]["PostKind"];
+            caption?: components["schemas"]["Caption"];
+            /** @description Médias du post, dans l'ordre d'affichage. En T6a, une seule image. */
+            mediaIds: string[];
+        };
+        /** @description Auteur d'un post. */
+        PostAuthor: {
+            /** Format: uuid */
+            id: string;
+            username: components["schemas"]["Username"];
+            /** @description Photo de profil ; absente si aucune photo. */
+            avatar?: components["schemas"]["ImageVariants"];
+        };
+        /** @description Une image d'un post ; `width` et `height` (en pixels) donnent son ratio d'affichage. */
+        PostMedia: {
+            variants: components["schemas"]["ImageVariants"];
+            width: number;
+            height: number;
+        };
+        Post: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["PostKind"];
+            caption: components["schemas"]["Caption"];
+            author: components["schemas"]["PostAuthor"];
+            /** @description Médias dans l'ordre d'affichage. */
+            media: components["schemas"]["PostMedia"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PostPage: {
+            items: components["schemas"]["Post"][];
+            /** @description Curseur de la page suivante ; absent sur la dernière page. */
+            nextCursor?: string;
         };
         /** @description Erreur au format Problem Details (RFC 9457). */
         ProblemDetails: {
@@ -559,6 +663,26 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
+        /** @description Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`). */
+        PostNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
+        /** @description Trop de requêtes (`rate_limited`) ; réessayer après `Retry-After` secondes. */
+        RateLimited: {
+            headers: {
+                /** @description Délai avant de réessayer, en secondes. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
         /** @description Erreur inattendue (`internal_error`). */
         InternalError: {
             headers: {
@@ -574,6 +698,7 @@ export interface components {
         /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
         Cursor: string;
         MediaId: string;
+        PostId: string;
     };
     requestBodies: never;
     headers: never;
@@ -924,6 +1049,116 @@ export interface operations {
             400: components["responses"]["InvalidInput"];
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["UserNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listUserPosts: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de posts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["UserNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePostRequest"];
+            };
+        };
+        responses: {
+            /** @description Post publié. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Post"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Onboarding non terminé (`profile_not_found`) ou média introuvable (`media_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Média pas encore prêt (`media_not_ready`) ou déjà utilisé (`media_already_attached`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Média prévu pour un autre usage (`media_purpose_mismatch`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Le post. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Post"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["PostNotFound"];
             500: components["responses"]["InternalError"];
         };
     };

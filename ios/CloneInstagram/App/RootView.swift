@@ -49,12 +49,14 @@ struct RootView: View {
             )
             .id(entry)
         case let .home(profile):
-            HomeView { openSearch in
+            HomeView(publishQueue: dependencies.publishQueue) { openSearch in
                 MyProfileView(
                     profile: profile,
                     onRefresh: viewModel.refreshProfile,
-                    onSignOut: { Task { await viewModel.signOut() } },
+                    onSignOut: signOut,
                     onFollowAccounts: openSearch,
+                    posts: ProfilePostsViewModel(userId: profile.id, posts: dependencies.posts),
+                    postsReloadToken: dependencies.publishQueue.publishedCount,
                     editProfile: {
                         EditProfileView(
                             viewModel: EditProfileViewModel(
@@ -74,6 +76,16 @@ struct RootView: View {
                         viewerId: profile.id,
                         onFollowChange: viewModel.refreshProfile
                     ))
+            } createPost: { close in
+                CreatePostView(
+                    viewModel: CreatePostViewModel(authorId: profile.id, publisher: dependencies.publishQueue),
+                    onClose: close
+                )
+            }
+            // Reprise des publications interrompues (fermeture de l'app) ; compteurs rechargés après chaque post.
+            .task(id: profile.id) { dependencies.publishQueue.resume(for: profile.id) }
+            .onChange(of: dependencies.publishQueue.publishedCount) {
+                Task { await viewModel.refreshProfile() }
             }
         case let .failed(message):
             ContentUnavailableView {
@@ -82,14 +94,20 @@ struct RootView: View {
                 Text(message)
             } actions: {
                 Button("Réessayer") { Task { await viewModel.start() } }
-                Button("Se déconnecter") { Task { await viewModel.signOut() } }
+                Button("Se déconnecter", action: signOut)
             }
         }
     }
+
+    /// Les publications en attente ne sont jamais reprises pour un autre compte.
+    private func signOut() {
+        dependencies.publishQueue.discardAll()
+        Task { await viewModel.signOut() }
+    }
 }
 
-/// Destinations partagées des onglets Profil et Recherche : profil d'un autre compte et listes
-/// d'abonnés. Déclarées ici : une feature n'importe pas une autre (ADR-010).
+/// Destinations partagées des onglets Profil et Recherche : profil d'un autre compte, listes
+/// d'abonnés et détail d'un post. Déclarées ici : une feature n'importe pas une autre (ADR-010).
 private struct SocialDestinations: ViewModifier {
     let dependencies: AppDependencies
     let viewerId: String
@@ -106,8 +124,12 @@ private struct SocialDestinations: ViewModifier {
                         identity: dependencies.identity,
                         social: dependencies.social,
                         onFollowChange: onFollowChange
-                    )
+                    ),
+                    posts: dependencies.posts
                 )
+            }
+            .navigationDestination(for: PostRoute.self) { route in
+                PostDetailView(viewModel: PostDetailViewModel(postId: route.postId, posts: dependencies.posts))
             }
             .navigationDestination(for: FollowListRoute.self) { route in
                 FollowListsView(

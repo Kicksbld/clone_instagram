@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// Accueil (wireframe) : onglets d'Instagram, contenus à venir dans les prochaines tranches.
-/// Les écrans Profil et Recherche sont fournis par le routeur racine : une feature n'en importe pas une autre.
-/// `profileTab` reçoit l'action qui ouvre l'onglet Recherche (« Suivre des comptes »).
-struct HomeView<ProfileTab: View, SearchTab: View>: View {
+/// Les écrans Profil, Recherche et Création sont fournis par le routeur racine : une feature n'en importe
+/// pas une autre. `profileTab` reçoit l'action qui ouvre l'onglet Recherche (« Suivre des comptes ») ;
+/// `createPost` reçoit l'action qui ferme la création et revient à l'accueil.
+struct HomeView<ProfileTab: View, SearchTab: View, CreatePost: View>: View {
     enum TabID: Hashable {
         case home
         case reels
@@ -12,23 +13,29 @@ struct HomeView<ProfileTab: View, SearchTab: View>: View {
         case profile
     }
 
+    /// Publications en cours, affichées en haut de l'accueil.
+    let publishQueue: PublishQueue
     @ViewBuilder let profileTab: (_ openSearch: @escaping () -> Void) -> ProfileTab
     @ViewBuilder let searchTab: () -> SearchTab
+    @ViewBuilder let createPost: (_ close: @escaping () -> Void) -> CreatePost
 
     @State private var selection = TabID.home
+    @State private var isCreating = false
 
     var body: some View {
         TabView(selection: $selection) {
             Tab("Accueil", systemImage: "house", value: TabID.home) {
                 NavigationStack {
-                    placeholder("Accueil", systemImage: "house")
-                        .toolbar {
-                            // Création d'un post : T6a.
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button("Créer", systemImage: "plus") {}
-                                    .disabled(true)
-                            }
+                    VStack(spacing: 0) {
+                        PublishBanner(queue: publishQueue)
+                        // Feed d'accueil : T7.
+                        placeholder("Accueil", systemImage: "house")
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Créer", systemImage: "plus") { isCreating = true }
                         }
+                    }
                 }
             }
             Tab("Reels", systemImage: "play.rectangle", value: TabID.reels) {
@@ -44,6 +51,12 @@ struct HomeView<ProfileTab: View, SearchTab: View>: View {
                 NavigationStack {
                     profileTab { selection = .search }
                 }
+            }
+        }
+        .fullScreenCover(isPresented: $isCreating) {
+            createPost {
+                isCreating = false
+                selection = .home
             }
         }
     }

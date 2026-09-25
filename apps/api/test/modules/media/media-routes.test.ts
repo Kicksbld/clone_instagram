@@ -44,9 +44,22 @@ describe('POST /v1/media/uploads', () => {
     });
   });
 
+  it('photo de post → 201, média de purpose post', async () => {
+    const response = await post({ ...upload, purpose: 'post' });
+
+    expect(response.statusCode).toBe(201);
+    expect(context.media.rows.get(PHOTO)?.purpose).toBe('post');
+    const media = await context.app.inject({
+      method: 'GET',
+      url: `/v1/media/${PHOTO}`,
+      headers: { authorization: `Bearer ${await signTestToken(ME)}` },
+    });
+    expect(media.json()).toMatchObject({ purpose: 'post', status: 'pending_upload' });
+  });
+
   it.each([
     ['vidéo', { kind: 'video' }],
-    ['usage post (T6a)', { purpose: 'post' }],
+    ['usage story (P1)', { purpose: 'story' }],
     ['type non accepté', { mimeType: 'image/heic' }],
     ['plus de 20 Mo', { sizeBytes: 20 * 1024 * 1024 + 1 }],
     ['taille nulle', { sizeBytes: 0 }],
