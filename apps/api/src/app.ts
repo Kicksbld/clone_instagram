@@ -11,6 +11,10 @@ import {
   registerMediaRoutes,
 } from './modules/media/infrastructure/http/media-routes.ts';
 import {
+  type PostsUseCases,
+  registerPostsRoutes,
+} from './modules/posts/infrastructure/http/posts-routes.ts';
+import {
   registerSocialRoutes,
   type SocialUseCases,
 } from './modules/social/infrastructure/http/social-routes.ts';
@@ -24,6 +28,7 @@ import { installContractValidation } from './shared/infrastructure/http/contract
 import { registerErrorHandling } from './shared/infrastructure/http/error-handler.ts';
 import { registerHealthRoutes } from './shared/infrastructure/http/health-routes.ts';
 import type { PublicMediaUrls } from './shared/infrastructure/http/public-media-urls.ts';
+import { registerRateLimit } from './shared/infrastructure/http/rate-limit.ts';
 
 /** Dépendances assemblées par `main.ts` (ou par les tests, avec des adapters en mémoire). */
 export interface AppDependencies {
@@ -31,6 +36,7 @@ export interface AppDependencies {
   identity: IdentityUseCases;
   media: MediaUseCases;
   social: SocialUseCases;
+  posts: PostsUseCases;
   mediaUrls: PublicMediaUrls;
 }
 
@@ -60,6 +66,8 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
   registerErrorHandling(app);
   decorateAuthentication(app);
   registerHealthRoutes(app);
+  // Avant les routes : le plugin lit leur `config.rateLimit` à leur déclaration.
+  registerRateLimit(app);
 
   // Routes `/v1` : toutes authentifiées (ADR-003).
   void app.register((v1, _options, done) => {
@@ -67,6 +75,7 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
     registerIdentityRoutes(v1, dependencies.identity, dependencies.mediaUrls);
     registerMediaRoutes(v1, dependencies.media, dependencies.mediaUrls);
     registerSocialRoutes(v1, dependencies.social, dependencies.mediaUrls);
+    registerPostsRoutes(v1, dependencies.posts, dependencies.mediaUrls);
     done();
   });
 

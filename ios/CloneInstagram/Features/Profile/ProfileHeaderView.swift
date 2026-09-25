@@ -53,10 +53,3 @@ struct ProfileHeaderView: View {
         .accessibilityElement(children: .combine)
     }
 }
-
-/// Grille des publications ; vide jusqu'aux posts (T6a).
-struct ProfileEmptyGridView: View {
-    var body: some View {
-        ContentUnavailableView("Aucune publication", systemImage: "camera")
-    }
-}

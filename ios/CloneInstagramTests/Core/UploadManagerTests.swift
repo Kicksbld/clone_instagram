@@ -63,7 +63,8 @@ struct UploadManagerTests {
         await #expect(throws: UploadError.timedOut) {
             try await makeManager(timeout: .seconds(5)).uploadImage(Data("photo".utf8), purpose: .avatar)
         }
-        #expect(media.statusRequests == 5)
+        // Un premier statut lu tout de suite, puis un par seconde pendant 5 s.
+        #expect(media.statusRequests == 6)
     }
 
     @Test func `envoi du fichier en échec → transferFailed, sans complete`() async {

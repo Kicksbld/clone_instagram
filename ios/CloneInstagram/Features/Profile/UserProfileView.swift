@@ -1,12 +1,14 @@
 import SwiftUI
 
-/// Profil d'un autre utilisateur (wireframe) : en-tête, bouton Suivre, grille vide ou compte privé.
+/// Profil d'un autre utilisateur (wireframe) : en-tête, bouton Suivre, grille des publications ou compte privé.
 struct UserProfileView: View {
     @State private var viewModel: UserProfileViewModel
     @State private var isConfirmingUnfollow = false
+    private let posts: any PostService
 
-    init(viewModel: UserProfileViewModel) {
+    init(viewModel: UserProfileViewModel, posts: any PostService) {
         _viewModel = State(initialValue: viewModel)
+        self.posts = posts
     }
 
     var body: some View {
@@ -39,28 +41,33 @@ struct UserProfileView: View {
         case let .loaded(profile):
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ProfileHeaderView(
-                        avatar: profile.avatar,
-                        fullName: profile.fullName,
-                        bio: profile.bio,
-                        postCount: profile.postCount,
-                        followerCount: profile.followerCount,
-                        followingCount: profile.followingCount,
-                        listRoute: profile.canViewContent ? { kind in
-                            FollowListRoute(
-                                userId: profile.id,
-                                username: profile.username,
-                                followerCount: profile.followerCount,
-                                followingCount: profile.followingCount,
-                                kind: kind
-                            )
-                        } : nil
-                    )
-                    if viewModel.canFollow(profile) {
-                        followButton(profile)
+                    VStack(alignment: .leading, spacing: 16) {
+                        ProfileHeaderView(
+                            avatar: profile.avatar,
+                            fullName: profile.fullName,
+                            bio: profile.bio,
+                            postCount: profile.postCount,
+                            followerCount: profile.followerCount,
+                            followingCount: profile.followingCount,
+                            listRoute: profile.canViewContent ? { kind in
+                                FollowListRoute(
+                                    userId: profile.id,
+                                    username: profile.username,
+                                    followerCount: profile.followerCount,
+                                    followingCount: profile.followingCount,
+                                    kind: kind
+                                )
+                            } : nil
+                        )
+                        if viewModel.canFollow(profile) {
+                            followButton(profile)
+                        }
                     }
+                    .padding([.horizontal, .top])
                     if profile.canViewContent {
-                        ProfileEmptyGridView()
+                        ProfilePostsGrid(viewModel: ProfilePostsViewModel(userId: profile.id, posts: posts))
+                            // Nouvelle grille si l'abonnement change (contenus visibles ou non).
+                            .id(profile.isFollowing)
                     } else {
                         ContentUnavailableView(
                             "Ce compte est privé",
@@ -69,7 +76,6 @@ struct UserProfileView: View {
                         )
                     }
                 }
-                .padding()
             }
             .refreshable { await viewModel.load() }
         case .notFound:

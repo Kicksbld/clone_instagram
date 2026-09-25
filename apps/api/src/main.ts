@@ -15,6 +15,13 @@ import { GetMedia } from './modules/media/application/use-cases/get-media.ts';
 import { RequestUpload } from './modules/media/application/use-cases/request-upload.ts';
 import { DrizzleMediaRepository } from './modules/media/infrastructure/persistence/drizzle-media-repository.ts';
 import { SupabaseMediaStorage } from './modules/media/infrastructure/storage/supabase-media-storage.ts';
+import { CreatePost } from './modules/posts/application/use-cases/create-post.ts';
+import { GetPost } from './modules/posts/application/use-cases/get-post.ts';
+import { ListUserPosts } from './modules/posts/application/use-cases/list-user-posts.ts';
+import {
+  DrizzlePostReader,
+  DrizzlePostRepository,
+} from './modules/posts/infrastructure/persistence/drizzle-post-repository.ts';
 import { FollowUser } from './modules/social/application/use-cases/follow-user.ts';
 import { ListFollowers } from './modules/social/application/use-cases/list-followers.ts';
 import { ListFollowing } from './modules/social/application/use-cases/list-following.ts';
@@ -53,6 +60,13 @@ const followTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => (
   follows: new DrizzleFollowRepository(tx),
   counters: new DrizzleFollowCounters(tx),
 }));
+const postReader = new DrizzlePostReader(database.db);
+const createPostTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  accounts: new DrizzleAccountReader(tx),
+  media: new DrizzleMediaRepository(tx),
+  posts: new DrizzlePostRepository(tx),
+  reader: new DrizzlePostReader(tx),
+}));
 const jobs = new BullMqJobQueue(config.REDIS_URL);
 const secretKey = config.SUPABASE_SERVICE_ROLE_KEY;
 const storage = new SupabaseMediaStorage(
@@ -90,6 +104,11 @@ const app = buildApp({
       listFollowers: new ListFollowers(accounts, relationships, socialGraph),
       listFollowing: new ListFollowing(accounts, relationships, socialGraph),
       searchUsers: new SearchUsers(socialGraph),
+    },
+    posts: {
+      createPost: new CreatePost(createPostTransaction, uuidV7Generator, systemClock),
+      getPost: new GetPost(postReader, relationships),
+      listUserPosts: new ListUserPosts(accounts, relationships, postReader),
     },
     mediaUrls: publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL),
   },

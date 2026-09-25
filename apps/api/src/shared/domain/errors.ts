@@ -3,7 +3,8 @@
  * `code` est stable et documenté dans le contrat (ADR-003).
  */
 export abstract class DomainError extends Error {
-  abstract readonly kind: 'bad_request' | 'not_found' | 'forbidden' | 'conflict' | 'business_rule';
+  abstract readonly kind:
+    'bad_request' | 'not_found' | 'forbidden' | 'conflict' | 'business_rule' | 'too_many_requests';
 
   constructor(
     readonly code: string,
@@ -35,4 +36,13 @@ export class ConflictError extends DomainError {
 /** Règle métier non respectée (422). */
 export class BusinessRuleError extends DomainError {
   readonly kind = 'business_rule';
+}
+
+/** Limite de requêtes dépassée (429, ADR-005) ; `Retry-After` est posé par l'infrastructure HTTP. */
+export class RateLimitedError extends DomainError {
+  readonly kind = 'too_many_requests';
+
+  constructor() {
+    super('rate_limited', 'Trop de requêtes : réessayez plus tard.');
+  }
 }

@@ -19,16 +19,24 @@ nonisolated enum UploadError: Error, Equatable {
 
 /// Envoi d'une image jusqu'à un média `ready` (ADR-008), utilisé par les ViewModels.
 protocol UploadService: Sendable {
-    /// Identifiant du média prêt, à rattacher ensuite (`PATCH /v1/me`, posts en T6a).
+    /// Identifiant du média prêt, à rattacher ensuite (ex. `PATCH /v1/me`).
     func uploadImage(_ data: Data, purpose: MediaPurpose) async throws(UploadError) -> String
+}
+
+/// Étapes de l'envoi, reprises une à une par la file de publication (`PublishQueue`).
+protocol MediaUploading: Sendable {
+    /// Intention d'upload → envoi du fichier préparé → `complete` ; renvoie l'identifiant du média.
+    func send(_ image: PreparedImage, purpose: MediaPurpose) async throws(UploadError) -> String
+    /// Attend que le worker ait traité le média (`ready`), ou lève le refus.
+    func waitUntilProcessed(mediaId: String) async throws(UploadError)
 }
 
 /**
  `UploadManager` (ADR-008) : préparation (HEIC → JPEG sans métadonnées) → intention d'upload → envoi du
  fichier par `URLSession` background → `complete` → attente du traitement par `GET /v1/media/{id}`.
- La file persistée qui survit à la fermeture de l'app arrive en T6a.
+ La publication d'un post passe par `PublishQueue`, qui persiste chaque étape.
  */
-struct UploadManager: UploadService {
+struct UploadManager: UploadService, MediaUploading {
     typealias Prepare = @Sendable (Data) async throws(ImagePreparationError) -> PreparedImage
 
     let media: any MediaService
@@ -49,8 +57,13 @@ struct UploadManager: UploadService {
             throw .unreadableImage
         }
         defer { try? FileManager.default.removeItem(at: image.fileURL) }
-        guard image.sizeBytes <= Self.maxSizeBytes else { throw .rejected(.fileTooLarge) }
+        let mediaId = try await send(image, purpose: purpose)
+        try await waitUntilProcessed(mediaId: mediaId)
+        return mediaId
+    }
 
+    func send(_ image: PreparedImage, purpose: MediaPurpose) async throws(UploadError) -> String {
+        guard image.sizeBytes <= Self.maxSizeBytes else { throw .rejected(.fileTooLarge) }
         do {
             let intent = try await media.requestUpload(purpose: purpose, mimeType: image.mimeType, sizeBytes: image.sizeBytes)
             do {
@@ -58,8 +71,7 @@ struct UploadManager: UploadService {
             } catch {
                 throw UploadError.transferFailed
             }
-            let status = try await media.completeUpload(mediaId: intent.mediaId)
-            try await waitUntilProcessed(mediaId: intent.mediaId, status: status)
+            _ = try await media.completeUpload(mediaId: intent.mediaId)
             return intent.mediaId
         } catch let error as UploadError {
             throw error
@@ -71,21 +83,27 @@ struct UploadManager: UploadService {
     }
 
     /// Interroge le statut jusqu'à `ready` ou `failed` (P1 : événement WebSocket à la place).
-    private func waitUntilProcessed(mediaId: String, status initial: MediaStatus) async throws {
-        var status = initial
+    func waitUntilProcessed(mediaId: String) async throws(UploadError) {
         var waited = Duration.zero
-        while true {
-            switch status {
-            case .ready:
-                return
-            case let .failed(reason):
-                throw UploadError.rejected(reason)
-            case .pendingUpload, .uploaded, .processing:
-                guard waited < timeout else { throw UploadError.timedOut }
-                try await sleep(pollInterval)
-                waited += pollInterval
-                status = try await media.fetchStatus(mediaId: mediaId)
+        do {
+            while true {
+                switch try await media.fetchStatus(mediaId: mediaId) {
+                case .ready:
+                    return
+                case let .failed(reason):
+                    throw UploadError.rejected(reason)
+                case .pendingUpload, .uploaded, .processing:
+                    guard waited < timeout else { throw UploadError.timedOut }
+                    try await sleep(pollInterval)
+                    waited += pollInterval
+                }
             }
+        } catch let error as UploadError {
+            throw error
+        } catch let error as MediaServiceError {
+            throw Self.uploadError(error)
+        } catch {
+            throw .unexpected
         }
     }
 

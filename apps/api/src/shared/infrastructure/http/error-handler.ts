@@ -14,6 +14,7 @@ const STATUS_BY_KIND = {
   forbidden: 403,
   conflict: 409,
   business_rule: 422,
+  too_many_requests: 429,
 } as const satisfies Record<DomainError['kind'], number>;
 
 export function problem(status: number, code: string, detail: string): ProblemDetails {
