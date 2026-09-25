@@ -11,8 +11,10 @@ Pipeline média et files : [ADR-008](../../docs/adr/ADR-008-pipeline-media-worke
 
 1. Dans `packages/jobs` : nom du job, file, schéma Zod du payload (identifiants uniquement) et, s'il y en a une, de la valeur de retour ; types déduits par `z.infer`.
 2. Dans le worker : un handler qui **valide d'abord le payload** avec ce schéma ; payload invalide → `UnrecoverableError` (échec définitif, journalisé), puis relit l'état en base avant d'agir.
-3. L'enregistrer dans la table d'aiguillage passée à `createProcessor` (`src/main.ts`).
-4. Tests Vitest avec fichiers d'exemple (ADR-014).
+3. L'enregistrer dans la table d'aiguillage passée à `createProcessor` (`src/main.ts`) ; un job répété est planifié au démarrage par `upsertJobScheduler` (idempotent).
+4. Tests Vitest avec fichiers d'exemple (ADR-014) : images générées par sharp dans le test, `InMemoryStorage` (`test/support`) et Postgres réel (`pnpm db:migrate`).
+
+Job de référence (T3) : `src/jobs/process-image.ts` — payload validé, état relu, erreur définitive (`UnrecoverableError`) après passage en `failed`, `processing_error` à la dernière tentative. Fichiers : port `WorkerStorage` (`src/storage.ts`, Supabase Storage avec la clé secrète).
 
 Changement de payload : ajout d'un champ optionnel uniquement ; renommer, supprimer ou changer un type impose un nouveau nom de job (ADR-015).
 

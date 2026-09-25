@@ -11,5 +11,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "build": "echo \"@clone/jobs : consommé depuis les sources\""
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
   }
 }

@@ -30,6 +30,7 @@ final class OnboardingViewModel {
 
     private let auth: any AuthService
     private let identity: any IdentityService
+    private let uploads: any UploadService
     private let now: () -> Date
     private let sleep: (Duration) async throws -> Void
     private let onFinished: (Profile) -> Void
@@ -40,6 +41,7 @@ final class OnboardingViewModel {
         entry: OnboardingEntry,
         auth: any AuthService,
         identity: any IdentityService,
+        uploads: any UploadService,
         now: @escaping () -> Date = Date.init,
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         onFinished: @escaping (Profile) -> Void
@@ -47,6 +49,7 @@ final class OnboardingViewModel {
         rootStep = entry.firstStep
         self.auth = auth
         self.identity = identity
+        self.uploads = uploads
         self.now = now
         self.sleep = sleep
         self.onFinished = onFinished
@@ -207,42 +210,6 @@ final class OnboardingViewModel {
         }
     }
 
-    // MARK: - Configuration du profil (photo, bio)
-
-    func skipProfilePhoto() {
-        path.append(.bio)
-    }
-
-    func submitBio() async {
-        let trimmed = bio.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count <= Self.bioMaxLength else {
-            errorMessage = "La bio contient \(Self.bioMaxLength) caractères au plus."
-            return
-        }
-        guard !trimmed.isEmpty else {
-            skipBio()
-            return
-        }
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-        do {
-            profile = try await identity.updateMe(ProfileChanges(bio: trimmed))
-            path.append(.completed)
-        } catch {
-            errorMessage = Self.message(for: error)
-        }
-    }
-
-    func skipBio() {
-        path.append(.completed)
-    }
-
-    func finish() {
-        guard let profile else { return }
-        onFinished(profile)
-    }
-
     // MARK: - Interne
 
     private func sendCode() async throws(AuthServiceError) {
@@ -295,8 +262,62 @@ final class OnboardingViewModel {
             errorMessage = Self.message(for: error)
         } catch let error as IdentityServiceError {
             errorMessage = Self.message(for: error)
+        } catch let error as UploadError {
+            errorMessage = UploadError.message(for: error)
         } catch {
             errorMessage = "Une erreur est survenue. Réessayez."
         }
+    }
+}
+
+// MARK: - Configuration du profil (photo, bio)
+
+extension OnboardingViewModel {
+    /// Photo choisie : envoi, traitement, puis `PATCH /v1/me` ; étape bio ensuite.
+    func addProfilePhoto(_ data: Data) async {
+        await perform {
+            let mediaId = try await self.uploads.uploadImage(data, purpose: .avatar)
+            self.profile = try await self.identity.updateMe(ProfileChanges(avatarMediaId: mediaId))
+            self.path.append(.bio)
+        }
+    }
+
+    /// La photo choisie n'a pas pu être chargée depuis la photothèque.
+    func profilePhotoLoadFailed() {
+        errorMessage = UploadError.message(for: .unreadableImage)
+    }
+
+    func skipProfilePhoto() {
+        path.append(.bio)
+    }
+
+    func submitBio() async {
+        let trimmed = bio.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count <= Self.bioMaxLength else {
+            errorMessage = "La bio contient \(Self.bioMaxLength) caractères au plus."
+            return
+        }
+        guard !trimmed.isEmpty else {
+            skipBio()
+            return
+        }
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        do {
+            profile = try await identity.updateMe(ProfileChanges(bio: trimmed))
+            path.append(.completed)
+        } catch {
+            errorMessage = Self.message(for: error)
+        }
+    }
+
+    func skipBio() {
+        path.append(.completed)
+    }
+
+    func finish() {
+        guard let profile else { return }
+        onFinished(profile)
     }
 }

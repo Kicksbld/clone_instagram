@@ -1,4 +1,4 @@
-import { profiles, type Database, type ProfileRow } from '@clone/db';
+import { media, profiles, type Executor, type ImageVariantPaths, type ProfileRow } from '@clone/db';
 import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 
 import type {
@@ -7,9 +7,13 @@ import type {
   ProfileRepository,
 } from '../../application/ports/profile-repository.ts';
 import { ProfileAlreadyExistsError, UsernameTakenError } from '../../domain/errors.ts';
-import type { Profile } from '../../domain/profile.ts';
+import type { Avatar, Profile } from '../../domain/profile.ts';
 
-function toProfile(row: ProfileRow): Profile {
+function toAvatar(mediaId: string | null, variants: ImageVariantPaths | null): Avatar | null {
+  return mediaId && variants ? { mediaId, variants } : null;
+}
+
+function toProfile(row: ProfileRow, avatarVariants: ImageVariantPaths | null): Profile {
   return {
     id: row.id,
     username: row.username,
@@ -21,6 +25,7 @@ function toProfile(row: ProfileRow): Profile {
     followerCount: row.followerCount,
     followingCount: row.followingCount,
     postCount: row.postCount,
+    avatar: toAvatar(row.avatarMediaId, avatarVariants),
     createdAt: row.createdAt,
   };
 }
@@ -46,19 +51,26 @@ function translateUniqueViolation(error: unknown): unknown {
   }
 }
 
+/** Sur une connexion ou dans une transaction (`UnitOfWork`). */
 export class DrizzleProfileRepository implements ProfileRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Executor) {}
 
   async findById(id: string): Promise<Profile | null> {
-    const [row] = await this.db.select().from(profiles).where(eq(profiles.id, id)).limit(1);
-    return row ? toProfile(row) : null;
+    // Photo de profil : variantes du média attaché (toujours `ready`, ADR-008).
+    const [row] = await this.db
+      .select({ profile: profiles, avatarVariants: media.variants })
+      .from(profiles)
+      .leftJoin(media, eq(media.id, profiles.avatarMediaId))
+      .where(eq(profiles.id, id))
+      .limit(1);
+    return row ? toProfile(row.profile, row.avatarVariants) : null;
   }
 
   async create(profile: NewProfile): Promise<Profile> {
     try {
       const [row] = await this.db.insert(profiles).values(profile).returning();
       if (!row) throw new Error('INSERT sans ligne renvoyée');
-      return toProfile(row);
+      return toProfile(row, null);
     } catch (error) {
       throw translateUniqueViolation(error);
     }
@@ -70,8 +82,8 @@ export class DrizzleProfileRepository implements ProfileRepository {
         .update(profiles)
         .set({ ...changes, updatedAt: sql`now()` })
         .where(eq(profiles.id, id))
-        .returning();
-      return row ? toProfile(row) : null;
+        .returning({ id: profiles.id });
+      return row ? await this.findById(id) : null;
     } catch (error) {
       throw translateUniqueViolation(error);
     }

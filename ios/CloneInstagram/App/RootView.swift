@@ -34,6 +34,7 @@ struct RootView: View {
                     entry: entry,
                     auth: dependencies.auth,
                     identity: dependencies.identity,
+                    uploads: dependencies.uploads,
                     onFinished: viewModel.finishOnboarding(with:)
                 ),
                 exitTitle: entry == .newAccount ? "Annuler" : "Se déconnecter",
@@ -48,9 +49,16 @@ struct RootView: View {
             )
             .id(entry)
         case let .home(profile):
-            HomeView(profile: profile) {
-                Task { await viewModel.signOut() }
-            }
+            HomeView(profile: profile, onSignOut: { Task { await viewModel.signOut() } }, editProfile: {
+                EditProfileView(
+                    viewModel: EditProfileViewModel(
+                        profile: profile,
+                        identity: dependencies.identity,
+                        uploads: dependencies.uploads,
+                        onUpdated: viewModel.updateProfile
+                    )
+                )
+            })
         case let .failed(message):
             ContentUnavailableView {
                 Label("Connexion impossible", systemImage: "wifi.exclamationmark")

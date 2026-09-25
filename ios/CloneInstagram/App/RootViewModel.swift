@@ -58,6 +58,12 @@ final class RootViewModel {
         route = .home(profile)
     }
 
+    /// Profil modifié depuis l'accueil (photo, nom, bio…).
+    func updateProfile(_ profile: Profile) {
+        guard case .home = route else { return }
+        route = .home(profile)
+    }
+
     func signOut() async {
         await auth.signOut()
         route = .welcome

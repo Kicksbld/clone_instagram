@@ -1,3 +1,4 @@
+import Foundation
 @testable import CloneInstagram
 
 /// Faux `IdentityService` : réponses programmables, requêtes enregistrées.
@@ -16,10 +17,12 @@ final class FakeIdentityService: IdentityService {
     /// Réponses successives de `completeOnboarding` ; profil créé quand la liste est vide.
     var onboardingResults: [Result<Profile, IdentityServiceError>] = []
     var updateError: IdentityServiceError?
+    var removeAvatarError: IdentityServiceError?
 
     private(set) var checkedUsernames: [String] = []
     private(set) var onboardingRequests: [OnboardingRequest] = []
     private(set) var updates: [ProfileChanges] = []
+    private(set) var removeAvatarCount = 0
 
     func fetchMe() async throws(IdentityServiceError) -> Profile {
         guard !meResults.isEmpty else { throw .profileNotFound }
@@ -46,8 +49,32 @@ final class FakeIdentityService: IdentityService {
         if let updateError {
             throw updateError
         }
-        return .fixture(bio: changes.bio ?? "")
+        var profile = Profile.fixture(
+            username: changes.username ?? "killian",
+            fullName: changes.fullName ?? "Killian",
+            bio: changes.bio ?? ""
+        )
+        if changes.avatarMediaId != nil {
+            profile.avatar = .fixture
+        }
+        return profile
     }
+
+    func removeAvatar() async throws(IdentityServiceError) -> Profile {
+        removeAvatarCount += 1
+        if let removeAvatarError {
+            throw removeAvatarError
+        }
+        return .fixture()
+    }
+}
+
+extension ImageVariants {
+    static let fixture = ImageVariants(
+        thumb: URL(filePath: "/media-public/photo/thumb.webp"),
+        medium: URL(filePath: "/media-public/photo/medium.webp"),
+        large: URL(filePath: "/media-public/photo/large.webp")
+    )
 }
 
 extension Profile {

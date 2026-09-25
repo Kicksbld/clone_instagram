@@ -4,6 +4,7 @@ import Foundation
 struct AppDependencies {
     let auth: any AuthService
     let identity: any IdentityService
+    let uploads: any UploadService
 
     static func live(bundle: Bundle = .main) -> AppDependencies {
         let auth: any AuthService = if let configuration = try? SupabaseConfiguration(bundle: bundle) {
@@ -11,14 +12,22 @@ struct AppDependencies {
         } else {
             UnavailableAuthService()
         }
-        let identity: any IdentityService = if let configuration = try? APIConfiguration(bundle: bundle) {
-            APIIdentityService(
-                client: APIClientFactory.makeClient(configuration: configuration) { await auth.accessToken() }
-            )
-        } else {
-            UnavailableIdentityService()
+        guard let configuration = try? APIConfiguration(bundle: bundle) else {
+            return AppDependencies(auth: auth, identity: UnavailableIdentityService(), uploads: UnavailableUploadService())
         }
-        return AppDependencies(auth: auth, identity: identity)
+        let client = APIClientFactory.makeClient(configuration: configuration) { await auth.accessToken() }
+        return AppDependencies(
+            auth: auth,
+            identity: APIIdentityService(client: client),
+            uploads: UploadManager(media: APIMediaService(client: client), uploader: BackgroundFileUploader.shared)
+        )
+    }
+}
+
+/// Utilisé quand l'URL de l'API est absente ou invalide.
+struct UnavailableUploadService: UploadService {
+    func uploadImage(_: Data, purpose _: MediaPurpose) async throws(UploadError) -> String {
+        throw .unreachable
     }
 }
 
@@ -37,6 +46,10 @@ struct UnavailableIdentityService: IdentityService {
     }
 
     func updateMe(_: ProfileChanges) async throws(IdentityServiceError) -> Profile {
+        throw .unreachable
+    }
+
+    func removeAvatar() async throws(IdentityServiceError) -> Profile {
         throw .unreachable
     }
 }

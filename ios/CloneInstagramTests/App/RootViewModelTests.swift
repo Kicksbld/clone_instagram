@@ -2,6 +2,22 @@ import Testing
 @testable import CloneInstagram
 
 struct RootViewModelTests {
+    @Test func `profil modifié depuis l'accueil → accueil à jour ; ignoré hors de l'accueil`() async {
+        let identity = FakeIdentityService()
+        identity.meResults = [.success(.fixture())]
+        let viewModel = RootViewModel(auth: FakeAuthService(currentProvider: .email), identity: identity)
+        await viewModel.start()
+        var updated = Profile.fixture(bio: "Dev")
+        updated.avatar = .fixture
+
+        viewModel.updateProfile(updated)
+        #expect(viewModel.route == .home(updated))
+
+        await viewModel.signOut()
+        viewModel.updateProfile(updated)
+        #expect(viewModel.route == .welcome)
+    }
+
     @Test func `sans session → bienvenue`() async {
         let viewModel = RootViewModel(auth: FakeAuthService(), identity: FakeIdentityService())
 

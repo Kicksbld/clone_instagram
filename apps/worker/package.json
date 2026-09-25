@@ -12,10 +12,15 @@
     "build": "tsdown"
   },
   "dependencies": {
+    "@clone/db": "workspace:*",
     "@clone/jobs": "workspace:*",
+    "@supabase/storage-js": "^2.117.2",
     "bullmq": "^6.3.8",
+    "drizzle-orm": "^0.45.3",
     "ioredis": "^6.0.0",
     "pino": "^10.3.1",
+    "postgres": "^3.4.9",
+    "sharp": "^0.35.4",
     "zod": "^4.6.5"
   },
   "devDependencies": {

@@ -6,6 +6,7 @@ import Testing
 struct OnboardingTestContext {
     let auth = FakeAuthService()
     let identity = FakeIdentityService()
+    let uploads = FakeUploadService()
     let clock = TestClock(now: Date(timeIntervalSince1970: 1_790_337_600)) // 2026-09-25 12:00 UTC
     let finished = FinishedRecorder()
 
@@ -14,6 +15,7 @@ struct OnboardingTestContext {
             entry: entry,
             auth: auth,
             identity: identity,
+            uploads: uploads,
             now: { [clock] in clock.now },
             sleep: { _ in },
             onFinished: { [finished] in finished.profiles.append($0) }

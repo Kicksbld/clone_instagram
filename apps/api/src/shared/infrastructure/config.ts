@@ -11,6 +11,11 @@ const configSchema = z.object({
   // Clés de vérification des JWT lues sur `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` (ADR-018).
   SUPABASE_URL: z.url({ protocol: /^https?$/ }),
   SUPABASE_JWT_ISSUER: z.url({ protocol: /^https?$/ }),
+  // T3 : file des jobs du worker (ADR-008), Storage avec la clé secrète (ADR-009).
+  REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  // URL Supabase joignable depuis l'iPhone : URL publiques des médias et URL d'upload (ADR-008).
+  PUBLIC_MEDIA_BASE_URL: z.url({ protocol: /^https?$/ }),
 });
 
 export type Config = z.infer<typeof configSchema>;

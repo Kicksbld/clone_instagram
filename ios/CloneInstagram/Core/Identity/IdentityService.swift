@@ -11,6 +11,8 @@ enum IdentityServiceError: Error, Equatable {
     case profileAlreadyExists
     /// `422 age_requirement_not_met`.
     case ageRequirementNotMet
+    /// Photo refusée : `media_not_found`, `media_not_ready`, `media_already_attached` ou `media_purpose_mismatch`.
+    case mediaRejected
     /// JWT absent ou invalide (`401`).
     case unauthenticated
     /// Entrée refusée par l'API (`400`).
@@ -26,6 +28,8 @@ struct ProfileChanges: Equatable {
     var username: String?
     var fullName: String?
     var bio: String?
+    /// Nouvelle photo de profil : média `ready` renvoyé par l'`UploadManager`.
+    var avatarMediaId: String?
 }
 
 /// Profil de l'utilisateur authentifié et onboarding (module `identity` de l'API, ADR-018).
@@ -34,6 +38,8 @@ protocol IdentityService: Sendable {
     func checkUsername(_ username: String) async throws(IdentityServiceError) -> UsernameAvailability
     func completeOnboarding(username: String, fullName: String, birthDate: BirthDate) async throws(IdentityServiceError) -> Profile
     func updateMe(_ changes: ProfileChanges) async throws(IdentityServiceError) -> Profile
+    /// Retire ma photo de profil (`DELETE /v1/me/avatar`).
+    func removeAvatar() async throws(IdentityServiceError) -> Profile
 }
 
 /// `IdentityService` sur le client généré (ADR-003) : convertit DTO et erreurs en modèles de l'app.
@@ -99,7 +105,12 @@ struct APIIdentityService: IdentityService {
     }
 
     func updateMe(_ changes: ProfileChanges) async throws(IdentityServiceError) -> Profile {
-        let body = Components.Schemas.UpdateMeRequest(username: changes.username, fullName: changes.fullName, bio: changes.bio)
+        let body = Components.Schemas.UpdateMeRequest(
+            username: changes.username,
+            fullName: changes.fullName,
+            bio: changes.bio,
+            avatarMediaId: changes.avatarMediaId
+        )
         let output = try await call { try await client.updateMe(body: .json(body)) }
         switch output {
         case let .ok(response):
@@ -112,6 +123,24 @@ struct APIIdentityService: IdentityService {
             throw Self.error(404) { try response.body.applicationProblemJson }
         case let .conflict(response):
             throw Self.error(409) { try response.body.applicationProblemJson }
+        case let .unprocessableContent(response):
+            throw Self.error(422) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
+    func removeAvatar() async throws(IdentityServiceError) -> Profile {
+        let output = try await call { try await client.removeAvatar() }
+        switch output {
+        case let .ok(response):
+            return try Profile(Self.unwrap { try response.body.json })
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .notFound(response):
+            throw Self.error(404) { try response.body.applicationProblemJson }
         case .internalServerError:
             throw .unexpectedResponse(statusCode: 500)
         case let .undocumented(statusCode, _):
@@ -143,6 +172,7 @@ struct APIIdentityService: IdentityService {
         case "username_taken": .usernameTaken
         case "profile_already_exists": .profileAlreadyExists
         case "age_requirement_not_met": .ageRequirementNotMet
+        case "media_not_found", "media_not_ready", "media_already_attached", "media_purpose_mismatch": .mediaRejected
         case "unauthenticated": .unauthenticated
         case "validation_failed": .invalidInput
         default: .unexpectedResponse(statusCode: status)
@@ -161,7 +191,8 @@ private extension Profile {
             status: AccountStatus(dto.status),
             followerCount: dto.followerCount,
             followingCount: dto.followingCount,
-            postCount: dto.postCount
+            postCount: dto.postCount,
+            avatar: dto.avatar.flatMap(ImageVariants.init)
         )
     }
 }

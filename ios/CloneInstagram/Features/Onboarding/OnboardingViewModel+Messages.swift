@@ -18,6 +18,7 @@ extension OnboardingViewModel {
         case .ageRequirementNotMet: "Vous devez avoir au moins \(minimumAge) ans pour créer un compte."
         case .unreachable: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
         case .unauthenticated: "Votre session a expiré. Reconnectez-vous."
+        case .mediaRejected: "Cette photo n'a pas pu être utilisée. Choisissez-en une autre."
         case .profileNotFound, .profileAlreadyExists, .invalidInput, .unexpectedResponse:
             "Une erreur est survenue. Réessayez."
         }
