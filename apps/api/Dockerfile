@@ -16,5 +16,5 @@ COPY --from=build --chown=node:node /out/api ./api
 COPY --from=build --chown=node:node /out/db ./db
 USER node
 WORKDIR /app/api
-# Migrations : `npm --prefix /app/db run db:migrate`, lancé par le pré-déploiement Railway (railway.json).
+# Migrations : `npm --prefix /app/db run db:migrate`, lancé par la *Pre-deploy Command* du service Railway (README § 7).
 CMD ["node", "dist/main.mjs"]

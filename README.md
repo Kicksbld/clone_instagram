@@ -151,11 +151,23 @@ Même code qu'en local ; seule la configuration change (variables dans Railway e
 | Élément | Hébergement | Déploiement |
 |---|---|---|
 | Postgres, Auth, Storage | Supabase Cloud, projet `clone-instagram-demo` (UE) | buckets : `supabase seed buckets --linked` |
-| API | Railway, service `api` (`apps/api/Dockerfile`, `apps/api/railway.json`) | automatique sur `main` après CI verte ; migrations appliquées avant le démarrage |
+| API | Railway, service `api` (`apps/api/Dockerfile`) | automatique sur `main` après CI verte ; migrations appliquées avant le démarrage |
 | Worker | Railway, service `worker` (`apps/worker/Dockerfile`, avec ffmpeg) | automatique sur `main` après CI verte |
 | Redis | Railway, service Redis | — |
 | Backoffice | Vercel (racine `apps/backoffice`) | automatique sur `main`, mis en ligne après CI verte |
 
+- **Réglages des services Railway** (Settings de chaque service, saisis à la main : Railway ne lit plus les fichiers `railway.json`, « Config as Code » abandonné) :
+
+  | Réglage | `api` | `worker` |
+  |---|---|---|
+  | Builder | Dockerfile | Dockerfile |
+  | Dockerfile Path | `apps/api/Dockerfile` | `apps/worker/Dockerfile` |
+  | Watch Paths | `apps/api/**`, `packages/**`, `package.json`, `pnpm-lock.yaml` | `apps/worker/**`, `packages/jobs/**`, `packages/db/**`, `package.json`, `pnpm-lock.yaml` |
+  | Pre-deploy Command | `npm --prefix /app/db run db:migrate` | aucune |
+  | Healthcheck Path | `/health` | aucun (pas de serveur HTTP) |
+  | Restart Policy | On Failure | On Failure |
+
+  Toute modification de ces réglages est reportée dans ce tableau.
 - **Base de données** : Railway se connecte au **Session pooler** de Supabase (IPv4, port 5432) ; la connexion directe de Supabase est en IPv6 uniquement.
 - **Aucune migration à la main** : Railway lance `db:migrate` avant chaque nouvelle version de l'API ; si elle échoue, l'ancienne version reste en ligne.
 - **Services externes** : PostHog (région UE), RevenueCat (entitlement `plus`, offre `default`), App Store Connect (abonnement Clone Plus mensuel, testeur sandbox), Sign in with Apple activé dans Supabase (CLI et Cloud, client ID = bundle ID). Détail dans la fiche T1 du [plan P0](docs/plan/P0.md).
@@ -215,4 +227,5 @@ Principes clés :
 | Xcode : « Plugin must be enabled » ou build bloqué sur `OpenAPIGenerator` | Autoriser le plugin dans Xcode ; en ligne de commande, ajouter `-skipPackagePluginValidation` |
 | Storage local : bucket `uploads`, `media-public` ou `media-private` absent | `supabase seed buckets` (crée les buckets déclarés dans `supabase/config.toml`) |
 | Railway : l'API ne démarre pas après un déploiement | Onglet *Deployments* → logs du pré-déploiement (migration) puis du démarrage ; vérifier les variables du service |
+| Démo : `500` et table absente dans Supabase | La migration n'a pas tourné : vérifier la *Pre-deploy Command* du service `api` (tableau du § 7), puis *Redeploy* |
 | Xcode : fichier `.xcconfig` introuvable | Lancer `ios/scripts/bootstrap.sh` (crée `Local.xcconfig` et `Demo.xcconfig`) |

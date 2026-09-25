@@ -26,7 +26,7 @@ Décisions sources : D29 (remplace D19), D31.
 
 - Le **squelette** (API `/health`, worker, backoffice, app connectée) est déployé **dès le début**, puis chaque tranche est validée sur la démo.
 - Railway et Vercel déploient automatiquement `main` une fois la CI verte (ADR-014).
-- **Les migrations Drizzle sont appliquées sur Supabase Cloud par une étape de pré-déploiement Railway** du service `api`, exécutée avant le démarrage de la nouvelle version. Si la migration échoue, la nouvelle version ne démarre pas. Aucune migration n'est appliquée à la main sur la démo.
+- **Les migrations Drizzle sont appliquées sur Supabase Cloud par une étape de pré-déploiement Railway** du service `api`, exécutée avant le démarrage de la nouvelle version. Si la migration échoue, la nouvelle version ne démarre pas. Aucune migration n'est appliquée à la main sur la démo. Cette étape et les autres réglages des services (Dockerfile, chemins surveillés, healthcheck) sont saisis dans l'interface Railway et documentés dans le README : Railway ne lit plus les fichiers `railway.json` (« Config as Code » abandonné en 2026).
 - Supabase Cloud est configuré comme le local : API de données (PostgREST) désactivée et RLS sans policy (ADR-004), mêmes buckets (ADR-008), fournisseur Apple.
 - **Variables d'environnement** de l'API et du worker (valeurs dans `.env` en local, dans Railway en démo) :
 
@@ -55,6 +55,7 @@ Décisions sources : D29 (remplace D19), D31.
 - Tout en local (D19) : gratuit et simple, mais démo fragile selon le réseau, IP locale à gérer, HTTP sans TLS. Remplacé par D29.
 - Render ou Fly.io au lieu de Railway : écartés (D29) ; Railway accepte les processus longs et une image avec ffmpeg.
 - Migrations appliquées manuellement sur Supabase Cloud : aucun outillage, mais risque d'oubli ou de décalage entre le schéma et la version déployée de l'API. Écarté par le lead dev au profit de l'étape de pré-déploiement (D31).
+- Réglages Railway versionnés en « Infrastructure as Code » (`.railway/railway.ts`, remplaçant de `railway.json`) : configuration relue en revue, mais nouvel outil à apprendre. Non retenu par le lead dev ; réglages saisis dans l'interface et documentés dans le README.
 
 ## Conséquences
 ### Positives
@@ -67,6 +68,7 @@ Décisions sources : D29 (remplace D19), D31.
 - Coût et limites des offres gratuites ; le projet Supabase gratuit peut être mis en pause après inactivité (à réveiller avant la démo).
 - Une migration destructrice s'applique automatiquement sur la démo dès la fusion dans `main`.
 - Connexion Railway → Supabase Cloud (directe ou pooler selon le support IPv6) à vérifier.
+- Les réglages des services Railway ne sont pas versionnés : le tableau du README doit être tenu à jour à chaque changement.
 - La démo n'est pas une production : une seule instance d'API, de worker et de Redis, pas de supervision.
 
 ## Liens
