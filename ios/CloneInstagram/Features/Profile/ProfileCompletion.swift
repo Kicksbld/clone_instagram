@@ -3,7 +3,7 @@ struct ProfileCompletion: Equatable {
     enum Step: CaseIterable {
         case photo
         case bio
-        /// Sans action jusqu'au bouton Suivre (T5).
+        /// Ouvre la recherche ; faite dès que je suis un compte.
         case followAccounts
 
         var title: String {

@@ -8,11 +8,17 @@ import { UpdateMe } from '../../src/modules/identity/application/use-cases/updat
 import { CompleteUpload } from '../../src/modules/media/application/use-cases/complete-upload.ts';
 import { GetMedia } from '../../src/modules/media/application/use-cases/get-media.ts';
 import { RequestUpload } from '../../src/modules/media/application/use-cases/request-upload.ts';
+import { FollowUser } from '../../src/modules/social/application/use-cases/follow-user.ts';
+import { ListFollowers } from '../../src/modules/social/application/use-cases/list-followers.ts';
+import { ListFollowing } from '../../src/modules/social/application/use-cases/list-following.ts';
+import { SearchUsers } from '../../src/modules/social/application/use-cases/search-users.ts';
+import { UnfollowUser } from '../../src/modules/social/application/use-cases/unfollow-user.ts';
 import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-media-urls.ts';
 import { FakeMediaStorage, InMemoryJobQueue, InMemoryUnitOfWork, sequentialIds } from './fakes.ts';
 import { InMemoryMediaRepository } from './in-memory-media-repository.ts';
 import { InMemoryProfileRepository } from './in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from './in-memory-relationship-reader.ts';
+import { InMemorySocialGraph } from './in-memory-social-graph.ts';
 import { testTokenVerifier } from './tokens.ts';
 
 export const TEST_NOW = new Date('2026-09-25T12:00:00.000Z');
@@ -32,6 +38,13 @@ export function buildTestApp() {
   const { profiles, media, avatarTransaction } = inMemoryAdapters();
   const jobs = new InMemoryJobQueue();
   const relationships = new InMemoryRelationshipReader();
+  const graph = new InMemorySocialGraph(profiles, relationships);
+  const followTransaction = new InMemoryUnitOfWork({
+    accounts: graph,
+    relationships,
+    follows: graph,
+    counters: graph,
+  });
   const clock = { now: () => TEST_NOW };
   const app = buildApp({
     logLevel: 'silent',
@@ -49,6 +62,13 @@ export function buildTestApp() {
         requestUpload: new RequestUpload(media, new FakeMediaStorage(clock.now), sequentialIds()),
         completeUpload: new CompleteUpload(media, jobs),
         getMedia: new GetMedia(media),
+      },
+      social: {
+        followUser: new FollowUser(followTransaction),
+        unfollowUser: new UnfollowUser(followTransaction),
+        listFollowers: new ListFollowers(graph, relationships, graph),
+        listFollowing: new ListFollowing(graph, relationships, graph),
+        searchUsers: new SearchUsers(graph),
       },
       mediaUrls: publicMediaUrls(TEST_MEDIA_BASE_URL),
     },

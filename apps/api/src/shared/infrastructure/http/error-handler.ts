@@ -9,6 +9,7 @@ import { UnauthenticatedError } from '../auth/token-verifier.ts';
 /** Gestionnaire d'erreurs unique : toute erreur devient un Problem Details (ADR-003, ADR-005). */
 
 const STATUS_BY_KIND = {
+  bad_request: 400,
   not_found: 404,
   forbidden: 403,
   conflict: 409,

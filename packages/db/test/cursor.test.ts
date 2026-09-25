@@ -12,6 +12,14 @@ describe('curseur de pagination', () => {
     expect(decodeCursor(encodeCursor(cursor))).toEqual(cursor);
   });
 
+  it('accepte un UUID v4 (id de profil Supabase Auth)', () => {
+    const cursor = {
+      createdAt: new Date('2026-09-23T10:15:30.123Z'),
+      id: '9b2f7c1e-8a3d-4f6b-9c2e-1d4a5b6c7d8e',
+    };
+    expect(decodeCursor(encodeCursor(cursor))).toEqual(cursor);
+  });
+
   it('produit une chaîne opaque sûre pour une URL', () => {
     const raw = encodeCursor({ createdAt: new Date(), id: newId() });
     expect(raw).toMatch(/^[A-Za-z0-9_-]+$/);
@@ -27,7 +35,6 @@ describe('curseur de pagination', () => {
     ['date invalide', encodeRaw(['pas-une-date', newId()])],
     ['date non normalisée', encodeRaw(['2026-09-23', newId()])],
     ['id pas un UUID', encodeRaw(['2026-09-23T10:15:30.123Z', '42'])],
-    ['UUID v4', encodeRaw(['2026-09-23T10:15:30.123Z', '9b2f7c1e-8a3d-4f6b-9c2e-1d4a5b6c7d8e'])],
   ])('rejette un curseur %s', (_label, raw) => {
     expect(() => decodeCursor(raw)).toThrow(InvalidCursorError);
   });

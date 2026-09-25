@@ -6,6 +6,8 @@ struct MyProfileView<EditProfile: View>: View {
     let profile: Profile
     let onRefresh: () async -> Void
     let onSignOut: () -> Void
+    /// « Suivre des comptes » : ouvre l'onglet Recherche.
+    let onFollowAccounts: () -> Void
     @ViewBuilder let editProfile: () -> EditProfile
 
     @State private var isEditing = false
@@ -19,7 +21,16 @@ struct MyProfileView<EditProfile: View>: View {
                     bio: profile.bio,
                     postCount: profile.postCount,
                     followerCount: profile.followerCount,
-                    followingCount: profile.followingCount
+                    followingCount: profile.followingCount,
+                    listRoute: { kind in
+                        FollowListRoute(
+                            userId: profile.id,
+                            username: profile.username,
+                            followerCount: profile.followerCount,
+                            followingCount: profile.followingCount,
+                            kind: kind
+                        )
+                    }
                 )
                 Button("Modifier le profil") { isEditing = true }
                     .buttonStyle(.bordered)
@@ -74,8 +85,8 @@ struct MyProfileView<EditProfile: View>: View {
             Button { isEditing = true } label: { label }
                 .disabled(isCompleted)
         case .followAccounts:
-            // Le bouton Suivre arrive en T5.
-            label
+            Button(action: onFollowAccounts) { label }
+                .disabled(isCompleted)
         }
     }
 }
