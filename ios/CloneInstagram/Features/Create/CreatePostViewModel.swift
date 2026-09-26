@@ -56,18 +56,21 @@ final class CreatePostViewModel {
 
     private let authorId: String
     private let publisher: any PostPublishing
+    private let library: any PhotoLibrary
     private let decode: @Sendable (Data) async throws(ImagePreparationError) -> CGImage
     private var loadGeneration = 0
 
     init(
         authorId: String,
         publisher: any PostPublishing,
+        library: any PhotoLibrary = SystemPhotoLibrary(),
         decode: @escaping @Sendable (Data) async throws(ImagePreparationError) -> CGImage = { data throws(ImagePreparationError) in
             try await ImageCropper.editableImage(from: data)
         }
     ) {
         self.authorId = authorId
         self.publisher = publisher
+        self.library = library
         self.decode = decode
     }
 
@@ -118,10 +121,14 @@ final class CreatePostViewModel {
         ImageCropper.cropRect(imageSize: imageSize, aspectRatio: aspectRatio, zoom: zoom, center: center)
     }
 
-    /// Aperçu recadré de la première photo (écran légende).
-    var croppedPreview: CGImage? {
-        guard let first = photos.first else { return nil }
-        return first.image.cropping(to: cropRect(of: first).integral)
+    /// Aperçus recadrés, dans l'ordre du carrousel (écran légende).
+    var croppedPreviews: [CGImage] {
+        photos.compactMap { $0.image.cropping(to: cropRect(of: $0).integral) }
+    }
+
+    /// À l'ouverture : photo la plus récente de la galerie, présélectionnée comme sur Instagram.
+    func latestPhotoIdentifier() async -> String? {
+        await library.latestImageIdentifier()
     }
 
     var canContinue: Bool {

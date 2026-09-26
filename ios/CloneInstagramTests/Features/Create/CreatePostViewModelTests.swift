@@ -16,6 +16,15 @@ final class FakePublisher: PostPublishing {
     }
 }
 
+/// Fausse galerie : photo la plus récente programmable.
+struct FakePhotoLibrary: PhotoLibrary {
+    var latest: String?
+
+    func latestImageIdentifier() async -> String? {
+        latest
+    }
+}
+
 struct CreatePostViewModelTests {
     private let publisher = FakePublisher()
 
@@ -193,5 +202,24 @@ struct CreatePostViewModelTests {
 
         #expect(shared)
         #expect(publisher.published.first?.images.count == 3)
+    }
+
+    @Test func `ouverture : photo la plus récente de la galerie proposée, rien sans accès`() async {
+        let withAccess = CreatePostViewModel(authorId: "me", publisher: publisher, library: FakePhotoLibrary(latest: "IMG-1"))
+        let withoutAccess = CreatePostViewModel(authorId: "me", publisher: publisher, library: FakePhotoLibrary(latest: nil))
+
+        #expect(await withAccess.latestPhotoIdentifier() == "IMG-1")
+        #expect(await withoutAccess.latestPhotoIdentifier() == nil)
+    }
+
+    @Test func `écran légende : un aperçu recadré par photo, dans l'ordre du carrousel`() async {
+        let viewModel = makeCarouselViewModel()
+        await select(["400x300", "300x400"], in: viewModel)
+
+        let previews = viewModel.croppedPreviews
+
+        #expect(previews.map(\.width) == [400, 300])
+        // Découpe au pixel entier : le cadre de 225 px, qui commence à 87,5 px, en couvre 226.
+        #expect(previews.map(\.height) == [300, 226])
     }
 }
