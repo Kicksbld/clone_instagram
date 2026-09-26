@@ -45,6 +45,7 @@ struct CreatePostView: View {
             .navigationDestination(isPresented: $isShowingCaption) {
                 CaptionView(viewModel: viewModel, onShared: onClose)
             }
+            .task { await preselectLatestPhoto() }
             .onChange(of: selection) { _, item in
                 guard let item else { return }
                 Task { await load([item]) }
@@ -70,20 +71,32 @@ struct CreatePostView: View {
         }
     }
 
+    /**
+     Sélecteur intégré sans bouton « Ajouter » : la sélection doit être transmise à chaque toucher
+     (`continuousAndOrdered`), sinon elle n'arrive jamais. `photoLibrary: .shared()` donne à chaque photo un
+     identifiant stable (sans demander l'accès à la galerie) : la photo déjà choisie reste présélectionnée
+     en passant à « Sélectionner plusieurs », et son cadrage est gardé.
+     */
     @ViewBuilder
     private var picker: some View {
         if isSelectingMultiple {
             PhotosPicker(
                 selection: $multipleSelection,
                 maxSelectionCount: CreatePostViewModel.maxPhotos,
-                selectionBehavior: .ordered,
+                selectionBehavior: .continuousAndOrdered,
                 matching: .images,
-                preferredItemEncoding: .current
+                preferredItemEncoding: .current,
+                photoLibrary: .shared()
             ) {
                 Text("Choisir des photos")
             }
         } else {
-            PhotosPicker(selection: $selection, matching: .images, preferredItemEncoding: .current) {
+            PhotosPicker(
+                selection: $selection,
+                matching: .images,
+                preferredItemEncoding: .current,
+                photoLibrary: .shared()
+            ) {
                 Text("Choisir une photo")
             }
         }
@@ -115,9 +128,21 @@ struct CreatePostView: View {
         }
     }
 
+    /// À l'ouverture, comme Instagram : la photo la plus récente est sélectionnée et affichée.
+    private func preselectLatestPhoto() async {
+        guard selection == nil, multipleSelection.isEmpty, viewModel.photos.isEmpty,
+              let identifier = await viewModel.latestPhotoIdentifier(),
+              selection == nil, multipleSelection.isEmpty
+        else { return }
+        selection = PhotosPickerItem(itemIdentifier: identifier)
+    }
+
+    /// Photos identifiées par leur identifiant dans la galerie : stable d'une sélection à l'autre.
     private func load(_ items: [PhotosPickerItem]) async {
-        await viewModel.updateSelection(items.map(AnyHashable.init)) { id in
-            guard let item = id.base as? PhotosPickerItem else { return nil }
+        let keyed = items.map { item in (key: item.itemIdentifier.map(AnyHashable.init) ?? AnyHashable(item), item: item) }
+        let byKey = Dictionary(keyed.map { ($0.key, $0.item) }, uniquingKeysWith: { first, _ in first })
+        await viewModel.updateSelection(keyed.map(\.key)) { key in
+            guard let item = byKey[key] else { return nil }
             return try? await item.loadTransferable(type: Data.self)
         }
     }
@@ -271,21 +296,9 @@ private struct CaptionView: View {
     var body: some View {
         @Bindable var viewModel = viewModel
         Form {
-            HStack(alignment: .top, spacing: 12) {
-                if let preview = viewModel.croppedPreview {
-                    Image(decorative: preview, scale: 1)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 72, height: 72)
-                        .overlay(alignment: .topTrailing) {
-                            if viewModel.photos.count > 1 {
-                                Image(systemName: "square.fill.on.square.fill")
-                                    .font(.caption)
-                                    .padding(4)
-                                    .accessibilityLabel("\(viewModel.photos.count) photos")
-                            }
-                        }
-                }
+            Section {
+                previews
+                    .listRowInsets(EdgeInsets())
                 TextField("Ajouter une légende…", text: $viewModel.caption, axis: .vertical)
                     .lineLimit(3 ... 12)
             }
@@ -327,5 +340,23 @@ private struct CaptionView: View {
         } message: {
             Text(viewModel.shareErrorMessage ?? "")
         }
+    }
+
+    /// Photos recadrées, comme elles seront publiées ; en carrousel quand il y en a plusieurs (Instagram).
+    private var previews: some View {
+        let images = viewModel.croppedPreviews
+        return ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                ForEach(Array(images.enumerated()), id: \.offset) { index, image in
+                    Image(image, scale: 1, label: Text(images.count > 1 ? "Photo \(index + 1) sur \(images.count)" : "Photo"))
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 280)
+                }
+            }
+            .padding()
+        }
+        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity)
     }
 }
