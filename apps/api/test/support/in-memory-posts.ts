@@ -5,7 +5,7 @@ import type {
   PostRepository,
 } from '../../src/modules/posts/application/ports/post-repository.ts';
 import type { Post } from '../../src/modules/posts/domain/post.ts';
-import type { Page } from '../../src/shared/domain/pagination.ts';
+import type { Page, PageCursor } from '../../src/shared/domain/pagination.ts';
 import type { InMemoryMediaRepository } from './in-memory-media-repository.ts';
 import type { InMemoryProfileRepository } from './in-memory-profile-repository.ts';
 
@@ -54,16 +54,23 @@ export class InMemoryPosts implements PostRepository, PostReader {
   }
 
   listByAuthor({ authorId, after, limit }: AuthorPostsQuery): Promise<Page<Post>> {
+    return Promise.resolve(this.list((post) => post.author.id === authorId, after, limit));
+  }
+
+  /** Posts non supprimés retenus par `keep`, du plus récent au plus ancien (feed, grille). */
+  list(keep: (post: Post) => boolean, after: PageCursor | null, limit: number): Page<Post> {
     const rows = [...this.rows.values()]
-      .filter((row) => row.authorId === authorId && !row.deletedAt)
+      .filter((row) => !row.deletedAt)
       .filter((row) => !after || compare(row, after) < 0)
-      .sort((a, b) => compare(b, a));
+      .sort((a, b) => compare(b, a))
+      .map((row) => this.toPost(row))
+      .filter(keep);
     const page = rows.slice(0, limit);
     const last = page.at(-1);
-    return Promise.resolve({
-      items: page.map((row) => this.toPost(row)),
+    return {
+      items: page,
       next: rows.length > limit && last ? { createdAt: last.createdAt, id: last.id } : null,
-    });
+    };
   }
 
   private toPost(row: NewPost): Post {

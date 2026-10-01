@@ -11,6 +11,7 @@ import type { DeletePost } from '../../application/use-cases/delete-post.ts';
 import type { GetPost } from '../../application/use-cases/get-post.ts';
 import type { ListUserPosts } from '../../application/use-cases/list-user-posts.ts';
 import type { Post } from '../../domain/post.ts';
+import { type PostResponse, toPostResponse } from './post-response.ts';
 
 export interface PostsUseCases {
   createPost: CreatePost;
@@ -19,7 +20,6 @@ export interface PostsUseCases {
   listUserPosts: ListUserPosts;
 }
 
-type PostResponse = components['schemas']['Post'];
 type CreatePostRequest = operations['createPost']['requestBody']['content']['application/json'];
 
 /** Limite de publication par utilisateur (ADR-005). */
@@ -31,26 +31,7 @@ export function registerPostsRoutes(
   useCases: PostsUseCases,
   urls: PublicMediaUrls,
 ): void {
-  const toPost = (post: Post): PostResponse => {
-    if (post.kind !== 'post') throw new Error(`Valeur hors contrat : ${post.kind}`);
-    const { avatarVariants } = post.author;
-    return {
-      id: post.id,
-      kind: post.kind,
-      caption: post.caption,
-      author: {
-        id: post.author.id,
-        username: post.author.username,
-        ...(avatarVariants && { avatar: urls.of(avatarVariants) }),
-      },
-      media: post.media.map((item) => ({
-        variants: urls.of(item.variants),
-        width: item.width,
-        height: item.height,
-      })),
-      createdAt: post.createdAt.toISOString(),
-    };
-  };
+  const toPost = (post: Post): PostResponse => toPostResponse(post, urls);
 
   app.post<{ Body: CreatePostRequest }>(
     '/v1/posts',

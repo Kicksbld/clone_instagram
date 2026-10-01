@@ -9,7 +9,8 @@
   "scripts": {
     "db:migrate": "drizzle-kit migrate",
     "db:generate": "drizzle-kit generate",
-    "db:seed": "tsx --env-file-if-exists=../../.env src/seed.ts",
+    "db:seed": "tsx --env-file-if-exists=../../.env src/seed/index.ts",
+    "db:seed:demo": "tsx --env-file=../../.env.demo src/seed/index.ts",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",

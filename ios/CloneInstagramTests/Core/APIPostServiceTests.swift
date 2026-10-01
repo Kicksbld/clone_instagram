@@ -87,6 +87,27 @@ struct APIPostServiceTests {
         await #expect(throws: expected) { try await service.listPosts(of: "0199a1b2-5eed-7000-8000-000000000001", cursor: "x") }
     }
 
+    @Test func `feed converti, curseur suivant compris`() async throws {
+        let service = try makeService(json(#"{"items":[\#(Self.postJSON)],"nextCursor":"abc"}"#))
+
+        let page = try await service.listFeed(cursor: nil)
+
+        #expect(page.items.map(\.id) == ["0199a1b2-0000-7000-a000-000000000001"])
+        #expect(page.nextCursor == "abc")
+    }
+
+    @Test func `feed vide, dernière page`() async throws {
+        let service = try makeService(json(#"{"items":[]}"#))
+
+        #expect(try await service.listFeed(cursor: "abc") == PostPage(items: [], nextCursor: nil))
+    }
+
+    @Test func `feed : curseur invalide (400) → invalidCursor`() async throws {
+        let service = try makeService(problem(400, "invalid_cursor"))
+
+        await #expect(throws: PostServiceError.invalidCursor) { try await service.listFeed(cursor: "x") }
+    }
+
     @Test func `API injoignable → unreachable`() async throws {
         let service = try makeService(.failure)
 
