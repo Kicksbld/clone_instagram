@@ -40,6 +40,10 @@
     {
       "name": "posts",
       "description": "Publication et lecture des posts, selon la politique de visibilité (ADR-006)"
+    },
+    {
+      "name": "feed",
+      "description": "Feed d'accueil chronologique (ADR-007), selon la politique de visibilité (ADR-006)"
     }
   ],
   "paths": {
@@ -5237,6 +5241,359 @@
           },
           "404": {
             "description": "Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/feed": {
+      "get": {
+        "operationId": "getFeed",
+        "tags": [
+          "feed"
+        ],
+        "summary": "Feed d'accueil",
+        "description": "Posts non supprimés des comptes que je suis et les miens, du plus récent au plus ancien, par pages de 12 (comme Instagram). Auteurs bloqués dans un sens ou dans l'autre et comptes non actifs exclus (ADR-006, ADR-007). Sans abonnement ni post, la liste est vide.\n",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Valeur de `nextCursor` de la page précédente ; opaque.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Une page du feed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "maxItems": 12,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "id",
+                          "kind",
+                          "caption",
+                          "author",
+                          "media",
+                          "createdAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "description": "`reel` arrive en P1.",
+                            "enum": [
+                              "post"
+                            ]
+                          },
+                          "caption": {
+                            "type": "string",
+                            "description": "Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.",
+                            "maxLength": 2200
+                          },
+                          "author": {
+                            "type": "object",
+                            "description": "Auteur d'un post.",
+                            "additionalProperties": false,
+                            "required": [
+                              "id",
+                              "username"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "username": {
+                                "type": "string",
+                                "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                "minLength": 1,
+                                "maxLength": 30,
+                                "pattern": "^[a-z0-9._]{1,30}$",
+                                "examples": [
+                                  "killian.b"
+                                ]
+                              },
+                              "avatar": {
+                                "description": "Photo de profil ; absente si aucune photo.",
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "thumb",
+                                  "medium",
+                                  "large"
+                                ],
+                                "properties": {
+                                  "thumb": {
+                                    "type": "string",
+                                    "format": "uri",
+                                    "description": "150 px de large."
+                                  },
+                                  "medium": {
+                                    "type": "string",
+                                    "format": "uri",
+                                    "description": "640 px de large."
+                                  },
+                                  "large": {
+                                    "type": "string",
+                                    "format": "uri",
+                                    "description": "1080 px de large."
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "media": {
+                            "type": "array",
+                            "description": "Médias dans l'ordre d'affichage.",
+                            "minItems": 1,
+                            "maxItems": 10,
+                            "items": {
+                              "type": "object",
+                              "description": "Une image d'un post ; `width` et `height` (en pixels) donnent son ratio d'affichage.",
+                              "additionalProperties": false,
+                              "required": [
+                                "variants",
+                                "width",
+                                "height"
+                              ],
+                              "properties": {
+                                "variants": {
+                                  "type": "object",
+                                  "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
+                                  }
+                                },
+                                "width": {
+                                  "type": "integer",
+                                  "minimum": 1
+                                },
+                                "height": {
+                                  "type": "integer",
+                                  "minimum": 1
+                                }
+                              }
+                            }
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Curseur de la page suivante ; absent sur la dernière page."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`) ou curseur invalide (`invalid_cursor`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
             "content": {
               "application/problem+json": {
                 "schema": {

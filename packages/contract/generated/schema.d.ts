@@ -261,6 +261,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Feed d'accueil
+         * @description Posts non supprimés des comptes que je suis et les miens, du plus récent au plus ancien, par pages de 12 (comme Instagram). Auteurs bloqués dans un sens ou dans l'autre et comptes non actifs exclus (ADR-006, ADR-007). Sans abonnement ni post, la liste est vide.
+         */
+        get: operations["getFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/search/users": {
         parameters: {
             query?: never;
@@ -1188,6 +1208,32 @@ export interface operations {
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["PostNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getFeed: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page du feed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
             500: components["responses"]["InternalError"];
         };
     };

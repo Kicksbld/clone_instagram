@@ -74,7 +74,7 @@ struct ImagePreparerTests {
 
         let prepared = try await ImagePreparer.prepare(photo(width: 400, height: 300), in: directory)
 
-        #expect(prepared.sizeBytes == (try Data(contentsOf: prepared.fileURL)).count)
+        #expect(try prepared.sizeBytes == Data(contentsOf: prepared.fileURL).count)
     }
 
     @Test func `HEIC converti en JPEG`() async throws {

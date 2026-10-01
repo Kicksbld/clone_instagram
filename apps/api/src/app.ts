@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 
 import {
+  type FeedUseCases,
+  registerFeedRoutes,
+} from './modules/feed/infrastructure/http/feed-routes.ts';
+import {
   type IdentityUseCases,
   registerIdentityRoutes,
 } from './modules/identity/infrastructure/http/identity-routes.ts';
@@ -37,6 +41,7 @@ export interface AppDependencies {
   media: MediaUseCases;
   social: SocialUseCases;
   posts: PostsUseCases;
+  feed: FeedUseCases;
   mediaUrls: PublicMediaUrls;
 }
 
@@ -76,6 +81,7 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
     registerMediaRoutes(v1, dependencies.media, dependencies.mediaUrls);
     registerSocialRoutes(v1, dependencies.social, dependencies.mediaUrls);
     registerPostsRoutes(v1, dependencies.posts, dependencies.mediaUrls);
+    registerFeedRoutes(v1, dependencies.feed, dependencies.mediaUrls);
     done();
   });
 

@@ -34,7 +34,7 @@ WHERE p.deleted_at IS NULL
   -- + exclusion des auteurs dont le statut n'est pas active
   AND (p.created_at, p.id) < (:cursor_created_at, :cursor_id)
 ORDER BY p.created_at DESC, p.id DESC
-LIMIT 20;
+LIMIT 12;  -- pages de 12, comme Instagram (T7)
 ```
 
 - **Index** :

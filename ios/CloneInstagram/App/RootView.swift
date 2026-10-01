@@ -52,6 +52,24 @@ struct RootView: View {
             .id(entry)
         case let .home(profile):
             HomeView(publishQueue: dependencies.publishQueue) { openSearch in
+                FeedView(
+                    viewModel: FeedViewModel(
+                        viewerId: profile.id,
+                        posts: dependencies.posts,
+                        prefetcher: dependencies.imagePrefetcher,
+                        onDeleted: { deletedPostCount += 1 }
+                    ),
+                    deletedPostCount: deletedPostCount,
+                    publishedCount: dependencies.publishQueue.publishedCount,
+                    onSearch: openSearch
+                )
+                .modifier(SocialDestinations(
+                    dependencies: dependencies,
+                    viewerId: profile.id,
+                    onFollowChange: viewModel.refreshProfile,
+                    onPostDeleted: { deletedPostCount += 1 }
+                ))
+            } profileTab: { openSearch in
                 MyProfileView(
                     profile: profile,
                     onRefresh: viewModel.refreshProfile,
@@ -120,7 +138,7 @@ struct RootView: View {
     }
 }
 
-/// Destinations partagées des onglets Profil et Recherche : profil d'un autre compte, listes
+/// Destinations partagées des onglets Accueil, Profil et Recherche : profil d'un autre compte, listes
 /// d'abonnés et détail d'un post. Déclarées ici : une feature n'importe pas une autre (ADR-010).
 private struct SocialDestinations: ViewModifier {
     let dependencies: AppDependencies

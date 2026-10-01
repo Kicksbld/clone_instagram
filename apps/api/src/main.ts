@@ -3,6 +3,8 @@ import { createDatabase, type Executor } from '@clone/db';
 import { StorageClient } from '@supabase/storage-js';
 
 import { buildApp } from './app.ts';
+import { GetFeed } from './modules/feed/application/use-cases/get-feed.ts';
+import { DrizzleFeedReader } from './modules/feed/infrastructure/persistence/drizzle-feed-reader.ts';
 import { CheckUsernameAvailability } from './modules/identity/application/use-cases/check-username-availability.ts';
 import { CompleteOnboarding } from './modules/identity/application/use-cases/complete-onboarding.ts';
 import { GetMe } from './modules/identity/application/use-cases/get-me.ts';
@@ -115,6 +117,9 @@ const app = buildApp({
       deletePost: new DeletePost(deletePostTransaction),
       getPost: new GetPost(postReader, relationships),
       listUserPosts: new ListUserPosts(accounts, relationships, postReader),
+    },
+    feed: {
+      getFeed: new GetFeed(new DrizzleFeedReader(database.db)),
     },
     mediaUrls: publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL),
   },

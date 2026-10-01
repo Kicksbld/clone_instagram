@@ -16,7 +16,8 @@
     "build": "pnpm -r build",
     "contract:generate": "pnpm --filter @clone/contract generate",
     "db:migrate": "pnpm --filter @clone/db db:migrate",
-    "db:seed": "pnpm --filter @clone/db db:seed"
+    "db:seed": "pnpm --filter @clone/db db:seed",
+    "db:seed:demo": "pnpm --filter @clone/db db:seed:demo"
   },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",

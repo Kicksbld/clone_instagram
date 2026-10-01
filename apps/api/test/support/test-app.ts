@@ -1,4 +1,5 @@
 import { buildApp } from '../../src/app.ts';
+import { GetFeed } from '../../src/modules/feed/application/use-cases/get-feed.ts';
 import { CheckUsernameAvailability } from '../../src/modules/identity/application/use-cases/check-username-availability.ts';
 import { CompleteOnboarding } from '../../src/modules/identity/application/use-cases/complete-onboarding.ts';
 import { GetMe } from '../../src/modules/identity/application/use-cases/get-me.ts';
@@ -19,6 +20,7 @@ import { SearchUsers } from '../../src/modules/social/application/use-cases/sear
 import { UnfollowUser } from '../../src/modules/social/application/use-cases/unfollow-user.ts';
 import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-media-urls.ts';
 import { FakeMediaStorage, InMemoryJobQueue, InMemoryUnitOfWork, sequentialIds } from './fakes.ts';
+import { InMemoryFeedReader } from './in-memory-feed.ts';
 import { InMemoryMediaRepository } from './in-memory-media-repository.ts';
 import { InMemoryPosts } from './in-memory-posts.ts';
 import { InMemoryProfileRepository } from './in-memory-profile-repository.ts';
@@ -91,6 +93,9 @@ export function buildTestApp() {
         deletePost: new DeletePost(new InMemoryUnitOfWork({ media, posts })),
         getPost: new GetPost(posts, relationships),
         listUserPosts: new ListUserPosts(graph, relationships, posts),
+      },
+      feed: {
+        getFeed: new GetFeed(new InMemoryFeedReader(posts, relationships)),
       },
       mediaUrls: publicMediaUrls(TEST_MEDIA_BASE_URL),
     },

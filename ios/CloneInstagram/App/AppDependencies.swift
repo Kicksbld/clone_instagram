@@ -9,6 +9,8 @@ struct AppDependencies {
     let posts: any PostService
     /// Publications en cours, persistées (ADR-008).
     let publishQueue: PublishQueue
+    /// Préchargement des photos du feed (Nuke).
+    let imagePrefetcher: any ImagePrefetching
 
     static func live(bundle: Bundle = .main) -> AppDependencies {
         let auth: any AuthService = if let configuration = try? SupabaseConfiguration(bundle: bundle) {
@@ -28,7 +30,8 @@ struct AppDependencies {
                     store: FilePendingPostStore.applicationSupport,
                     uploads: UnavailableUploadService(),
                     posts: posts
-                )
+                ),
+                imagePrefetcher: NukeImagePrefetcher()
             )
         }
         let client = APIClientFactory.makeClient(configuration: configuration) { await auth.accessToken() }
@@ -40,7 +43,8 @@ struct AppDependencies {
             uploads: uploads,
             social: APISocialService(client: client),
             posts: posts,
-            publishQueue: PublishQueue(store: FilePendingPostStore.applicationSupport, uploads: uploads, posts: posts)
+            publishQueue: PublishQueue(store: FilePendingPostStore.applicationSupport, uploads: uploads, posts: posts),
+            imagePrefetcher: NukeImagePrefetcher()
         )
     }
 }

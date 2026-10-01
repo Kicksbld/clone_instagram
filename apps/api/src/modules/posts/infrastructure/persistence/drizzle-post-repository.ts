@@ -7,7 +7,7 @@ import type {
   PostReader,
   PostRepository,
 } from '../../application/ports/post-repository.ts';
-import type { Page } from '../../../../shared/domain/pagination.ts';
+import type { Page, PageCursor } from '../../../../shared/domain/pagination.ts';
 import type { Post, PostMediaItem } from '../../domain/post.ts';
 
 /** Écritures des posts, sur une connexion ou dans une transaction. */
@@ -66,91 +66,107 @@ export class DrizzlePostReader implements PostReader {
   constructor(private readonly db: Executor) {}
 
   async findById(id: string): Promise<Post | null> {
-    const [post] = await this.select(eq(posts.id, id), 1);
+    const [post] = await selectPosts(this.db, eq(posts.id, id), 1);
     return post ?? null;
   }
 
   async listByAuthor({ authorId, after, limit }: AuthorPostsQuery): Promise<Page<Post>> {
     // Une ligne de plus pour savoir s'il existe une page suivante.
-    const rows = await this.select(
-      and(
-        eq(posts.authorId, authorId),
-        after
-          ? sql`(${posts.createdAt}, ${posts.id}) < (${after.createdAt.toISOString()}::timestamptz, ${after.id}::uuid)`
-          : undefined,
-      ),
+    const rows = await selectPosts(
+      this.db,
+      and(eq(posts.authorId, authorId), postsBefore(after)),
       limit + 1,
     );
-    const page = rows.slice(0, limit);
-    const last = page.at(-1);
-    return {
-      items: page,
-      next: rows.length > limit && last ? { createdAt: last.createdAt, id: last.id } : null,
-    };
+    return pageOf(rows, limit);
   }
+}
 
-  private async select(where: SQL | undefined, limit: number): Promise<Post[]> {
-    const rows = await this.db
-      .select({
-        id: posts.id,
-        kind: posts.kind,
-        caption: posts.caption,
-        createdAt: posts.createdAt,
-        authorId: profiles.id,
-        username: profiles.username,
-        status: profiles.status,
-        isPrivate: profiles.isPrivate,
-        avatarVariants: avatar.variants,
-      })
-      .from(posts)
-      .innerJoin(profiles, eq(profiles.id, posts.authorId))
-      .leftJoin(avatar, eq(avatar.id, profiles.avatarMediaId))
-      .where(and(isNull(posts.deletedAt), where))
-      .orderBy(desc(posts.createdAt), desc(posts.id))
-      .limit(limit);
-    if (rows.length === 0) return [];
+/** Posts strictement plus anciens que le curseur `(created_at, id)` (ADR-007). */
+export function postsBefore(after: PageCursor | null): SQL | undefined {
+  return after
+    ? sql`(${posts.createdAt}, ${posts.id}) < (${after.createdAt.toISOString()}::timestamptz, ${after.id}::uuid)`
+    : undefined;
+}
 
-    const mediaRows = await this.db
-      .select({
-        postId: postMedia.postId,
-        variants: media.variants,
-        width: media.width,
-        height: media.height,
-      })
-      .from(postMedia)
-      .innerJoin(media, eq(media.id, postMedia.mediaId))
-      .where(
-        inArray(
-          postMedia.postId,
-          rows.map((row) => row.id),
-        ),
-      )
-      .orderBy(asc(postMedia.postId), asc(postMedia.position));
+/** Page à partir de `limit + 1` lignes : la ligne en trop signale une page suivante. */
+export function pageOf(rows: Post[], limit: number): Page<Post> {
+  const page = rows.slice(0, limit);
+  const last = page.at(-1);
+  return {
+    items: page,
+    next: rows.length > limit && last ? { createdAt: last.createdAt, id: last.id } : null,
+  };
+}
 
-    const mediaByPost = new Map<string, PostMediaItem[]>();
-    for (const row of mediaRows) {
-      // Un média rattaché est toujours `ready` : variantes et dimensions sont renseignées.
-      if (!row.variants || row.width === null || row.height === null) {
-        throw new Error(`Média de post incomplet (post ${row.postId})`);
-      }
-      const items = mediaByPost.get(row.postId) ?? [];
-      items.push({ variants: row.variants, width: row.width, height: row.height });
-      mediaByPost.set(row.postId, items);
+/**
+ * Posts non supprimés filtrés par `where`, du plus récent au plus ancien, avec auteur et médias.
+ * Partagé par les lectures de posts et le feed (ADR-007).
+ */
+export async function selectPosts(
+  db: Executor,
+  where: SQL | undefined,
+  limit: number,
+): Promise<Post[]> {
+  const rows = await db
+    .select({
+      id: posts.id,
+      kind: posts.kind,
+      caption: posts.caption,
+      createdAt: posts.createdAt,
+      authorId: profiles.id,
+      username: profiles.username,
+      status: profiles.status,
+      isPrivate: profiles.isPrivate,
+      avatarVariants: avatar.variants,
+    })
+    .from(posts)
+    .innerJoin(profiles, eq(profiles.id, posts.authorId))
+    .leftJoin(avatar, eq(avatar.id, profiles.avatarMediaId))
+    .where(and(isNull(posts.deletedAt), where))
+    .orderBy(desc(posts.createdAt), desc(posts.id))
+    .limit(limit);
+  if (rows.length === 0) return [];
+
+  const mediaRows = await db
+    .select({
+      postId: postMedia.postId,
+      variants: media.variants,
+      width: media.width,
+      height: media.height,
+    })
+    .from(postMedia)
+    .innerJoin(media, eq(media.id, postMedia.mediaId))
+    .where(
+      inArray(
+        postMedia.postId,
+        rows.map((row) => row.id),
+      ),
+    )
+    .orderBy(asc(postMedia.postId), asc(postMedia.position));
+
+  const mediaByPost = new Map<string, PostMediaItem[]>();
+  for (const row of mediaRows) {
+    // Un média rattaché est toujours `ready` : variantes et dimensions sont renseignées.
+    if (!row.variants || row.width === null || row.height === null) {
+      throw new Error(`Média de post incomplet (post ${row.postId})`);
     }
-
-    return rows.map((row) => ({
-      id: row.id,
-      kind: row.kind,
-      caption: row.caption,
-      createdAt: row.createdAt,
-      author: {
-        id: row.authorId,
-        username: row.username,
-        status: row.status,
-        isPrivate: row.isPrivate,
-        avatarVariants: row.avatarVariants,
-      },
-      media: mediaByPost.get(row.id) ?? [],
-    }));
+    const items = mediaByPost.get(row.postId) ?? [];
+    items.push({ variants: row.variants, width: row.width, height: row.height });
+    mediaByPost.set(row.postId, items);
   }
+
+  return rows.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    caption: row.caption,
+    createdAt: row.createdAt,
+    author: {
+      id: row.authorId,
+      username: row.username,
+      status: row.status,
+      isPrivate: row.isPrivate,
+      avatarVariants: row.avatarVariants,
+    },
+    media: mediaByPost.get(row.id) ?? [],
+  }));
 }

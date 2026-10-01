@@ -14,11 +14,15 @@ final class FakePostService: PostService {
     var fetchResults: [Result<Post, PostServiceError>] = []
     /// Réponses successives de `listPosts` ; page vide quand la liste est vide.
     var listResults: [Result<PostPage, PostServiceError>] = []
+    /// Réponses successives de `listFeed` ; page vide quand la liste est vide.
+    var feedResults: [Result<PostPage, PostServiceError>] = []
     /// Erreurs successives de `deletePost` ; succès quand la liste est vide.
     var deleteErrors: [PostServiceError] = []
 
     private(set) var created: [(caption: String, mediaIds: [String])] = []
     private(set) var listRequests: [ListRequest] = []
+    /// Curseurs des appels à `listFeed`.
+    private(set) var feedRequests: [String?] = []
     private(set) var deleted: [String] = []
 
     func createPost(caption: String, mediaIds: [String]) async throws(PostServiceError) -> Post {
@@ -36,6 +40,12 @@ final class FakePostService: PostService {
         listRequests.append(ListRequest(userId: userId, cursor: cursor))
         guard !listResults.isEmpty else { return PostPage(items: [], nextCursor: nil) }
         return try listResults.removeFirst().get()
+    }
+
+    func listFeed(cursor: String?) async throws(PostServiceError) -> PostPage {
+        feedRequests.append(cursor)
+        guard !feedResults.isEmpty else { return PostPage(items: [], nextCursor: nil) }
+        return try feedResults.removeFirst().get()
     }
 
     func deletePost(id: String) async throws(PostServiceError) {
@@ -112,14 +122,24 @@ extension Post {
     static func fixture(
         id: String = "0199a1b2-0000-7000-a000-000000000001",
         caption: String = "Coucher de soleil",
-        authorId: String = "0199a1b2-5eed-7000-8000-000000000001"
+        authorId: String = "0199a1b2-5eed-7000-8000-000000000001",
+        createdAt: Date = Date(timeIntervalSince1970: 1_790_344_800)
     ) -> Post {
         Post(
             id: id,
             caption: caption,
             author: PostAuthor(id: authorId, username: "killian", avatar: nil),
             media: [PostMediaItem(variants: .fixture, width: 1080, height: 1440)],
-            createdAt: Date(timeIntervalSince1970: 1_790_344_800)
+            createdAt: createdAt
         )
+    }
+}
+
+/// Faux préchargement : URL demandées, dans l'ordre.
+final class FakeImagePrefetcher: ImagePrefetching {
+    private(set) var prefetched: [URL] = []
+
+    func prefetch(_ urls: [URL]) {
+        prefetched += urls
     }
 }

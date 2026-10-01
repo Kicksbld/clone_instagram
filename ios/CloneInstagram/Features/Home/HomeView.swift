@@ -1,10 +1,10 @@
 import SwiftUI
 
 /// Accueil (wireframe) : onglets d'Instagram, contenus à venir dans les prochaines tranches.
-/// Les écrans Profil, Recherche et Création sont fournis par le routeur racine : une feature n'en importe
-/// pas une autre. `profileTab` reçoit l'action qui ouvre l'onglet Recherche (« Suivre des comptes ») ;
+/// Les écrans Feed, Profil, Recherche et Création sont fournis par le routeur racine : une feature n'en
+/// importe pas une autre. `feed` et `profileTab` reçoivent l'action qui ouvre l'onglet Recherche ;
 /// `createPost` reçoit l'action qui ferme la création et revient à l'accueil.
-struct HomeView<ProfileTab: View, SearchTab: View, CreatePost: View>: View {
+struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View>: View {
     enum TabID: Hashable {
         case home
         case reels
@@ -15,6 +15,7 @@ struct HomeView<ProfileTab: View, SearchTab: View, CreatePost: View>: View {
 
     /// Publications en cours, affichées en haut de l'accueil.
     let publishQueue: PublishQueue
+    @ViewBuilder let feed: (_ openSearch: @escaping () -> Void) -> Feed
     @ViewBuilder let profileTab: (_ openSearch: @escaping () -> Void) -> ProfileTab
     @ViewBuilder let searchTab: () -> SearchTab
     @ViewBuilder let createPost: (_ close: @escaping () -> Void) -> CreatePost
@@ -28,8 +29,7 @@ struct HomeView<ProfileTab: View, SearchTab: View, CreatePost: View>: View {
                 NavigationStack {
                     VStack(spacing: 0) {
                         PublishBanner(queue: publishQueue)
-                        // Feed d'accueil : T7.
-                        placeholder("Accueil", systemImage: "house")
+                        feed { selection = .search }
                     }
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
