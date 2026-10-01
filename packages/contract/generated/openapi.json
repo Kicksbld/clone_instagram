@@ -3,7 +3,7 @@
   "info": {
     "title": "Clone Instagram API",
     "version": "0.1.0",
-    "description": "Contrat unique des échanges entre l'API, l'app iOS et le backoffice (ADR-003).\n\n- Routes métier préfixées par `/v1` ; `GET /health` est hors version.\n- JSON UTF-8, identifiants UUID v7, dates ISO 8601 UTC.\n- Authentification : `Authorization: Bearer <JWT Supabase>` sur toutes les routes sauf `GET /health`.\n- Erreurs : Problem Details (RFC 9457), `Content-Type: application/problem+json`, avec un `code` stable.\n\nCodes d'erreur transverses :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |\n| `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |\n| `route_not_found` | 404 | Route inexistante |\n| `rate_limited` | 429 | Trop de requêtes sur une route limitée (ADR-005) ; en-tête `Retry-After` en secondes |\n| `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |\n\nCodes d'erreur métier :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `profile_not_found` | 404 | L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé) |\n| `username_taken` | 409 | Username déjà utilisé par un autre profil |\n| `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |\n| `age_requirement_not_met` | 422 | Moins de 13 ans à la date du jour (UTC) |\n| `media_not_found` | 404 | Média inexistant ou appartenant à un autre utilisateur |\n| `media_invalid_transition` | 409 | Le statut du média ne permet pas l'opération (ex. `complete` sur un média déjà traité) |\n| `media_not_ready` | 409 | Le média n'est pas encore `ready` |\n| `media_already_attached` | 409 | Le média est déjà utilisé, ou l'a été (un média ne sert qu'une fois) |\n| `media_purpose_mismatch` | 422 | Le `purpose` du média ne correspond pas à l'usage demandé |\n| `user_not_found` | 404 | Profil inexistant ou invisible pour l'appelant (blocage dans un sens ou dans l'autre, compte non actif : ADR-006) ; liste d'abonnés d'un compte privé non suivi |\n| `account_private` | 403 | Suivre un compte privé (demandes d'abonnement en P1) |\n| `cannot_follow_self` | 422 | Se suivre ou ne plus se suivre soi-même |\n| `invalid_cursor` | 400 | Curseur de pagination mal formé |\n| `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |\n\nPagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).\n"
+    "description": "Contrat unique des échanges entre l'API, l'app iOS et le backoffice (ADR-003).\n\n- Routes métier préfixées par `/v1` ; `GET /health` est hors version.\n- JSON UTF-8, identifiants UUID v7, dates ISO 8601 UTC.\n- Authentification : `Authorization: Bearer <JWT Supabase>` sur toutes les routes sauf `GET /health`.\n- Erreurs : Problem Details (RFC 9457), `Content-Type: application/problem+json`, avec un `code` stable.\n\nCodes d'erreur transverses :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |\n| `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |\n| `route_not_found` | 404 | Route inexistante |\n| `rate_limited` | 429 | Trop de requêtes (ADR-005) : 120 par minute et par utilisateur sur toute route `/v1`, limite plus basse sur certaines routes (documentée sur la route) ; en-tête `Retry-After` en secondes |\n| `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |\n\nCodes d'erreur métier :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `profile_not_found` | 404 | L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé) |\n| `username_taken` | 409 | Username déjà utilisé par un autre profil |\n| `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |\n| `age_requirement_not_met` | 422 | Moins de 13 ans à la date du jour (UTC) |\n| `media_not_found` | 404 | Média inexistant ou appartenant à un autre utilisateur |\n| `media_invalid_transition` | 409 | Le statut du média ne permet pas l'opération (ex. `complete` sur un média déjà traité) |\n| `media_not_ready` | 409 | Le média n'est pas encore `ready` |\n| `media_already_attached` | 409 | Le média est déjà utilisé, ou l'a été (un média ne sert qu'une fois) |\n| `media_purpose_mismatch` | 422 | Le `purpose` du média ne correspond pas à l'usage demandé |\n| `user_not_found` | 404 | Profil inexistant ou invisible pour l'appelant (blocage dans un sens ou dans l'autre, compte non actif : ADR-006) ; liste d'abonnés d'un compte privé non suivi |\n| `account_private` | 403 | Suivre un compte privé (demandes d'abonnement en P1) |\n| `cannot_follow_self` | 422 | Se suivre ou ne plus se suivre soi-même |\n| `invalid_cursor` | 400 | Curseur de pagination mal formé |\n| `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |\n\nPagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).\n"
   },
   "servers": [
     {
@@ -44,6 +44,10 @@
     {
       "name": "feed",
       "description": "Feed d'accueil chronologique (ADR-007), selon la politique de visibilité (ADR-006)"
+    },
+    {
+      "name": "engagement",
+      "description": "Likes des posts, selon la politique de visibilité (ADR-006)"
     }
   ],
   "paths": {
@@ -3764,6 +3768,8 @@
                           "caption",
                           "author",
                           "media",
+                          "likeCount",
+                          "viewerHasLiked",
                           "createdAt"
                         ],
                         "properties": {
@@ -3887,6 +3893,14 @@
                                 }
                               }
                             }
+                          },
+                          "likeCount": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "viewerHasLiked": {
+                            "type": "boolean",
+                            "description": "L'appelant aime ce post."
                           },
                           "createdAt": {
                             "type": "string",
@@ -4189,6 +4203,8 @@
                     "caption",
                     "author",
                     "media",
+                    "likeCount",
+                    "viewerHasLiked",
                     "createdAt"
                   ],
                   "properties": {
@@ -4312,6 +4328,14 @@
                           }
                         }
                       }
+                    },
+                    "likeCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "viewerHasLiked": {
+                      "type": "boolean",
+                      "description": "L'appelant aime ce post."
                     },
                     "createdAt": {
                       "type": "string",
@@ -4752,6 +4776,8 @@
                     "caption",
                     "author",
                     "media",
+                    "likeCount",
+                    "viewerHasLiked",
                     "createdAt"
                   ],
                   "properties": {
@@ -4875,6 +4901,14 @@
                           }
                         }
                       }
+                    },
+                    "likeCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "viewerHasLiked": {
+                      "type": "boolean",
+                      "description": "L'appelant aime ce post."
                     },
                     "createdAt": {
                       "type": "string",
@@ -5352,6 +5386,670 @@
         }
       }
     },
+    "/v1/posts/{id}/like": {
+      "put": {
+        "operationId": "likePost",
+        "tags": [
+          "engagement"
+        ],
+        "summary": "Aimer un post",
+        "description": "Idempotent : aimer un post déjà aimé renvoie `200` sans changer `likeCount`. On peut aimer son propre post.\nPost inexistant, supprimé, ou dont l'auteur est invisible pour l'appelant (blocage, compte non actif, compte privé non suivi) → `404 post_not_found`, jamais `403` (ADR-006).\n",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "J'aime ce post.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "État du like après l'action, et nombre de likes du post.",
+                  "additionalProperties": false,
+                  "required": [
+                    "liked",
+                    "likeCount"
+                  ],
+                  "properties": {
+                    "liked": {
+                      "type": "boolean",
+                      "description": "L'appelant aime ce post."
+                    },
+                    "likeCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`), ou onboarding non terminé (`profile_not_found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Trop de requêtes (`rate_limited`) ; réessayer après `Retry-After` secondes.",
+            "headers": {
+              "Retry-After": {
+                "description": "Délai avant de réessayer, en secondes.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unlikePost",
+        "tags": [
+          "engagement"
+        ],
+        "summary": "Ne plus aimer un post",
+        "description": "Idempotent : sans like, renvoie `200` sans changer `likeCount`.\nPost inexistant, supprimé ou invisible pour l'appelant → `404 post_not_found`, comme pour `likePost` (ADR-006).\n",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Je n'aime plus ce post.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "État du like après l'action, et nombre de likes du post.",
+                  "additionalProperties": false,
+                  "required": [
+                    "liked",
+                    "likeCount"
+                  ],
+                  "properties": {
+                    "liked": {
+                      "type": "boolean",
+                      "description": "L'appelant aime ce post."
+                    },
+                    "likeCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`), ou onboarding non terminé (`profile_not_found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Trop de requêtes (`rate_limited`) ; réessayer après `Retry-After` secondes.",
+            "headers": {
+              "Retry-After": {
+                "description": "Délai avant de réessayer, en secondes.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/feed": {
       "get": {
         "operationId": "getFeed",
@@ -5397,6 +6095,8 @@
                           "caption",
                           "author",
                           "media",
+                          "likeCount",
+                          "viewerHasLiked",
                           "createdAt"
                         ],
                         "properties": {
@@ -5520,6 +6220,14 @@
                                 }
                               }
                             }
+                          },
+                          "likeCount": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "viewerHasLiked": {
+                            "type": "boolean",
+                            "description": "L'appelant aime ce post."
                           },
                           "createdAt": {
                             "type": "string",
@@ -6008,7 +6716,7 @@
           "media"
         ],
         "summary": "Demander une intention d'upload",
-        "description": "Crée le média en `pending_upload` et renvoie une URL d'upload présignée (ADR-008).\nLe fichier est envoyé directement à `uploadUrl` par un `PUT` du contenu brut, avec le `Content-Type` déclaré, avant `expiresAt` ;\nl'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus, pour une photo de profil (`avatar`) ou un post (`post`).\n",
+        "description": "Crée le média en `pending_upload` et renvoie une URL d'upload présignée (ADR-008).\nLe fichier est envoyé directement à `uploadUrl` par un `PUT` du contenu brut, avec le `Content-Type` déclaré, avant `expiresAt` ;\nl'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus, pour une photo de profil (`avatar`) ou un post (`post`).\nLimité à 30 demandes par heure (`429 rate_limited`, ADR-005).\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -6200,6 +6908,70 @@
           },
           "404": {
             "description": "Onboarding non terminé (`profile_not_found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "additionalProperties": false,
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Trop de requêtes (`rate_limited`) ; réessayer après `Retry-After` secondes.",
+            "headers": {
+              "Retry-After": {
+                "description": "Délai avant de réessayer, en secondes.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8105,6 +8877,8 @@
           "caption",
           "author",
           "media",
+          "likeCount",
+          "viewerHasLiked",
           "createdAt"
         ],
         "properties": {
@@ -8229,6 +9003,14 @@
               }
             }
           },
+          "likeCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "viewerHasLiked": {
+            "type": "boolean",
+            "description": "L'appelant aime ce post."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -8254,6 +9036,8 @@
                 "caption",
                 "author",
                 "media",
+                "likeCount",
+                "viewerHasLiked",
                 "createdAt"
               ],
               "properties": {
@@ -8378,6 +9162,14 @@
                     }
                   }
                 },
+                "likeCount": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "viewerHasLiked": {
+                  "type": "boolean",
+                  "description": "L'appelant aime ce post."
+                },
                 "createdAt": {
                   "type": "string",
                   "format": "date-time"
@@ -8388,6 +9180,25 @@
           "nextCursor": {
             "type": "string",
             "description": "Curseur de la page suivante ; absent sur la dernière page."
+          }
+        }
+      },
+      "LikeStatus": {
+        "type": "object",
+        "description": "État du like après l'action, et nombre de likes du post.",
+        "additionalProperties": false,
+        "required": [
+          "liked",
+          "likeCount"
+        ],
+        "properties": {
+          "liked": {
+            "type": "boolean",
+            "description": "L'appelant aime ce post."
+          },
+          "likeCount": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },
@@ -8868,6 +9679,61 @@
       },
       "PostNotFound": {
         "description": "Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`).",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "type": "object",
+              "description": "Erreur au format Problem Details (RFC 9457).",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "title",
+                "status",
+                "detail",
+                "code"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "format": "uri-reference",
+                  "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                  "examples": [
+                    "about:blank"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Résumé lisible du statut HTTP.",
+                  "examples": [
+                    "Not Found"
+                  ]
+                },
+                "status": {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 599,
+                  "examples": [
+                    404
+                  ]
+                },
+                "detail": {
+                  "type": "string",
+                  "description": "Explication lisible de cette occurrence."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                  "examples": [
+                    "route_not_found"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "LikeTargetNotFound": {
+        "description": "Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`), ou onboarding non terminé (`profile_not_found`).",
         "content": {
           "application/problem+json": {
             "schema": {

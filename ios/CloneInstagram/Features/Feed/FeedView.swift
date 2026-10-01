@@ -65,6 +65,21 @@ struct FeedView: View {
             } message: {
                 Text(viewModel.deleteErrorMessage ?? "")
             }
+            .alert(
+                "Action impossible",
+                isPresented: Binding(
+                    get: { viewModel.likeErrorMessage != nil },
+                    set: {
+                        if !$0 {
+                            viewModel.likeErrorMessage = nil
+                        }
+                    }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(viewModel.likeErrorMessage ?? "")
+            }
     }
 
     @ViewBuilder
@@ -124,9 +139,11 @@ struct FeedView: View {
 
     private func cell(_ post: Post) -> some View {
         PostView(
-            post: post,
+            post: viewModel.displayed(post),
             isDeleting: viewModel.deletingPostId == post.id,
             onDelete: viewModel.canDelete(post) ? { postToDelete = post } : nil,
+            onToggleLike: { Task { await viewModel.toggleLike(post) } },
+            onDoubleTapLike: { Task { await viewModel.likeFromDoubleTap(post) } },
             collapsesCaption: true
         )
         .task { await viewModel.postAppeared(post) }

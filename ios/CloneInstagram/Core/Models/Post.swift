@@ -1,11 +1,15 @@
 import Foundation
 
-/// Post publié, vu par moi (ADR-006) : auteur, images dans l'ordre d'affichage, légende.
+/// Post publié, vu par moi (ADR-006) : auteur, images dans l'ordre d'affichage, légende, likes.
 struct Post: Equatable, Identifiable {
     let id: String
     let caption: String
     let author: PostAuthor
     let media: [PostMediaItem]
+    /// Modifiables pour la mise à jour optimiste du like (ADR-010).
+    var likeCount = 0
+    /// J'aime ce post.
+    var isLiked = false
     let createdAt: Date
 
     /// Première image : vignette de la grille.
@@ -36,4 +40,10 @@ struct PostMediaItem: Equatable {
 struct PostPage: Equatable {
     let items: [Post]
     let nextCursor: String?
+}
+
+/// État de mon like après `PUT` / `DELETE /v1/posts/{id}/like`, et nombre de likes du post.
+struct LikeStatus: Equatable {
+    let isLiked: Bool
+    let likeCount: Int
 }

@@ -9,12 +9,14 @@ struct FeedViewModelTests {
     private static let day: TimeInterval = 24 * 60 * 60
 
     private let service = FakePostService()
+    private let engagement = FakeEngagementService()
     private let prefetcher = FakeImagePrefetcher()
 
     private func makeViewModel(onDeleted: @escaping () -> Void = {}) -> FeedViewModel {
         FeedViewModel(
             viewerId: Self.viewerId,
             posts: service,
+            likes: LikeSynchronizer(service: engagement),
             prefetcher: prefetcher,
             now: { Self.now },
             onDeleted: onDeleted

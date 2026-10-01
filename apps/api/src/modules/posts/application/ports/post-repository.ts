@@ -25,17 +25,19 @@ export interface PostRepository {
 }
 
 export interface AuthorPostsQuery {
+  /** Appelant, pour `viewerHasLiked`. */
+  viewerId: string;
   authorId: string;
   after: PageCursor | null;
   limit: number;
 }
 
 /**
- * Lectures des posts non supprimés, avec auteur et médias. La visibilité est décidée par le use
- * case (ADR-006) : ces lectures ne filtrent que `deleted_at`.
+ * Lectures des posts non supprimés, avec auteur et médias, vus par `viewerId`. La visibilité est
+ * décidée par le use case (ADR-006) : ces lectures ne filtrent que `deleted_at`.
  */
 export interface PostReader {
-  findById(id: string): Promise<Post | null>;
+  findById(id: string, viewerId: string): Promise<Post | null>;
   /** Du plus récent au plus ancien ; curseur `(created_at, id)` (ADR-007). */
   listByAuthor(query: AuthorPostsQuery): Promise<Page<Post>>;
 }

@@ -1,4 +1,4 @@
-import { media, postMedia, posts, profiles, type Executor } from '@clone/db';
+import { media, postLikes, postMedia, posts, profiles, type Executor } from '@clone/db';
 import { aliasedTable, and, asc, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 
 import type {
@@ -65,15 +65,16 @@ const avatar = aliasedTable(media, 'avatar');
 export class DrizzlePostReader implements PostReader {
   constructor(private readonly db: Executor) {}
 
-  async findById(id: string): Promise<Post | null> {
-    const [post] = await selectPosts(this.db, eq(posts.id, id), 1);
+  async findById(id: string, viewerId: string): Promise<Post | null> {
+    const [post] = await selectPosts(this.db, viewerId, eq(posts.id, id), 1);
     return post ?? null;
   }
 
-  async listByAuthor({ authorId, after, limit }: AuthorPostsQuery): Promise<Page<Post>> {
+  async listByAuthor({ viewerId, authorId, after, limit }: AuthorPostsQuery): Promise<Page<Post>> {
     // Une ligne de plus pour savoir s'il existe une page suivante.
     const rows = await selectPosts(
       this.db,
+      viewerId,
       and(eq(posts.authorId, authorId), postsBefore(after)),
       limit + 1,
     );
@@ -99,11 +100,12 @@ export function pageOf(rows: Post[], limit: number): Page<Post> {
 }
 
 /**
- * Posts non supprimés filtrés par `where`, du plus récent au plus ancien, avec auteur et médias.
- * Partagé par les lectures de posts et le feed (ADR-007).
+ * Posts non supprimés filtrés par `where`, du plus récent au plus ancien, avec auteur, médias et
+ * likes vus par `viewerId`. Partagé par les lectures de posts et le feed (ADR-007).
  */
 export async function selectPosts(
   db: Executor,
+  viewerId: string,
   where: SQL | undefined,
   limit: number,
 ): Promise<Post[]> {
@@ -112,6 +114,11 @@ export async function selectPosts(
       id: posts.id,
       kind: posts.kind,
       caption: posts.caption,
+      likeCount: posts.likeCount,
+      // Clé primaire `(user_id, post_id)` de `post_likes`.
+      viewerHasLiked: sql<boolean>`EXISTS (
+        SELECT 1 FROM ${postLikes} AS l WHERE l.user_id = ${viewerId} AND l.post_id = ${posts.id}
+      )`,
       createdAt: posts.createdAt,
       authorId: profiles.id,
       username: profiles.username,
@@ -159,6 +166,8 @@ export async function selectPosts(
     id: row.id,
     kind: row.kind,
     caption: row.caption,
+    likeCount: row.likeCount,
+    viewerHasLiked: row.viewerHasLiked,
     createdAt: row.createdAt,
     author: {
       id: row.authorId,

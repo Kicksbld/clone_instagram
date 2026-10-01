@@ -13,6 +13,8 @@ nonisolated enum UploadError: Error, Equatable {
     case unreachable
     /// Session expirée.
     case unauthenticated
+    /// Trop de photos envoyées (`429`, limite d'ADR-005).
+    case rateLimited
     /// Réponse non prévue.
     case unexpected
 }
@@ -111,6 +113,7 @@ struct UploadManager: UploadService, MediaUploading {
         switch error {
         case .unreachable: .unreachable
         case .unauthenticated: .unauthenticated
+        case .rateLimited: .rateLimited
         case .mediaNotFound, .invalidTransition, .profileNotFound, .invalidInput, .unexpectedResponse: .unexpected
         }
     }
@@ -128,6 +131,7 @@ extension UploadError {
         case .timedOut: "Le traitement de la photo prend trop de temps. Réessayez."
         case .unreachable: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
         case .unauthenticated: "Votre session a expiré. Reconnectez-vous."
+        case .rateLimited: "Trop de photos envoyées. Réessayez plus tard."
         case .unexpected: "Une erreur est survenue. Réessayez."
         }
     }

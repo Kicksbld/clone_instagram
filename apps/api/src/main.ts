@@ -3,6 +3,12 @@ import { createDatabase, type Executor } from '@clone/db';
 import { StorageClient } from '@supabase/storage-js';
 
 import { buildApp } from './app.ts';
+import { LikePost } from './modules/engagement/application/use-cases/like-post.ts';
+import { UnlikePost } from './modules/engagement/application/use-cases/unlike-post.ts';
+import {
+  DrizzleLikeablePostReader,
+  DrizzleLikeRepository,
+} from './modules/engagement/infrastructure/persistence/drizzle-likes.ts';
 import { GetFeed } from './modules/feed/application/use-cases/get-feed.ts';
 import { DrizzleFeedReader } from './modules/feed/infrastructure/persistence/drizzle-feed-reader.ts';
 import { CheckUsernameAvailability } from './modules/identity/application/use-cases/check-username-availability.ts';
@@ -74,6 +80,12 @@ const deletePostTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) 
   media: new DrizzleMediaRepository(tx),
   posts: new DrizzlePostRepository(tx),
 }));
+const likeTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  accounts: new DrizzleAccountReader(tx),
+  relationships: new DrizzleRelationshipReader(tx),
+  posts: new DrizzleLikeablePostReader(tx),
+  likes: new DrizzleLikeRepository(tx),
+}));
 const jobs = new BullMqJobQueue(config.REDIS_URL);
 const secretKey = config.SUPABASE_SERVICE_ROLE_KEY;
 const storage = new SupabaseMediaStorage(
@@ -120,6 +132,10 @@ const app = buildApp({
     },
     feed: {
       getFeed: new GetFeed(new DrizzleFeedReader(database.db)),
+    },
+    engagement: {
+      likePost: new LikePost(likeTransaction),
+      unlikePost: new UnlikePost(likeTransaction),
     },
     mediaUrls: publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL),
   },

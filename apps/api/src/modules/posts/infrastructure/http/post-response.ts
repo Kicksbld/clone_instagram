@@ -23,6 +23,8 @@ export function toPostResponse(post: Post, urls: PublicMediaUrls): PostResponse 
       width: item.width,
       height: item.height,
     })),
+    likeCount: post.likeCount,
+    viewerHasLiked: post.viewerHasLiked,
     createdAt: post.createdAt.toISOString(),
   };
 }

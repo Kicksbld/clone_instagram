@@ -26,3 +26,4 @@ export {
   type PostMediaRow,
   type PostRow,
 } from './posts.ts';
+export { postLikes, type PostLikeRow } from './engagement.ts';

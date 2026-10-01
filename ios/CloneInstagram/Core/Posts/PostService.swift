@@ -223,6 +223,8 @@ private extension Post {
                 avatar: dto.author.avatar.flatMap(ImageVariants.init)
             ),
             media: media,
+            likeCount: dto.likeCount,
+            isLiked: dto.viewerHasLiked,
             createdAt: dto.createdAt
         )
     }

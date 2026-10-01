@@ -44,7 +44,7 @@ export class CreatePost {
       });
       await posts.incrementPostCount(input.authorId);
 
-      const post = await reader.findById(id);
+      const post = await reader.findById(id, input.authorId);
       if (!post) throw new Error('Post créé introuvable dans sa transaction');
       return post;
     });

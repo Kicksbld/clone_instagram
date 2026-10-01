@@ -1,8 +1,7 @@
 import SwiftUI
 
 /// Détail d'un post (wireframe, comme Instagram) : auteur et menu « … », photos (carrousel) au ratio de la
-/// première, actions, légende et date. Les actions (J'aime, Commenter, Partager, Enregistrer) arrivent en T8
-/// et T9 : désactivées d'ici là.
+/// première, actions (J'aime ; Commenter arrive en T9), mentions J'aime, légende et date.
 struct PostDetailView: View {
     @State private var viewModel: PostDetailViewModel
     @State private var isConfirmingDelete = false
@@ -44,6 +43,21 @@ struct PostDetailView: View {
             } message: {
                 Text(viewModel.deleteErrorMessage ?? "")
             }
+            .alert(
+                "Action impossible",
+                isPresented: Binding(
+                    get: { viewModel.likeErrorMessage != nil },
+                    set: {
+                        if !$0 {
+                            viewModel.likeErrorMessage = nil
+                        }
+                    }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(viewModel.likeErrorMessage ?? "")
+            }
     }
 
     @ViewBuilder
@@ -54,9 +68,11 @@ struct PostDetailView: View {
         case let .loaded(post):
             ScrollView {
                 PostView(
-                    post: post,
+                    post: viewModel.displayed(post),
                     isDeleting: viewModel.isDeleting,
-                    onDelete: viewModel.canDelete ? { isConfirmingDelete = true } : nil
+                    onDelete: viewModel.canDelete ? { isConfirmingDelete = true } : nil,
+                    onToggleLike: { Task { await viewModel.toggleLike() } },
+                    onDoubleTapLike: { Task { await viewModel.likeFromDoubleTap() } }
                 )
             }
             .refreshable { await viewModel.load() }

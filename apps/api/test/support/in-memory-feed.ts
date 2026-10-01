@@ -21,6 +21,7 @@ export class InMemoryFeedReader implements FeedReader {
   listFeed({ viewerId, after, limit }: FeedQuery): Promise<Page<Post>> {
     return Promise.resolve(
       this.posts.list(
+        viewerId,
         ({ author }) =>
           (author.id === viewerId || this.relationships.isFollowing(viewerId, author.id)) &&
           canViewContent(viewerId, author, {

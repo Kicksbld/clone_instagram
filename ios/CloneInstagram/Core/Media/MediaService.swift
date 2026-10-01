@@ -45,6 +45,8 @@ nonisolated enum MediaServiceError: Error, Equatable {
     case unauthenticated
     /// Entrée refusée par l'API (`400`).
     case invalidInput
+    /// `429 rate_limited` (30 demandes d'upload par heure) ; `retryAfter` en secondes (`Retry-After`).
+    case rateLimited(retryAfter: Int?)
     /// L'API n'a pas pu être jointe.
     case unreachable
     /// Réponse non prévue par le contrat.
@@ -84,6 +86,8 @@ struct APIMediaService: MediaService {
             throw Self.error(401) { try response.body.applicationProblemJson }
         case let .notFound(response):
             throw Self.error(404) { try response.body.applicationProblemJson }
+        case let .tooManyRequests(response):
+            throw .rateLimited(retryAfter: response.headers.retryAfter)
         case .internalServerError:
             throw .unexpectedResponse(statusCode: 500)
         case let .undocumented(statusCode, _):

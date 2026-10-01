@@ -84,6 +84,16 @@ describe('POST /v1/media/uploads', () => {
     const response = await post(upload, { authorization: '' });
     expect(response.statusCode).toBe(401);
   });
+
+  it('31e demande dans l’heure → 429 rate_limited avec Retry-After', async () => {
+    for (let i = 0; i < 30; i++) expect((await post(upload)).statusCode).toBe(201);
+
+    const response = await post(upload);
+
+    expect(response.statusCode).toBe(429);
+    expect(response.headers['retry-after']).toMatch(/^\d+$/);
+    expect(response.json()).toMatchObject({ code: 'rate_limited' });
+  });
 });
 
 describe('POST /v1/media/{id}/complete', () => {

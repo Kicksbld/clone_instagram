@@ -7,8 +7,14 @@ import { RATIOS, type PlannedMedia } from './plan.ts';
 /** Largeurs des variantes WebP (ADR-008), les mêmes que celles du worker. */
 const VARIANT_WIDTHS = { thumb: 150, medium: 640, large: 1080 } as const;
 type VariantName = keyof typeof VARIANT_WIDTHS;
-const CONCURRENCY = 6;
-const ATTEMPTS = 3;
+/**
+ * Médias traités en parallèle : Supabase Cloud (offre gratuite) refuse au-delà de quelques écritures
+ * Storage simultanées (`429 SlowDown`).
+ */
+const CONCURRENCY = 2;
+/** Essais par requête, avec une attente qui double à chaque échec (1 s, 2 s, 4 s… 16 s au plus). */
+const ATTEMPTS = 7;
+const MAX_DELAY_MS = 16_000;
 
 export interface StorageTarget {
   /** `SUPABASE_URL` (local ou démo). */
@@ -29,7 +35,8 @@ async function withRetry<T>(action: () => Promise<T>): Promise<T> {
       return await action();
     } catch (error) {
       if (attempt >= ATTEMPTS) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+      const delay = Math.min(1000 * 2 ** (attempt - 1), MAX_DELAY_MS);
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 }
