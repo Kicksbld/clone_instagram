@@ -56,6 +56,7 @@ struct RootView: View {
                     viewModel: FeedViewModel(
                         viewerId: profile.id,
                         posts: dependencies.posts,
+                        likes: dependencies.likes,
                         prefetcher: dependencies.imagePrefetcher,
                         onDeleted: { deletedPostCount += 1 }
                     ),
@@ -131,9 +132,10 @@ struct RootView: View {
         dependencies.publishQueue.publishedCount + deletedPostCount
     }
 
-    /// Les publications en attente ne sont jamais reprises pour un autre compte.
+    /// Les publications en attente et les likes ne sont jamais repris pour un autre compte.
     private func signOut() {
         dependencies.publishQueue.discardAll()
+        dependencies.likes.reset()
         Task { await viewModel.signOut() }
     }
 }
@@ -168,6 +170,7 @@ private struct SocialDestinations: ViewModifier {
                         postId: route.postId,
                         viewerId: viewerId,
                         posts: dependencies.posts,
+                        likes: dependencies.likes,
                         onDeleted: onPostDeleted
                     )
                 )

@@ -17,7 +17,9 @@ export const TEST_IMAGE_SIZE = { width: 1080, height: 1350 };
  * `(created_at, id)` décroissant) ; auteurs et médias lus dans les autres adapters en mémoire.
  */
 export class InMemoryPosts implements PostRepository, PostReader {
-  readonly rows = new Map<string, NewPost & { deletedAt: Date | null }>();
+  readonly rows = new Map<string, NewPost & { deletedAt: Date | null; likeCount: number }>();
+  /** Likes (`post_likes`), clé `userId:postId` ; écrits par `InMemoryLikes`. */
+  readonly likes = new Set<string>();
 
   constructor(
     private readonly profiles: InMemoryProfileRepository,
@@ -25,7 +27,7 @@ export class InMemoryPosts implements PostRepository, PostReader {
   ) {}
 
   create(post: NewPost): Promise<void> {
-    this.rows.set(post.id, { ...post, deletedAt: null });
+    this.rows.set(post.id, { ...post, deletedAt: null, likeCount: 0 });
     return Promise.resolve();
   }
 
@@ -48,22 +50,29 @@ export class InMemoryPosts implements PostRepository, PostReader {
     return Promise.resolve();
   }
 
-  findById(id: string): Promise<Post | null> {
+  findById(id: string, viewerId: string): Promise<Post | null> {
     const row = this.rows.get(id);
-    return Promise.resolve(row && !row.deletedAt ? this.toPost(row) : null);
+    return Promise.resolve(row && !row.deletedAt ? this.toPost(row, viewerId) : null);
   }
 
-  listByAuthor({ authorId, after, limit }: AuthorPostsQuery): Promise<Page<Post>> {
-    return Promise.resolve(this.list((post) => post.author.id === authorId, after, limit));
+  listByAuthor({ viewerId, authorId, after, limit }: AuthorPostsQuery): Promise<Page<Post>> {
+    return Promise.resolve(
+      this.list(viewerId, (post) => post.author.id === authorId, after, limit),
+    );
   }
 
   /** Posts non supprimés retenus par `keep`, du plus récent au plus ancien (feed, grille). */
-  list(keep: (post: Post) => boolean, after: PageCursor | null, limit: number): Page<Post> {
+  list(
+    viewerId: string,
+    keep: (post: Post) => boolean,
+    after: PageCursor | null,
+    limit: number,
+  ): Page<Post> {
     const rows = [...this.rows.values()]
       .filter((row) => !row.deletedAt)
       .filter((row) => !after || compare(row, after) < 0)
       .sort((a, b) => compare(b, a))
-      .map((row) => this.toPost(row))
+      .map((row) => this.toPost(row, viewerId))
       .filter(keep);
     const page = rows.slice(0, limit);
     const last = page.at(-1);
@@ -73,13 +82,15 @@ export class InMemoryPosts implements PostRepository, PostReader {
     };
   }
 
-  private toPost(row: NewPost): Post {
+  private toPost(row: NewPost & { likeCount: number }, viewerId: string): Post {
     const author = this.profiles.rows.get(row.authorId);
     if (!author) throw new Error(`Auteur absent : ${row.authorId}`);
     return {
       id: row.id,
       kind: row.kind,
       caption: row.caption,
+      likeCount: row.likeCount,
+      viewerHasLiked: this.likes.has(`${viewerId}:${row.id}`),
       createdAt: row.createdAt,
       author: {
         id: author.id,

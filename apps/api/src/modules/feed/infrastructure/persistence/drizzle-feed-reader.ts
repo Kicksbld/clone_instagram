@@ -18,6 +18,7 @@ export class DrizzleFeedReader implements FeedReader {
     // Une ligne de plus pour savoir s'il existe une page suivante.
     const rows = await selectPosts(
       this.db,
+      viewerId,
       and(
         // Comptes suivis, et soi-même.
         sql`(${posts.authorId} = ${viewerId} OR EXISTS (

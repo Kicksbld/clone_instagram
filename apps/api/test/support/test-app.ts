@@ -1,4 +1,6 @@
 import { buildApp } from '../../src/app.ts';
+import { LikePost } from '../../src/modules/engagement/application/use-cases/like-post.ts';
+import { UnlikePost } from '../../src/modules/engagement/application/use-cases/unlike-post.ts';
 import { GetFeed } from '../../src/modules/feed/application/use-cases/get-feed.ts';
 import { CheckUsernameAvailability } from '../../src/modules/identity/application/use-cases/check-username-availability.ts';
 import { CompleteOnboarding } from '../../src/modules/identity/application/use-cases/complete-onboarding.ts';
@@ -21,6 +23,7 @@ import { UnfollowUser } from '../../src/modules/social/application/use-cases/unf
 import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-media-urls.ts';
 import { FakeMediaStorage, InMemoryJobQueue, InMemoryUnitOfWork, sequentialIds } from './fakes.ts';
 import { InMemoryFeedReader } from './in-memory-feed.ts';
+import { InMemoryLikes } from './in-memory-likes.ts';
 import { InMemoryMediaRepository } from './in-memory-media-repository.ts';
 import { InMemoryPosts } from './in-memory-posts.ts';
 import { InMemoryProfileRepository } from './in-memory-profile-repository.ts';
@@ -59,6 +62,13 @@ export function buildTestApp() {
     posts,
     reader: posts,
   });
+  const likes = new InMemoryLikes(posts);
+  const likeTransaction = new InMemoryUnitOfWork({
+    accounts: graph,
+    relationships,
+    posts: likes,
+    likes,
+  });
   const clock = { now: () => TEST_NOW };
   const app = buildApp({
     logLevel: 'silent',
@@ -96,6 +106,10 @@ export function buildTestApp() {
       },
       feed: {
         getFeed: new GetFeed(new InMemoryFeedReader(posts, relationships)),
+      },
+      engagement: {
+        likePost: new LikePost(likeTransaction),
+        unlikePost: new UnlikePost(likeTransaction),
       },
       mediaUrls: publicMediaUrls(TEST_MEDIA_BASE_URL),
     },

@@ -24,13 +24,16 @@ export interface PostMediaItem {
   height: number;
 }
 
-/** Post non supprimé, avec son auteur et ses médias. */
+/** Post non supprimé, avec son auteur et ses médias, vu par un appelant. */
 export interface Post {
   id: string;
   kind: PostKind;
   caption: string;
   author: PostAuthor;
   media: PostMediaItem[];
+  likeCount: number;
+  /** L'appelant aime ce post (T8). */
+  viewerHasLiked: boolean;
   createdAt: Date;
 }
 

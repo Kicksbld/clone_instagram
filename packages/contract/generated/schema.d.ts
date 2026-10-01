@@ -261,6 +261,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/posts/{id}/like": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Aimer un post
+         * @description Idempotent : aimer un post déjà aimé renvoie `200` sans changer `likeCount`. On peut aimer son propre post.
+         *     Post inexistant, supprimé, ou dont l'auteur est invisible pour l'appelant (blocage, compte non actif, compte privé non suivi) → `404 post_not_found`, jamais `403` (ADR-006).
+         */
+        put: operations["likePost"];
+        post?: never;
+        /**
+         * Ne plus aimer un post
+         * @description Idempotent : sans like, renvoie `200` sans changer `likeCount`.
+         *     Post inexistant, supprimé ou invisible pour l'appelant → `404 post_not_found`, comme pour `likePost` (ADR-006).
+         */
+        delete: operations["unlikePost"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/feed": {
         parameters: {
             query?: never;
@@ -316,6 +342,7 @@ export interface paths {
          * @description Crée le média en `pending_upload` et renvoie une URL d'upload présignée (ADR-008).
          *     Le fichier est envoyé directement à `uploadUrl` par un `PUT` du contenu brut, avec le `Content-Type` déclaré, avant `expiresAt` ;
          *     l'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus, pour une photo de profil (`avatar`) ou un post (`post`).
+         *     Limité à 30 demandes par heure (`429 rate_limited`, ADR-005).
          */
         post: operations["requestMediaUpload"];
         delete?: never;
@@ -592,6 +619,9 @@ export interface components {
             author: components["schemas"]["PostAuthor"];
             /** @description Médias dans l'ordre d'affichage. */
             media: components["schemas"]["PostMedia"][];
+            likeCount: number;
+            /** @description L'appelant aime ce post. */
+            viewerHasLiked: boolean;
             /** Format: date-time */
             createdAt: string;
         };
@@ -599,6 +629,12 @@ export interface components {
             items: components["schemas"]["Post"][];
             /** @description Curseur de la page suivante ; absent sur la dernière page. */
             nextCursor?: string;
+        };
+        /** @description État du like après l'action, et nombre de likes du post. */
+        LikeStatus: {
+            /** @description L'appelant aime ce post. */
+            liked: boolean;
+            likeCount: number;
         };
         /** @description Erreur au format Problem Details (RFC 9457). */
         ProblemDetails: {
@@ -690,6 +726,15 @@ export interface components {
         };
         /** @description Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`). */
         PostNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
+        /** @description Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`), ou onboarding non terminé (`profile_not_found`). */
+        LikeTargetNotFound: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1211,6 +1256,60 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    likePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description J'aime ce post. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LikeStatus"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["LikeTargetNotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    unlikePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Je n'aime plus ce post. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LikeStatus"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["LikeTargetNotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     getFeed: {
         parameters: {
             query?: {
@@ -1287,6 +1386,7 @@ export interface operations {
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["ProfileNotFound"];
+            429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
         };
     };

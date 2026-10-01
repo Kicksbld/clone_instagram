@@ -80,6 +80,8 @@ describe('POST /v1/posts', () => {
           height: 1350,
         },
       ],
+      likeCount: 0,
+      viewerHasLiked: false,
       createdAt: '2026-09-25T12:00:00.000Z',
     });
     expect(context.media.rows.get(PHOTO)?.attachedAt).not.toBeNull();

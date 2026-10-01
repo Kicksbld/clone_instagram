@@ -16,17 +16,27 @@ final class PostDetailViewModel {
     private(set) var isDeleting = false
     /// Échec de la suppression, affiché en alerte ; `nil` une fois fermée.
     var deleteErrorMessage: String?
+    /// Échec d'un like ou d'un unlike (état revenu en arrière), affiché en alerte ; `nil` une fois fermée.
+    var likeErrorMessage: String?
 
     private let postId: String
     private let viewerId: String
     private let posts: any PostService
+    private let likes: LikeSynchronizer
     /// Après une suppression : grille et compteur de mon profil sont rechargés.
     private let onDeleted: () -> Void
 
-    init(postId: String, viewerId: String, posts: any PostService, onDeleted: @escaping () -> Void = {}) {
+    init(
+        postId: String,
+        viewerId: String,
+        posts: any PostService,
+        likes: LikeSynchronizer,
+        onDeleted: @escaping () -> Void = {}
+    ) {
         self.postId = postId
         self.viewerId = viewerId
         self.posts = posts
+        self.likes = likes
         self.onDeleted = onDeleted
     }
 
@@ -59,12 +69,42 @@ final class PostDetailViewModel {
         return true
     }
 
+    /// Le post avec son dernier état de like, partagé avec les autres écrans.
+    func displayed(_ post: Post) -> Post {
+        likes.displayed(post)
+    }
+
+    /// Bouton J'aime : like ou unlike, affiché tout de suite (optimiste).
+    func toggleLike() async {
+        guard case let .loaded(post) = state else { return }
+        await handle(likes.toggleLike(post))
+    }
+
+    /// Double tap sur la photo : like seulement, jamais d'unlike (comme Instagram).
+    func likeFromDoubleTap() async {
+        guard case let .loaded(post) = state else { return }
+        await handle(likes.likeFromDoubleTap(post))
+    }
+
+    private func handle(_ outcome: LikeOutcome?) {
+        switch outcome {
+        case let .reverted(message):
+            likeErrorMessage = message
+        case .postGone:
+            state = .notFound
+        case .confirmed, nil:
+            break
+        }
+    }
+
     func load() async {
         if case .loaded = state {} else {
             state = .loading
         }
         do {
-            state = try await .loaded(posts.fetchPost(id: postId))
+            let post = try await posts.fetchPost(id: postId)
+            likes.record([post])
+            state = .loaded(post)
         } catch .postNotFound {
             state = .notFound
         } catch {

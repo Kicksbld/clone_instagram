@@ -2,23 +2,40 @@ import NukeUI
 import SwiftUI
 
 /// Un post comme dans le feed et le détail d'Instagram (wireframe) : en-tête (auteur, menu « … »), photos
-/// (carrousel) au ratio de la première, actions, légende et date. Partagé par les features Feed et Post.
+/// (carrousel) au ratio de la première, actions, mentions J'aime, légende et date. Partagé par les features
+/// Feed et Post.
 struct PostView: View {
     let post: Post
     let isDeleting: Bool
     /// Menu « … » → « Supprimer » ; `nil` si le post n'est pas à moi.
     let onDelete: (() -> Void)?
+    /// Bouton J'aime : like ou unlike.
+    let onToggleLike: () -> Void
+    /// Double tap sur la photo : like seulement.
+    let onDoubleTapLike: () -> Void
     /// Feed : légende sur 2 lignes, « plus » pour la déplier ; détail : légende entière.
     let collapsesCaption: Bool
     /// Photo affichée du carrousel.
     @State private var page = 0
     @State private var isCaptionExpanded = false
     @State private var captionHeights = CaptionHeights()
+    /// Incrémenté à chaque double tap : déclenche le cœur sur la photo.
+    @State private var doubleTapCount = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(post: Post, isDeleting: Bool, onDelete: (() -> Void)?, collapsesCaption: Bool = false) {
+    init(
+        post: Post,
+        isDeleting: Bool,
+        onDelete: (() -> Void)?,
+        onToggleLike: @escaping () -> Void,
+        onDoubleTapLike: @escaping () -> Void,
+        collapsesCaption: Bool = false
+    ) {
         self.post = post
         self.isDeleting = isDeleting
         self.onDelete = onDelete
+        self.onToggleLike = onToggleLike
+        self.onDoubleTapLike = onDoubleTapLike
         self.collapsesCaption = collapsesCaption
     }
 
@@ -56,6 +73,10 @@ struct PostView: View {
                 .padding(.horizontal)
 
             VStack(alignment: .leading, spacing: 4) {
+                if post.likeCount > 0 {
+                    Text(likeCountText)
+                        .font(.subheadline.weight(.semibold))
+                }
                 if !post.caption.isEmpty {
                     caption
                 }
@@ -82,6 +103,12 @@ struct PostView: View {
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
         .aspectRatio(ratio, contentMode: .fit)
+        .onTapGesture(count: 2) {
+            doubleTapCount += 1
+            onDoubleTapLike()
+        }
+        .overlay { doubleTapHeart }
+        .accessibilityAction(named: "J'aime") { onDoubleTapLike() }
         .overlay(alignment: .topTrailing) {
             if post.media.count > 1 {
                 Text("\(page + 1)/\(post.media.count)")
@@ -153,18 +180,57 @@ struct PostView: View {
         return post.media.count > 1 ? "\(label), photo \(index + 1) sur \(post.media.count)" : label
     }
 
-    /// Provisoire : J'aime (T8), Commenter (T9), Partager et Enregistrer (plus tard).
+    /**
+     Cœur qui grossit puis s'efface au double tap, comme Instagram ; simple fondu si « Réduire les
+     animations » est activé. Blanc avec une ombre : seule couleur lisible sur n'importe quelle photo.
+     */
+    private var doubleTapHeart: some View {
+        Image(systemName: "heart.fill")
+            .font(.system(size: 96))
+            .foregroundStyle(.white)
+            .shadow(radius: 8)
+            .phaseAnimator(HeartPhase.allCases, trigger: doubleTapCount) { heart, phase in
+                heart
+                    .scaleEffect(reduceMotion ? 1 : phase.scale)
+                    .opacity(phase.opacity)
+            } animation: { phase in
+                switch phase {
+                case .shown: .spring(duration: 0.3, bounce: 0.5)
+                case .fading: .easeOut(duration: 0.25).delay(0.5)
+                case .hidden: nil
+                }
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    /// « 1 mention J'aime », « 1 234 mentions J'aime », comme Instagram.
+    private var likeCountText: String {
+        let count = post.likeCount.formatted()
+        return post.likeCount == 1 ? "\(count) mention J'aime" : "\(count) mentions J'aime"
+    }
+
+    /// J'aime actif ; Commenter (T9), Partager et Enregistrer (plus tard) restent désactivés.
     private var actions: some View {
         HStack(spacing: 16) {
-            Button("J'aime", systemImage: "heart") {}
-            Button("Commenter", systemImage: "bubble.right") {}
-            Button("Partager", systemImage: "paperplane") {}
-            Spacer()
-            Button("Enregistrer", systemImage: "bookmark") {}
+            Button(
+                post.isLiked ? "Je n'aime plus" : "J'aime",
+                systemImage: post.isLiked ? "heart.fill" : "heart",
+                action: onToggleLike
+            )
+            .foregroundStyle(.primary)
+            .contentTransition(.symbolEffect(.replace))
+            .symbolEffect(.bounce, value: post.isLiked)
+            Group {
+                Button("Commenter", systemImage: "bubble.right") {}
+                Button("Partager", systemImage: "paperplane") {}
+                Spacer()
+                Button("Enregistrer", systemImage: "bookmark") {}
+            }
+            .disabled(true)
         }
         .labelStyle(.iconOnly)
         .font(.title3)
-        .disabled(true)
         .overlay {
             if post.media.count > 1 {
                 pageDots
@@ -183,6 +249,25 @@ struct PostView: View {
         }
         .accessibilityElement()
         .accessibilityLabel("Photo \(page + 1) sur \(post.media.count)")
+    }
+}
+
+/// Étapes du cœur du double tap : caché (au repos), affiché, effacé.
+private enum HeartPhase: CaseIterable {
+    case hidden
+    case shown
+    case fading
+
+    var scale: Double {
+        switch self {
+        case .hidden: 0.4
+        case .shown: 1
+        case .fading: 1.15
+        }
+    }
+
+    var opacity: Double {
+        self == .shown ? 1 : 0
     }
 }
 

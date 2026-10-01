@@ -35,6 +35,14 @@ struct APIMediaServiceTests {
         #expect(intent.expiresAt == Date(timeIntervalSince1970: 1_790_344_800))
     }
 
+    @Test func `trop de demandes d'upload (429) → rateLimited`() async throws {
+        let service = try makeService(problem(429, "rate_limited"))
+
+        await #expect(throws: MediaServiceError.rateLimited(retryAfter: nil)) {
+            try await service.requestUpload(purpose: .post, mimeType: "image/jpeg", sizeBytes: 2048)
+        }
+    }
+
     @Test func `type non accepté par le contrat → invalidInput, sans appel`() async throws {
         let service = try makeService(.failure)
 

@@ -18,6 +18,9 @@ export interface MediaUseCases {
 type MediaResponse = components['schemas']['Media'];
 type UploadRequest = operations['requestMediaUpload']['requestBody']['content']['application/json'];
 
+/** Limite des demandes d'upload par utilisateur (ADR-005). */
+const REQUEST_UPLOAD_RATE_LIMIT = { max: 30, timeWindow: '1 hour' } as const;
+
 /** Valeur d'une énumération du domaine plus large que celle du contrat (ex. `video` avant P1). */
 function inContract<T extends string>(value: string, allowed: readonly T[]): T {
   if (!allowed.some((item) => item === value)) {
@@ -45,7 +48,10 @@ export function registerMediaRoutes(
 ): void {
   app.post<{ Body: UploadRequest }>(
     '/v1/media/uploads',
-    { schema: routeSchemaFor('requestMediaUpload') },
+    {
+      schema: routeSchemaFor('requestMediaUpload'),
+      config: { rateLimit: REQUEST_UPLOAD_RATE_LIMIT },
+    },
     async (request, reply): Promise<components['schemas']['MediaUploadIntent']> => {
       const intent = await useCases.requestUpload.execute({
         userId: authenticatedUserId(request),

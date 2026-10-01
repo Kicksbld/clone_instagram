@@ -159,16 +159,26 @@ describe('DrizzlePostReader', () => {
     const deleted = await publish(author);
     await db.update(posts).set({ deletedAt: new Date() }).where(eq(posts.id, deleted));
 
-    const page = await reader.listByAuthor({ authorId: author, after: null, limit: 2 });
+    const page = await reader.listByAuthor({
+      viewerId: author,
+      authorId: author,
+      after: null,
+      limit: 2,
+    });
 
     expect(page.items.map((post) => post.id)).toEqual([third, second]);
     expect(page.next?.id).toBe(second);
 
-    const next = await reader.listByAuthor({ authorId: author, after: page.next, limit: 2 });
+    const next = await reader.listByAuthor({
+      viewerId: author,
+      authorId: author,
+      after: page.next,
+      limit: 2,
+    });
 
     expect(next.items.map((post) => post.id)).toEqual([first]);
     expect(next.next).toBeNull();
-    await expect(reader.findById(deleted)).resolves.toBeNull();
+    await expect(reader.findById(deleted, author)).resolves.toBeNull();
   });
 
   it('même date : départagé par id', async () => {
@@ -180,8 +190,18 @@ describe('DrizzlePostReader', () => {
       .set({ createdAt: new Date(now) })
       .where(inArray(posts.id, [a, b]));
 
-    const page = await reader.listByAuthor({ authorId: author, after: null, limit: 1 });
-    const next = await reader.listByAuthor({ authorId: author, after: page.next, limit: 1 });
+    const page = await reader.listByAuthor({
+      viewerId: author,
+      authorId: author,
+      after: null,
+      limit: 1,
+    });
+    const next = await reader.listByAuthor({
+      viewerId: author,
+      authorId: author,
+      after: page.next,
+      limit: 1,
+    });
 
     expect([...page.items, ...next.items].map((post) => post.id)).toEqual([b, a]);
   });
@@ -191,9 +211,9 @@ describe('DrizzlePostReader', () => {
     await publish(other);
 
     await expect(
-      reader.listByAuthor({ authorId: author, after: null, limit: 12 }),
+      reader.listByAuthor({ viewerId: author, authorId: author, after: null, limit: 12 }),
     ).resolves.toEqual({ items: [], next: null });
-    await expect(reader.findById(newId())).resolves.toBeNull();
+    await expect(reader.findById(newId(), author)).resolves.toBeNull();
   });
 });
 
@@ -212,7 +232,7 @@ describe('DeletePost sur Postgres', () => {
 
     const [row] = await db.select().from(posts).where(eq(posts.id, post.id));
     expect(row?.deletedAt).not.toBeNull();
-    await expect(reader.findById(post.id)).resolves.toBeNull();
+    await expect(reader.findById(post.id, author)).resolves.toBeNull();
     const rows = await db.select().from(media).where(inArray(media.id, photos));
     expect(rows.every((photo) => photo.detachedAt !== null)).toBe(true);
     const [profile] = await db.select().from(profiles).where(eq(profiles.id, author));
@@ -241,6 +261,6 @@ describe('DeletePost sur Postgres', () => {
       PostNotFoundError,
     );
 
-    await expect(reader.findById(postId)).resolves.not.toBeNull();
+    await expect(reader.findById(postId, author)).resolves.not.toBeNull();
   });
 });

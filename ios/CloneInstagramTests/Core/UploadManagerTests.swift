@@ -85,6 +85,16 @@ struct UploadManagerTests {
         #expect(uploader.uploads.isEmpty)
     }
 
+    @Test func `trop de demandes d'upload (429) → rateLimited, rien n'est envoyé`() async {
+        media.requestError = .rateLimited(retryAfter: 1200)
+
+        await #expect(throws: UploadError.rateLimited) {
+            try await makeManager().uploadImage(Data("photo".utf8), purpose: .post)
+        }
+        #expect(uploader.uploads.isEmpty)
+        #expect(UploadError.message(for: .rateLimited) == "Trop de photos envoyées. Réessayez plus tard.")
+    }
+
     @Test func `plus de 20 Mo après préparation → refusé avant l'envoi`() async {
         await #expect(throws: UploadError.rejected(.fileTooLarge)) {
             try await makeManager(sizeBytes: 20 * 1024 * 1024 + 1).uploadImage(Data("photo".utf8), purpose: .avatar)

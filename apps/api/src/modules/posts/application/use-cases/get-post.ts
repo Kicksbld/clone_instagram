@@ -12,7 +12,7 @@ export class GetPost {
   ) {}
 
   async execute(input: { viewerId: string; postId: string }): Promise<Post> {
-    const post = await this.posts.findById(input.postId);
+    const post = await this.posts.findById(input.postId, input.viewerId);
     if (!post) throw new PostNotFoundError();
     const { author } = post;
     const relation =

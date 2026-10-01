@@ -29,9 +29,12 @@ final class FeedViewModel {
     private(set) var deletingPostId: String?
     /// Échec de la suppression, affiché en alerte ; `nil` une fois fermée.
     var deleteErrorMessage: String?
+    /// Échec d'un like ou d'un unlike (état revenu en arrière), affiché en alerte ; `nil` une fois fermée.
+    var likeErrorMessage: String?
 
     private let viewerId: String
     private let service: any PostService
+    private let likes: LikeSynchronizer
     private let prefetcher: any ImagePrefetching
     private let now: () -> Date
     /// Après une suppression : grille et compteur de mon profil sont rechargés.
@@ -43,12 +46,14 @@ final class FeedViewModel {
     init(
         viewerId: String,
         posts: any PostService,
+        likes: LikeSynchronizer,
         prefetcher: any ImagePrefetching,
         now: @escaping () -> Date = Date.init,
         onDeleted: @escaping () -> Void = {}
     ) {
         self.viewerId = viewerId
         service = posts
+        self.likes = likes
         self.prefetcher = prefetcher
         self.now = now
         self.onDeleted = onDeleted
@@ -112,6 +117,7 @@ final class FeedViewModel {
         }
         do {
             let page = try await service.listFeed(cursor: nil)
+            likes.record(page.items)
             posts = page.items
             nextCursor = page.nextCursor
             loadMoreFailed = false
@@ -131,6 +137,7 @@ final class FeedViewModel {
         defer { isLoadingMore = false }
         do {
             let page = try await service.listFeed(cursor: cursor)
+            likes.record(page.items)
             let known = Set(posts.map(\.id))
             posts += page.items.filter { !known.contains($0.id) }
             nextCursor = page.nextCursor
@@ -179,6 +186,32 @@ final class FeedViewModel {
         // position gardées).
         loadedRevision = loadedRevision.map { $0 + 1 }
         onDeleted()
+    }
+
+    /// Le post avec son dernier état de like, partagé avec les autres écrans.
+    func displayed(_ post: Post) -> Post {
+        likes.displayed(post)
+    }
+
+    /// Bouton J'aime : like ou unlike, affiché tout de suite (optimiste).
+    func toggleLike(_ post: Post) async {
+        await handle(likes.toggleLike(post), for: post)
+    }
+
+    /// Double tap sur la photo : like seulement, jamais d'unlike (comme Instagram).
+    func likeFromDoubleTap(_ post: Post) async {
+        await handle(likes.likeFromDoubleTap(post), for: post)
+    }
+
+    private func handle(_ outcome: LikeOutcome?, for post: Post) {
+        switch outcome {
+        case let .reverted(message):
+            likeErrorMessage = message
+        case .postGone:
+            posts.removeAll { $0.id == post.id }
+        case .confirmed, nil:
+            break
+        }
     }
 
     /// Variante `large`, celle qu'affiche `PostView` : `LazyImage` la retrouve dans le cache.

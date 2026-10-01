@@ -17,7 +17,7 @@ info:
     | `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |
     | `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |
     | `route_not_found` | 404 | Route inexistante |
-    | `rate_limited` | 429 | Trop de requêtes sur une route limitée (ADR-005) ; en-tête `Retry-After` en secondes |
+    | `rate_limited` | 429 | Trop de requêtes (ADR-005) : 120 par minute et par utilisateur sur toute route `/v1`, limite plus basse sur certaines routes (documentée sur la route) ; en-tête `Retry-After` en secondes |
     | `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |
 
     Codes d'erreur métier :
@@ -60,6 +60,8 @@ tags:
     description: Publication et lecture des posts, selon la politique de visibilité (ADR-006)
   - name: feed
     description: Feed d'accueil chronologique (ADR-007), selon la politique de visibilité (ADR-006)
+  - name: engagement
+    description: Likes des posts, selon la politique de visibilité (ADR-006)
 paths:
   /health:
     get:
@@ -476,6 +478,59 @@ paths:
           $ref: '#/components/responses/PostNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v1/posts/{id}/like:
+    put:
+      operationId: likePost
+      tags: [engagement]
+      summary: Aimer un post
+      description: |
+        Idempotent : aimer un post déjà aimé renvoie `200` sans changer `likeCount`. On peut aimer son propre post.
+        Post inexistant, supprimé, ou dont l'auteur est invisible pour l'appelant (blocage, compte non actif, compte privé non suivi) → `404 post_not_found`, jamais `403` (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      responses:
+        '200':
+          description: J'aime ce post.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LikeStatus'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/LikeTargetNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: unlikePost
+      tags: [engagement]
+      summary: Ne plus aimer un post
+      description: |
+        Idempotent : sans like, renvoie `200` sans changer `likeCount`.
+        Post inexistant, supprimé ou invisible pour l'appelant → `404 post_not_found`, comme pour `likePost` (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      responses:
+        '200':
+          description: Je n'aime plus ce post.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LikeStatus'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/LikeTargetNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/feed:
     get:
       operationId: getFeed
@@ -536,6 +591,7 @@ paths:
         Crée le média en `pending_upload` et renvoie une URL d'upload présignée (ADR-008).
         Le fichier est envoyé directement à `uploadUrl` par un `PUT` du contenu brut, avec le `Content-Type` déclaré, avant `expiresAt` ;
         l'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus, pour une photo de profil (`avatar`) ou un post (`post`).
+        Limité à 30 demandes par heure (`429 rate_limited`, ADR-005).
       requestBody:
         required: true
         content:
@@ -555,6 +611,8 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '404':
           $ref: '#/components/responses/ProfileNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
   /v1/media/{id}/complete:
@@ -1002,7 +1060,7 @@ components:
     Post:
       type: object
       additionalProperties: false
-      required: [id, kind, caption, author, media, createdAt]
+      required: [id, kind, caption, author, media, likeCount, viewerHasLiked, createdAt]
       properties:
         id:
           type: string
@@ -1020,6 +1078,12 @@ components:
           maxItems: 10
           items:
             $ref: '#/components/schemas/PostMedia'
+        likeCount:
+          type: integer
+          minimum: 0
+        viewerHasLiked:
+          type: boolean
+          description: L'appelant aime ce post.
         createdAt:
           type: string
           format: date-time
@@ -1036,6 +1100,18 @@ components:
         nextCursor:
           type: string
           description: Curseur de la page suivante ; absent sur la dernière page.
+    LikeStatus:
+      type: object
+      description: État du like après l'action, et nombre de likes du post.
+      additionalProperties: false
+      required: [liked, likeCount]
+      properties:
+        liked:
+          type: boolean
+          description: L'appelant aime ce post.
+        likeCount:
+          type: integer
+          minimum: 0
     ProblemDetails:
       type: object
       description: Erreur au format Problem Details (RFC 9457).
@@ -1139,6 +1215,12 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     PostNotFound:
       description: Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    LikeTargetNotFound:
+      description: Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`), ou onboarding non terminé (`profile_not_found`).
       content:
         application/problem+json:
           schema:

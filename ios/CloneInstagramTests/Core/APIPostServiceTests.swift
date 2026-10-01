@@ -7,7 +7,7 @@ struct APIPostServiceTests {
     {"id":"0199a1b2-0000-7000-a000-000000000001","kind":"post","caption":"Salut",\
     "author":{"id":"0199a1b2-5eed-7000-8000-000000000001","username":"killian"},\
     "media":[{"variants":{"thumb":"http://s/t.webp","medium":"http://s/m.webp","large":"http://s/l.webp"},\
-    "width":1080,"height":1440}],"createdAt":"2026-09-25T12:00:00.000Z"}
+    "width":1080,"height":1440}],"likeCount":3,"viewerHasLiked":true,"createdAt":"2026-09-25T12:00:00.000Z"}
     """
 
     private func makeService(_ reply: StubTransport.Reply) throws -> APIPostService {
@@ -36,6 +36,8 @@ struct APIPostServiceTests {
         #expect(post.author == PostAuthor(id: "0199a1b2-5eed-7000-8000-000000000001", username: "killian", avatar: nil))
         #expect(post.media.map(\.width) == [1080])
         #expect(post.media.first?.variants.large == URL(string: "http://s/l.webp"))
+        #expect(post.likeCount == 3)
+        #expect(post.isLiked)
         #expect(post.createdAt == Date(timeIntervalSince1970: 1_790_337_600))
     }
 
