@@ -6,6 +6,9 @@ struct AppDependencies {
     let identity: any IdentityService
     let uploads: any UploadService
     let social: any SocialService
+    /// Comptes bloqués pendant la session, partagés par tous les écrans.
+    let blocks: BlockStore
+    let reports: any ReportService
     let posts: any PostService
     /// Likes partagés par le feed et le détail des posts.
     let likes: LikeSynchronizer
@@ -33,11 +36,14 @@ struct AppDependencies {
         let client = APIClientFactory.makeClient(configuration: configuration) { await auth.accessToken() }
         let uploads = UploadManager(media: APIMediaService(client: client), uploader: BackgroundFileUploader.shared)
         let posts = APIPostService(client: client)
+        let social = APISocialService(client: client)
         return AppDependencies(
             auth: auth,
             identity: APIIdentityService(client: client),
             uploads: uploads,
-            social: APISocialService(client: client),
+            social: social,
+            blocks: BlockStore(service: social),
+            reports: APIReportService(client: client),
             posts: posts,
             likes: LikeSynchronizer(service: APIEngagementService(client: client), analytics: analytics),
             comments: APICommentService(client: client),
@@ -70,6 +76,8 @@ extension AppDependencies {
             identity: UnavailableIdentityService(),
             uploads: UnavailableUploadService(),
             social: UnavailableSocialService(),
+            blocks: BlockStore(service: UnavailableSocialService()),
+            reports: UnavailableReportService(),
             posts: posts,
             likes: LikeSynchronizer(service: UnavailableEngagementService(), analytics: analytics),
             comments: UnavailableCommentService(),
@@ -149,6 +157,10 @@ struct UnavailableIdentityService: IdentityService {
     }
 
     func removeAvatar() async throws(IdentityServiceError) -> Profile {
+        throw .unreachable
+    }
+
+    func updateSettings(isPrivate _: Bool) async throws(IdentityServiceError) -> Profile {
         throw .unreachable
     }
 

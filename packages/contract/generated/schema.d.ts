@@ -68,6 +68,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Modifier mes paramètres
+         * @description Passe mon compte en privé ou en public. Passer en privé conserve mes abonnés ; seuls eux voient ensuite mes contenus (ADR-006).
+         */
+        patch: operations["updateSettings"];
+        trace?: never;
+    };
+    "/v1/me/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Comptes que j'ai bloqués
+         * @description Comptes que j'ai bloqués, blocage le plus récent en premier, par pages de 20. Les comptes non actifs n'apparaissent pas. `relationship` vaut toujours `false` / `false` (bloquer supprime les abonnements).
+         */
+        get: operations["listBlocks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/subscription/refresh": {
         parameters: {
             query?: never;
@@ -173,6 +213,31 @@ export interface paths {
          * @description Idempotent : sans abonnement, renvoie `200` sans changer les compteurs. Possible vers un compte privé. Compte inexistant ou invisible : `404 user_not_found`.
          */
         delete: operations["unfollowUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/users/{id}/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Bloquer un utilisateur
+         * @description Supprime les abonnements dans les deux sens (compteurs mis à jour) ; les deux comptes deviennent ensuite mutuellement invisibles (ADR-006). Idempotent : bloquer un compte déjà bloqué renvoie `204` sans effet.
+         *     Compte inexistant, qui m'a bloqué, ou non actif : `404 user_not_found`.
+         */
+        put: operations["blockUser"];
+        post?: never;
+        /**
+         * Débloquer un utilisateur
+         * @description Idempotent : débloquer un compte non bloqué renvoie `204` sans effet. Les abonnements supprimés au blocage ne sont pas rétablis. Compte inexistant : `404 user_not_found`.
+         */
+        delete: operations["unblockUser"];
         options?: never;
         head?: never;
         patch?: never;
@@ -420,6 +485,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Signaler un post, un commentaire ou un compte
+         * @description Crée un signalement `open`, traité ensuite depuis le backoffice. Un même contenu peut être signalé plusieurs fois. `details` (motif `other` surtout) est enregistré sans espaces en début ni en fin ; vide, il est ignoré.
+         *     Cible inexistante, supprimée ou invisible pour l'appelant (ADR-006) : `404 post_not_found`, `comment_not_found` ou `user_not_found`. Limité à 10 signalements par heure (`429 rate_limited`).
+         */
+        post: operations["createReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/media/uploads": {
         parameters: {
             query?: never;
@@ -569,6 +655,10 @@ export interface components {
              * @description Nouvelle photo de profil ; le retrait passe par `DELETE /v1/me/avatar`.
              */
             avatarMediaId?: string;
+        };
+        UpdateSettingsRequest: {
+            /** @description Compte privé (`true`) ou public (`false`). */
+            isPrivate: boolean;
         };
         UsernameAvailability: {
             username: components["schemas"]["Username"];
@@ -808,6 +898,31 @@ export interface components {
              */
             code: string;
         };
+        /**
+         * @description Type de contenu signalé (stories et messages en P1).
+         * @enum {string}
+         */
+        ReportTargetType: "post" | "comment" | "user";
+        /**
+         * @description Motif du signalement.
+         * @enum {string}
+         */
+        ReportReason: "spam" | "nudity" | "harassment" | "violence" | "hate" | "other";
+        CreateReportRequest: {
+            targetType: components["schemas"]["ReportTargetType"];
+            /**
+             * Format: uuid
+             * @description Identifiant du post, du commentaire ou du compte signalé.
+             */
+            targetId: string;
+            reason: components["schemas"]["ReportReason"];
+            /** @description Précisions facultatives, 500 caractères au plus. */
+            details?: string;
+        };
+        ReportCreated: {
+            /** Format: uuid */
+            id: string;
+        };
     };
     responses: {
         /** @description Entrée non conforme au schéma (`validation_failed`). */
@@ -857,6 +972,15 @@ export interface components {
         };
         /** @description On ne peut pas se suivre soi-même (`cannot_follow_self`). */
         CannotFollowSelf: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
+        /** @description On ne peut pas se bloquer soi-même (`cannot_block_self`). */
+        CannotBlockSelf: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1056,6 +1180,60 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    updateSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Profil avec les paramètres modifiés. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["ProfileNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listBlocks: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de comptes bloqués. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     refreshSubscription: {
         parameters: {
             query?: never;
@@ -1244,6 +1422,64 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["UserNotFound"];
             422: components["responses"]["CannotFollowSelf"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    blockUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Compte bloqué. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Compte introuvable ou invisible (`user_not_found`), ou onboarding non terminé (`profile_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            422: components["responses"]["CannotBlockSelf"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    unblockUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Compte débloqué. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["UserNotFound"];
+            422: components["responses"]["CannotBlockSelf"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -1671,6 +1907,52 @@ export interface operations {
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Signalement enregistré. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCreated"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Cible introuvable ou invisible (`post_not_found`, `comment_not_found`, `user_not_found`), ou onboarding non terminé (`profile_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Signalement de soi-même ou de son propre contenu (`cannot_report_self`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
         };
     };

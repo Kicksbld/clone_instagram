@@ -11,6 +11,7 @@ export interface ProfileChanges {
   username?: string;
   fullName?: string;
   bio?: string;
+  isPrivate?: boolean;
   /** `null` retire la photo ; le média doit avoir été attaché dans la même transaction. */
   avatarMediaId?: string | null;
 }

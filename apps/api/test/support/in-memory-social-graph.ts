@@ -6,7 +6,9 @@ import type {
   FollowCounters,
   FollowRepository,
 } from '../../src/modules/social/application/ports/follow-repository.ts';
+import type { BlockRepository } from '../../src/modules/social/application/ports/block-repository.ts';
 import type {
+  BlockedListQuery,
   ListQuery,
   SearchQuery,
   SocialGraphReader,
@@ -66,6 +68,33 @@ export class InMemorySocialGraph
       (f) => f.followerId === query.ownerId,
       (f) => f.followeeId,
     );
+  }
+
+  listBlocked({ viewerId, after, limit }: BlockedListQuery): Promise<Page<UserSummary>> {
+    const entries = this.relationships.blocks
+      .filter((block) => block.blockerId === viewerId)
+      .map((block) => ({ block, profile: this.row(block.blockedId) }))
+      .filter(({ profile }) => profile.status === 'active')
+      .sort(
+        (a, b) =>
+          b.block.createdAt.getTime() - a.block.createdAt.getTime() ||
+          b.profile.id.localeCompare(a.profile.id),
+      )
+      .filter(
+        ({ block, profile }) =>
+          !after ||
+          block.createdAt.getTime() < after.createdAt.getTime() ||
+          (block.createdAt.getTime() === after.createdAt.getTime() && profile.id < after.id),
+      );
+    const page = entries.slice(0, limit);
+    const last = page.at(-1);
+    return Promise.resolve({
+      items: page.map(({ profile }) => this.summary(viewerId, profile)),
+      next:
+        entries.length > limit && last
+          ? { createdAt: last.block.createdAt, id: last.profile.id }
+          : null,
+    });
   }
 
   search({ viewerId, query, limit }: SearchQuery): Promise<UserSummary[]> {
@@ -143,5 +172,22 @@ export class InMemorySocialGraph
     const profile = this.profiles.rows.get(id);
     if (!profile) throw new Error(`Profil absent : ${id}`);
     return profile;
+  }
+}
+
+/** Blocages en mémoire, sur les mêmes relations que la politique de visibilité. */
+export class InMemoryBlocks implements BlockRepository {
+  constructor(private readonly relationships: InMemoryRelationshipReader) {}
+
+  has(blockerId: string, blockedId: string): Promise<boolean> {
+    return Promise.resolve(this.relationships.isBlocking(blockerId, blockedId));
+  }
+
+  add(blockerId: string, blockedId: string): Promise<boolean> {
+    return Promise.resolve(this.relationships.block(blockerId, blockedId));
+  }
+
+  remove(blockerId: string, blockedId: string): Promise<boolean> {
+    return Promise.resolve(this.relationships.unblock(blockerId, blockedId));
   }
 }

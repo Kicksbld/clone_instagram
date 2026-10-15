@@ -73,7 +73,7 @@ struct RootView: View {
                         prefetcher: dependencies.imagePrefetcher,
                         onDeleted: { deletedPostCount += 1 }
                     ),
-                    deletedPostCount: deletedPostCount,
+                    revision: deletedPostCount + dependencies.blocks.revision,
                     publishedCount: dependencies.publishQueue.publishedCount,
                     onSearch: openSearch
                 )
@@ -89,7 +89,6 @@ struct RootView: View {
                 MyProfileView(
                     profile: profile,
                     onRefresh: viewModel.refreshProfile,
-                    onSignOut: signOut,
                     onFollowAccounts: openSearch,
                     posts: ProfilePostsViewModel(userId: profile.id, posts: dependencies.posts),
                     postsReloadToken: postsRevision,
@@ -107,7 +106,17 @@ struct RootView: View {
                         SettingsView(
                             planStatus: profile.planStatus,
                             icons: AppIconViewModel(service: dependencies.appIcons),
-                            onRefreshPlan: viewModel.refreshPlan
+                            privacy: AccountPrivacyViewModel(
+                                isPrivate: profile.isPrivate,
+                                identity: dependencies.identity,
+                                onUpdated: viewModel.updateProfile
+                            ),
+                            blockedAccounts: BlockedAccountsViewModel(
+                                social: dependencies.social,
+                                blocks: dependencies.blocks
+                            ),
+                            onRefreshPlan: viewModel.refreshPlan,
+                            onSignOut: signOut
                         ) {
                             paywall(for: profile, onClose: nil)
                         }
@@ -138,9 +147,11 @@ struct RootView: View {
             // Reprise des publications interrompues (fermeture de l'app) ; compteurs rechargés après chaque
             // post publié ou supprimé.
             .task(id: profile.id) { dependencies.publishQueue.resume(for: profile.id) }
-            .onChange(of: postsRevision) {
+            // Compteurs rechargés aussi après un blocage (abonnements supprimés dans les deux sens).
+            .onChange(of: postsRevision + dependencies.blocks.revision) {
                 Task { await viewModel.refreshProfile() }
             }
+            .modifier(ModerationPresenter(dependencies: dependencies))
             .sheet(item: $commentsRoute) { route in
                 CommentsView(
                     viewModel: CommentsViewModel(
@@ -150,6 +161,7 @@ struct RootView: View {
                         counts: dependencies.commentCounts
                     )
                 )
+                .modifier(ModerationPresenter(dependencies: dependencies))
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
@@ -190,12 +202,13 @@ struct RootView: View {
         OpenCommentsAction { commentsRoute = $0 }
     }
 
-    /// Les publications en attente, les likes et les compteurs de commentaires ne sont jamais repris pour
-    /// un autre compte.
+    /// Les publications en attente, les likes, les compteurs de commentaires et les blocages de la session ne
+    /// sont jamais repris pour un autre compte.
     private func signOut() {
         dependencies.publishQueue.discardAll()
         dependencies.likes.reset()
         dependencies.commentCounts.reset()
+        dependencies.blocks.reset()
         Task { await viewModel.signOut() }
     }
 }

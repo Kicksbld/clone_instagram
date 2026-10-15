@@ -29,12 +29,18 @@ import { GetMe } from './modules/identity/application/use-cases/get-me.ts';
 import { GetProfile } from './modules/identity/application/use-cases/get-profile.ts';
 import { RemoveAvatar } from './modules/identity/application/use-cases/remove-avatar.ts';
 import { UpdateMe } from './modules/identity/application/use-cases/update-me.ts';
+import { UpdateSettings } from './modules/identity/application/use-cases/update-settings.ts';
 import { DrizzleProfileRepository } from './modules/identity/infrastructure/persistence/drizzle-profile-repository.ts';
 import { CompleteUpload } from './modules/media/application/use-cases/complete-upload.ts';
 import { GetMedia } from './modules/media/application/use-cases/get-media.ts';
 import { RequestUpload } from './modules/media/application/use-cases/request-upload.ts';
 import { DrizzleMediaRepository } from './modules/media/infrastructure/persistence/drizzle-media-repository.ts';
 import { SupabaseMediaStorage } from './modules/media/infrastructure/storage/supabase-media-storage.ts';
+import { CreateReport } from './modules/moderation/application/use-cases/create-report.ts';
+import {
+  DrizzleReportRepository,
+  DrizzleReportTargetReader,
+} from './modules/moderation/infrastructure/persistence/drizzle-reports.ts';
 import { CreatePost } from './modules/posts/application/use-cases/create-post.ts';
 import { DeletePost } from './modules/posts/application/use-cases/delete-post.ts';
 import { GetPost } from './modules/posts/application/use-cases/get-post.ts';
@@ -43,12 +49,16 @@ import {
   DrizzlePostReader,
   DrizzlePostRepository,
 } from './modules/posts/infrastructure/persistence/drizzle-post-repository.ts';
+import { BlockUser } from './modules/social/application/use-cases/block-user.ts';
 import { FollowUser } from './modules/social/application/use-cases/follow-user.ts';
+import { ListBlocks } from './modules/social/application/use-cases/list-blocks.ts';
 import { ListFollowers } from './modules/social/application/use-cases/list-followers.ts';
 import { ListFollowing } from './modules/social/application/use-cases/list-following.ts';
 import { SearchUsers } from './modules/social/application/use-cases/search-users.ts';
+import { UnblockUser } from './modules/social/application/use-cases/unblock-user.ts';
 import { UnfollowUser } from './modules/social/application/use-cases/unfollow-user.ts';
 import { DrizzleAccountReader } from './modules/social/infrastructure/persistence/drizzle-account-reader.ts';
+import { DrizzleBlockRepository } from './modules/social/infrastructure/persistence/drizzle-block-repository.ts';
 import {
   DrizzleFollowCounters,
   DrizzleFollowRepository,
@@ -99,6 +109,13 @@ const followTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => (
   follows: new DrizzleFollowRepository(tx),
   counters: new DrizzleFollowCounters(tx),
 }));
+const blockTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  accounts: new DrizzleAccountReader(tx),
+  relationships: new DrizzleRelationshipReader(tx),
+  blocks: new DrizzleBlockRepository(tx),
+  follows: new DrizzleFollowRepository(tx),
+  counters: new DrizzleFollowCounters(tx),
+}));
 const postReader = new DrizzlePostReader(database.db);
 const createPostTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   accounts: new DrizzleAccountReader(tx),
@@ -146,6 +163,7 @@ const app = buildApp({
     identity: {
       getMe: new GetMe(profiles),
       updateMe: new UpdateMe(profiles, avatarTransaction),
+      updateSettings: new UpdateSettings(profiles),
       removeAvatar: new RemoveAvatar(avatarTransaction),
       completeOnboarding: new CompleteOnboarding(profiles, systemClock, analytics),
       checkUsernameAvailability: new CheckUsernameAvailability(profiles),
@@ -163,6 +181,9 @@ const app = buildApp({
       listFollowers: new ListFollowers(accounts, relationships, socialGraph),
       listFollowing: new ListFollowing(accounts, relationships, socialGraph),
       searchUsers: new SearchUsers(socialGraph),
+      blockUser: new BlockUser(blockTransaction),
+      unblockUser: new UnblockUser(accounts, new DrizzleBlockRepository(database.db)),
+      listBlocks: new ListBlocks(socialGraph),
     },
     posts: {
       createPost: new CreatePost(createPostTransaction, uuidV7Generator, systemClock, analytics),
@@ -199,6 +220,14 @@ const app = buildApp({
         }),
         systemClock,
         analytics,
+      ),
+    },
+    moderation: {
+      createReport: new CreateReport(
+        new DrizzleReportTargetReader(database.db),
+        relationships,
+        new DrizzleReportRepository(database.db),
+        uuidV7Generator,
       ),
     },
     mediaUrls: publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL),

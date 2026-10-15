@@ -5,8 +5,9 @@ import SwiftUI
 /// Liquid Glass sur le contenu (ADR-010).
 struct FeedView: View {
     @State private var viewModel: FeedViewModel
-    /// Incrémenté à chaque post supprimé ailleurs (détail, profil) : le feed se recharge.
-    let deletedPostCount: Int
+    /// Incrémenté à chaque post supprimé ailleurs (détail, profil) et à chaque compte bloqué : le feed se
+    /// recharge.
+    let revision: Int
     /// Incrémenté à chaque post publié : le feed se recharge et remonte en haut, sur le nouveau post.
     let publishedCount: Int
     /// Feed vide : ouvre l'onglet Recherche.
@@ -15,16 +16,16 @@ struct FeedView: View {
     @State private var position = ScrollPosition(edge: .top)
     @State private var postToDelete: Post?
 
-    init(viewModel: FeedViewModel, deletedPostCount: Int, publishedCount: Int, onSearch: @escaping () -> Void) {
+    init(viewModel: FeedViewModel, revision: Int, publishedCount: Int, onSearch: @escaping () -> Void) {
         _viewModel = State(initialValue: viewModel)
-        self.deletedPostCount = deletedPostCount
+        self.revision = revision
         self.publishedCount = publishedCount
         self.onSearch = onSearch
     }
 
     var body: some View {
         content
-            .task(id: deletedPostCount) { await viewModel.appear(revision: deletedPostCount) }
+            .task(id: revision) { await viewModel.appear(revision: revision) }
             .onChange(of: publishedCount) {
                 Task {
                     await viewModel.refresh()

@@ -251,6 +251,19 @@ final class CommentsViewModel {
 
     // MARK: - Fils
 
+    /// Commentaire d'un autre compte : « Signaler » et « Bloquer », comme Instagram.
+    func isFromOtherAccount(_ comment: Comment) -> Bool {
+        comment.author.id != viewer.id && !comment.isPending
+    }
+
+    /// Comptes bloqués pendant la session : leurs commentaires et réponses disparaissent (ADR-006).
+    func hideComments(by authorIds: Set<String>) {
+        threads.removeAll { authorIds.contains($0.comment.author.id) }
+        for index in threads.indices {
+            threads[index].replies.removeAll { authorIds.contains($0.author.id) }
+        }
+    }
+
     private func index(of threadId: String) -> Int? {
         threads.firstIndex { $0.id == threadId }
     }

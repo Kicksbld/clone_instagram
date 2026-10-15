@@ -6,6 +6,7 @@ struct PostDetailView: View {
     @State private var viewModel: PostDetailViewModel
     @State private var isConfirmingDelete = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.blockedUserIds) private var blockedUserIds
 
     init(viewModel: PostDetailViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -16,6 +17,12 @@ struct PostDetailView: View {
             .navigationTitle("Publications")
             .navigationBarTitleDisplayMode(.inline)
             .task { await viewModel.load() }
+            // Auteur bloqué depuis le menu « … » : le post devient invisible, retour à l'écran précédent.
+            .onChange(of: blockedUserIds) {
+                if case let .loaded(post) = viewModel.state, blockedUserIds.contains(post.author.id) {
+                    dismiss()
+                }
+            }
             .alert("Supprimer la publication ?", isPresented: $isConfirmingDelete) {
                 Button("Supprimer", role: .destructive) {
                     Task {

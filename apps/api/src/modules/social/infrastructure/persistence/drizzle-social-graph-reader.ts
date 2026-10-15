@@ -2,6 +2,7 @@ import { blocks, follows, media, profiles, type Executor } from '@clone/db';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 
 import type {
+  BlockedListQuery,
   ListQuery,
   SearchQuery,
   SocialGraphReader,
@@ -29,6 +30,33 @@ export class DrizzleSocialGraphReader implements SocialGraphReader {
   listFollowing(query: ListQuery): Promise<Page<UserSummary>> {
     // Abonnements : profils des `followee_id` suivis par `ownerId`.
     return this.list(query, follows.followeeId, eq(follows.followerId, query.ownerId));
+  }
+
+  async listBlocked({ viewerId, after, limit }: BlockedListQuery): Promise<Page<UserSummary>> {
+    const rows = await this.db
+      // Date du blocage : premier membre du curseur.
+      .select({ ...this.summaryFields(viewerId), blockedAt: blocks.createdAt })
+      .from(blocks)
+      .innerJoin(profiles, eq(profiles.id, blocks.blockedId))
+      .leftJoin(media, eq(media.id, profiles.avatarMediaId))
+      .where(
+        and(
+          eq(blocks.blockerId, viewerId),
+          eq(profiles.status, 'active'),
+          after
+            ? sql`(${blocks.createdAt}, ${profiles.id}) < (${after.createdAt.toISOString()}::timestamptz, ${after.id}::uuid)`
+            : undefined,
+        ),
+      )
+      .orderBy(desc(blocks.createdAt), desc(profiles.id))
+      .limit(limit + 1);
+
+    const page = rows.slice(0, limit);
+    const last = page.at(-1);
+    return {
+      items: page.map(toSummary),
+      next: rows.length > limit && last ? { createdAt: last.blockedAt, id: last.id } : null,
+    };
   }
 
   async search({ viewerId, query, limit }: SearchQuery): Promise<UserSummary[]> {

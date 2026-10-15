@@ -23,6 +23,10 @@ import {
   registerMediaRoutes,
 } from './modules/media/infrastructure/http/media-routes.ts';
 import {
+  type ModerationUseCases,
+  registerModerationRoutes,
+} from './modules/moderation/infrastructure/http/moderation-routes.ts';
+import {
   type PostsUseCases,
   registerPostsRoutes,
 } from './modules/posts/infrastructure/http/posts-routes.ts';
@@ -52,6 +56,7 @@ export interface AppDependencies {
   feed: FeedUseCases;
   engagement: EngagementUseCases;
   billing: BillingUseCases;
+  moderation: ModerationUseCases;
   mediaUrls: PublicMediaUrls;
 }
 
@@ -94,6 +99,7 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
     registerFeedRoutes(v1, dependencies.feed, dependencies.mediaUrls);
     registerEngagementRoutes(v1, dependencies.engagement, dependencies.mediaUrls);
     registerBillingRoutes(v1, dependencies.billing);
+    registerModerationRoutes(v1, dependencies.moderation);
     done();
   });
 

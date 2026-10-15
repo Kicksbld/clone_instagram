@@ -11,11 +11,13 @@ import type { GetMe } from '../../application/use-cases/get-me.ts';
 import type { GetProfile, ProfileView } from '../../application/use-cases/get-profile.ts';
 import type { RemoveAvatar } from '../../application/use-cases/remove-avatar.ts';
 import type { UpdateMe } from '../../application/use-cases/update-me.ts';
+import type { UpdateSettings } from '../../application/use-cases/update-settings.ts';
 import type { Profile } from '../../domain/profile.ts';
 
 export interface IdentityUseCases {
   getMe: GetMe;
   updateMe: UpdateMe;
+  updateSettings: UpdateSettings;
   removeAvatar: RemoveAvatar;
   completeOnboarding: CompleteOnboarding;
   checkUsernameAvailability: CheckUsernameAvailability;
@@ -75,6 +77,18 @@ export function registerIdentityRoutes(
       const profile = await useCases.updateMe.execute({
         userId: authenticatedUserId(request),
         changes: request.body,
+      });
+      return toMe(profile);
+    },
+  );
+
+  app.patch<{ Body: JsonBody<'updateSettings'> }>(
+    '/v1/me/settings',
+    { schema: routeSchemaFor('updateSettings') },
+    async (request): Promise<Me> => {
+      const profile = await useCases.updateSettings.execute({
+        userId: authenticatedUserId(request),
+        isPrivate: request.body.isPrivate,
       });
       return toMe(profile);
     },

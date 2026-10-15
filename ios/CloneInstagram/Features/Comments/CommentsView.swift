@@ -1,10 +1,12 @@
 import SwiftUI
 
 /// Feuille « Commentaires » (wireframe, comme Instagram) : commentaires du plus récent au plus ancien, réponses
-/// repliables, « Répondre », suppression par glissement, champ de saisie en bas.
+/// repliables, « Répondre », suppression par glissement, « Signaler » et « Bloquer » sur les commentaires des
+/// autres, champ de saisie en bas.
 struct CommentsView: View {
     @State private var viewModel: CommentsViewModel
     @FocusState private var isFieldFocused: Bool
+    @Environment(\.blockedUserIds) private var blockedUserIds
 
     init(viewModel: CommentsViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -22,6 +24,7 @@ struct CommentsView: View {
                 }
         }
         .task { await viewModel.load() }
+        .onChange(of: blockedUserIds) { viewModel.hideComments(by: blockedUserIds) }
         .alert(
             "Action impossible",
             isPresented: Binding(
@@ -99,7 +102,7 @@ struct CommentsView: View {
         .refreshable { await viewModel.load() }
     }
 
-    /// Avatar, username, date, texte et « Répondre » ; glisser pour supprimer si je le peux.
+    /// Avatar, username, date, texte et « Répondre » ; actions par glissement et appui long (`CommentActions`).
     private func row(_ comment: Comment) -> some View {
         HStack(alignment: .top, spacing: 12) {
             AvatarView(avatar: comment.author.avatar, size: 32)
@@ -133,13 +136,11 @@ struct CommentsView: View {
         }
         .opacity(comment.isPending ? 0.5 : 1)
         .listRowSeparator(.hidden)
-        .swipeActions(edge: .trailing) {
-            if comment.canDelete, !comment.isPending {
-                Button("Supprimer", systemImage: "trash", role: .destructive) {
-                    Task { await viewModel.delete(comment) }
-                }
-            }
-        }
+        .modifier(CommentActions(
+            comment: comment,
+            isFromOtherAccount: viewModel.isFromOtherAccount(comment),
+            onDelete: { Task { await viewModel.delete(comment) } }
+        ))
     }
 
     /// « Afficher les N réponses » / « Afficher N autres réponses » / « Masquer les réponses ».
@@ -207,5 +208,42 @@ private struct RepliesToggleStyle: ViewModifier {
             .foregroundStyle(.secondary)
             .padding(.leading, 44)
             .listRowSeparator(.hidden)
+    }
+}
+
+/// Glisser : « Supprimer » si je le peux, « Signaler » sur le commentaire d'un autre ; appui long : « Signaler »
+/// et « Bloquer », comme Instagram.
+private struct CommentActions: ViewModifier {
+    let comment: Comment
+    let isFromOtherAccount: Bool
+    let onDelete: () -> Void
+    @Environment(\.moderation) private var moderation
+
+    func body(content: Content) -> some View {
+        content
+            .swipeActions(edge: .trailing) {
+                if comment.canDelete, !comment.isPending {
+                    Button("Supprimer", systemImage: "trash", role: .destructive, action: onDelete)
+                }
+                if isFromOtherAccount, let moderation {
+                    Button("Signaler", systemImage: "exclamationmark.bubble") { moderation.report(reportRoute) }
+                }
+            }
+            .contextMenu {
+                if isFromOtherAccount, let moderation {
+                    Button("Signaler", systemImage: "exclamationmark.bubble", role: .destructive) {
+                        moderation.report(reportRoute)
+                    }
+                    Button("Bloquer", systemImage: "hand.raised", role: .destructive) { moderation.block(author) }
+                }
+            }
+    }
+
+    private var author: BlockRoute {
+        BlockRoute(userId: comment.author.id, username: comment.author.username)
+    }
+
+    private var reportRoute: ReportRoute {
+        ReportRoute(target: .comment(id: comment.id), author: author)
     }
 }

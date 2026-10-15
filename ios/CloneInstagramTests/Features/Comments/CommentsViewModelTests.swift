@@ -204,4 +204,34 @@ struct CommentsViewModelTests {
         #expect(service.deleted.isEmpty)
         #expect(viewModel.threads.count == 1)
     }
+
+    @Test func `compte bloqué → ses commentaires et réponses disparaissent`() async {
+        service.listResults = [page(.fixture(id: "c2", username: "ines"), .fixture(id: "c1", replyCount: 1))]
+        service.repliesResults = [page(.fixture(id: "r1", parentId: "c1", username: "ines"))]
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        await viewModel.showReplies(of: "c1")
+
+        viewModel.hideComments(by: ["author-ines"])
+
+        #expect(viewModel.threads.map(\.id) == ["c1"])
+        #expect(viewModel.threads.first?.replies.isEmpty == true)
+    }
+
+    @Test func `signaler et bloquer seulement sur les commentaires des autres`() {
+        let viewModel = makeViewModel()
+        let mine = CloneInstagram.Comment(
+            id: "m",
+            postId: Self.postId,
+            parentId: nil,
+            author: PostAuthor(id: "me", username: "killian", avatar: nil),
+            body: "Moi",
+            replyCount: 0,
+            createdAt: .now,
+            canDelete: true
+        )
+
+        #expect(viewModel.isFromOtherAccount(.fixture(id: "c1")))
+        #expect(!viewModel.isFromOtherAccount(mine))
+    }
 }

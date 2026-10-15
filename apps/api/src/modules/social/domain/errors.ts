@@ -16,3 +16,10 @@ export class AccountPrivateError extends ForbiddenError {
     super('account_private', 'Ce compte est privé : il ne peut pas encore être suivi.');
   }
 }
+
+/** On ne peut ni se bloquer ni se débloquer soi-même (ADR-006). */
+export class CannotBlockSelfError extends BusinessRuleError {
+  constructor() {
+    super('cannot_block_self', 'Vous ne pouvez pas vous bloquer vous-même.');
+  }
+}

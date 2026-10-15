@@ -50,4 +50,10 @@ final class SearchViewModel {
             state = .failed(message: "Impossible de lancer la recherche. Vérifiez votre connexion et réessayez.")
         }
     }
+
+    /// Comptes bloqués pendant la session : retirés des résultats affichés (ADR-006).
+    func hideUsers(_ ids: Set<String>) {
+        guard case let .results(users) = state else { return }
+        state = .results(users.filter { !ids.contains($0.id) })
+    }
 }

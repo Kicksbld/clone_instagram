@@ -17,11 +17,18 @@ final class FakeSocialService: SocialService {
     var searchResults: [Result<[UserSummary], SocialServiceError>] = []
     /// Appelé pendant `searchUsers`, avant la réponse (ex. l'utilisateur tape encore).
     var onSearch: (() -> Void)?
+    /// Erreurs successives de `block` / `unblock` ; succès quand la liste est vide.
+    var blockErrors: [SocialServiceError] = []
+    /// Réponses successives de `listBlocks` ; page vide quand la liste est vide.
+    var blockListResults: [Result<UserPage, SocialServiceError>] = []
 
     private(set) var follows: [String] = []
     private(set) var unfollows: [String] = []
     private(set) var listRequests: [ListRequest] = []
     private(set) var searches: [String] = []
+    private(set) var blocks: [String] = []
+    private(set) var unblocks: [String] = []
+    private(set) var blockListCursors: [String?] = []
 
     func follow(userId: String) async throws(SocialServiceError) -> FollowStatus {
         follows.append(userId)
@@ -46,6 +53,26 @@ final class FakeSocialService: SocialService {
         onSearch?()
         guard !searchResults.isEmpty else { return [] }
         return try searchResults.removeFirst().get()
+    }
+
+    func block(userId: String) async throws(SocialServiceError) {
+        blocks.append(userId)
+        if !blockErrors.isEmpty {
+            throw blockErrors.removeFirst()
+        }
+    }
+
+    func unblock(userId: String) async throws(SocialServiceError) {
+        unblocks.append(userId)
+        if !blockErrors.isEmpty {
+            throw blockErrors.removeFirst()
+        }
+    }
+
+    func listBlocks(cursor: String?) async throws(SocialServiceError) -> UserPage {
+        blockListCursors.append(cursor)
+        guard !blockListResults.isEmpty else { return UserPage(items: [], nextCursor: nil) }
+        return try blockListResults.removeFirst().get()
     }
 }
 

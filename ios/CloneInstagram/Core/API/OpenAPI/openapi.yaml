@@ -40,6 +40,8 @@ info:
     | `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |
     | `comment_not_found` | 404 | Commentaire inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; commentaire parent d'un autre post ; suppression par quelqu'un qui n'est ni l'auteur du commentaire ni celui du post |
     | `reply_to_reply` | 422 | Réponse à une réponse (un seul niveau de réponse) |
+    | `cannot_block_self` | 422 | Se bloquer ou se débloquer soi-même |
+    | `cannot_report_self` | 422 | Se signaler soi-même ou signaler son propre post ou commentaire |
     | `plus_required` | 403 | Avantage réservé à Clone Plus demandé sans abonnement actif (ADR-012) ; aucune route P0 ne le renvoie encore |
 
     Pagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).
@@ -67,6 +69,8 @@ tags:
     description: Likes et commentaires des posts, selon la politique de visibilité (ADR-006)
   - name: billing
     description: Abonnement Clone Plus, vérifié par l'API auprès de RevenueCat (ADR-012)
+  - name: moderation
+    description: Signalements de contenus et de comptes
 paths:
   /health:
     get:
@@ -162,6 +166,55 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '404':
           $ref: '#/components/responses/ProfileNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/me/settings:
+    patch:
+      operationId: updateSettings
+      tags: [identity]
+      summary: Modifier mes paramètres
+      description: Passe mon compte en privé ou en public. Passer en privé conserve mes abonnés ; seuls eux voient ensuite mes contenus (ADR-006).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettingsRequest'
+      responses:
+        '200':
+          description: Profil avec les paramètres modifiés.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/me/blocks:
+    get:
+      operationId: listBlocks
+      tags: [social]
+      summary: Comptes que j'ai bloqués
+      description: |
+        Comptes que j'ai bloqués, blocage le plus récent en premier, par pages de 20. Les comptes non actifs n'apparaissent pas. `relationship` vaut toujours `false` / `false` (bloquer supprime les abonnements).
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page de comptes bloqués.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalError'
   /v1/me/subscription/refresh:
@@ -341,6 +394,54 @@ paths:
           $ref: '#/components/responses/UserNotFound'
         '422':
           $ref: '#/components/responses/CannotFollowSelf'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/users/{id}/block:
+    put:
+      operationId: blockUser
+      tags: [social]
+      summary: Bloquer un utilisateur
+      description: |
+        Supprime les abonnements dans les deux sens (compteurs mis à jour) ; les deux comptes deviennent ensuite mutuellement invisibles (ADR-006). Idempotent : bloquer un compte déjà bloqué renvoie `204` sans effet.
+        Compte inexistant, qui m'a bloqué, ou non actif : `404 user_not_found`.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: Compte bloqué.
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: Compte introuvable ou invisible (`user_not_found`), ou onboarding non terminé (`profile_not_found`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          $ref: '#/components/responses/CannotBlockSelf'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: unblockUser
+      tags: [social]
+      summary: Débloquer un utilisateur
+      description: |
+        Idempotent : débloquer un compte non bloqué renvoie `204` sans effet. Les abonnements supprimés au blocage ne sont pas rétablis. Compte inexistant : `404 user_not_found`.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: Compte débloqué.
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '422':
+          $ref: '#/components/responses/CannotBlockSelf'
         '500':
           $ref: '#/components/responses/InternalError'
   /v1/users/{id}/followers:
@@ -728,6 +829,47 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v1/reports:
+    post:
+      operationId: createReport
+      tags: [moderation]
+      summary: Signaler un post, un commentaire ou un compte
+      description: |
+        Crée un signalement `open`, traité ensuite depuis le backoffice. Un même contenu peut être signalé plusieurs fois. `details` (motif `other` surtout) est enregistré sans espaces en début ni en fin ; vide, il est ignoré.
+        Cible inexistante, supprimée ou invisible pour l'appelant (ADR-006) : `404 post_not_found`, `comment_not_found` ou `user_not_found`. Limité à 10 signalements par heure (`429 rate_limited`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReportRequest'
+      responses:
+        '201':
+          description: Signalement enregistré.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportCreated'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: Cible introuvable ou invisible (`post_not_found`, `comment_not_found`, `user_not_found`), ou onboarding non terminé (`profile_not_found`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          description: Signalement de soi-même ou de son propre contenu (`cannot_report_self`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/media/uploads:
     post:
       operationId: requestMediaUpload
@@ -951,6 +1093,14 @@ components:
           type: string
           format: uuid
           description: Nouvelle photo de profil ; le retrait passe par `DELETE /v1/me/avatar`.
+    UpdateSettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [isPrivate]
+      properties:
+        isPrivate:
+          type: boolean
+          description: Compte privé (`true`) ou public (`false`).
     UsernameAvailability:
       type: object
       required: [username, available, suggestions]
@@ -1352,6 +1502,38 @@ components:
           type: string
           description: Code stable, destiné au client (ex. `validation_failed`, `username_taken`).
           examples: ['route_not_found']
+    ReportTargetType:
+      type: string
+      description: Type de contenu signalé (stories et messages en P1).
+      enum: [post, comment, user]
+    ReportReason:
+      type: string
+      description: Motif du signalement.
+      enum: [spam, nudity, harassment, violence, hate, other]
+    CreateReportRequest:
+      type: object
+      additionalProperties: false
+      required: [targetType, targetId, reason]
+      properties:
+        targetType:
+          $ref: '#/components/schemas/ReportTargetType'
+        targetId:
+          type: string
+          format: uuid
+          description: Identifiant du post, du commentaire ou du compte signalé.
+        reason:
+          $ref: '#/components/schemas/ReportReason'
+        details:
+          type: string
+          maxLength: 500
+          description: Précisions facultatives, 500 caractères au plus.
+    ReportCreated:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          format: uuid
   parameters:
     UserId:
       name: id
@@ -1423,6 +1605,12 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     CannotFollowSelf:
       description: On ne peut pas se suivre soi-même (`cannot_follow_self`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    CannotBlockSelf:
+      description: On ne peut pas se bloquer soi-même (`cannot_block_self`).
       content:
         application/problem+json:
           schema:
