@@ -23,6 +23,7 @@ final class FollowListViewModel {
     private let userId: String
     private let viewerId: String
     private let social: any SocialService
+    private let analytics: any AnalyticsService
     private let onFollowChange: () async -> Void
     private var nextCursor: String?
     private var pendingFollows: Set<String> = []
@@ -36,12 +37,14 @@ final class FollowListViewModel {
         userId: String,
         viewerId: String,
         social: any SocialService,
+        analytics: any AnalyticsService = NoopAnalyticsService(),
         onFollowChange: @escaping () async -> Void = {}
     ) {
         self.kind = kind
         self.userId = userId
         self.viewerId = viewerId
         self.social = social
+        self.analytics = analytics
         self.onFollowChange = onFollowChange
     }
 
@@ -97,6 +100,9 @@ final class FollowListViewModel {
                 try await social.unfollow(userId: user.id)
             }
             update(user.id) { $0.isFollowing = status.isFollowing }
+            if following, status.isFollowing {
+                analytics.track(.userFollowed(.list))
+            }
             await onFollowChange()
         } catch .userNotFound {
             users.removeAll { $0.id == user.id }

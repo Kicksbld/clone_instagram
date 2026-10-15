@@ -54,6 +54,10 @@ import {
   DrizzleFollowRepository,
 } from './modules/social/infrastructure/persistence/drizzle-follow-repository.ts';
 import { DrizzleSocialGraphReader } from './modules/social/infrastructure/persistence/drizzle-social-graph-reader.ts';
+import {
+  noopAnalyticsTracker,
+  PostHogAnalyticsTracker,
+} from './shared/infrastructure/analytics/posthog-analytics-tracker.ts';
 import { createJwtVerifier, supabaseJwks } from './shared/infrastructure/auth/token-verifier.ts';
 import { loadConfig } from './shared/infrastructure/config.ts';
 import { publicMediaUrls } from './shared/infrastructure/http/public-media-urls.ts';
@@ -65,6 +69,20 @@ import { uuidV7Generator } from './shared/infrastructure/uuid-v7-generator.ts';
 
 const config = loadConfig(process.env);
 const database = createDatabase(config.DATABASE_URL);
+// Analytics jamais bloquants (ADR-013) : échec journalisé sans les propriétés de l'événement.
+const posthog = config.POSTHOG_PROJECT_API_KEY
+  ? new PostHogAnalyticsTracker({
+      apiKey: config.POSTHOG_PROJECT_API_KEY,
+      host: config.POSTHOG_HOST,
+      onError: (error) => {
+        app.log.warn(
+          { error: error instanceof Error ? error.message : String(error) },
+          'PostHog : envoi échoué',
+        );
+      },
+    })
+  : null;
+const analytics = posthog ?? noopAnalyticsTracker;
 
 const profiles = new DrizzleProfileRepository(database.db);
 const media = new DrizzleMediaRepository(database.db);
@@ -129,7 +147,7 @@ const app = buildApp({
       getMe: new GetMe(profiles),
       updateMe: new UpdateMe(profiles, avatarTransaction),
       removeAvatar: new RemoveAvatar(avatarTransaction),
-      completeOnboarding: new CompleteOnboarding(profiles, systemClock),
+      completeOnboarding: new CompleteOnboarding(profiles, systemClock, analytics),
       checkUsernameAvailability: new CheckUsernameAvailability(profiles),
       getProfile: new GetProfile(profiles, relationships),
       getPlan: new GetPlan(subscriptions, systemClock),
@@ -147,7 +165,7 @@ const app = buildApp({
       searchUsers: new SearchUsers(socialGraph),
     },
     posts: {
-      createPost: new CreatePost(createPostTransaction, uuidV7Generator, systemClock),
+      createPost: new CreatePost(createPostTransaction, uuidV7Generator, systemClock, analytics),
       deletePost: new DeletePost(deletePostTransaction),
       getPost: new GetPost(postReader, relationships),
       listUserPosts: new ListUserPosts(accounts, relationships, postReader),
@@ -180,6 +198,7 @@ const app = buildApp({
           projectId: config.REVENUECAT_PROJECT_ID,
         }),
         systemClock,
+        analytics,
       ),
     },
     mediaUrls: publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL),
@@ -190,6 +209,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   app.log.info({ signal }, 'Arrêt de l’API');
   await app.close();
   await jobs.close();
+  await posthog?.shutdown();
   await database.close();
   process.exit(0);
 }

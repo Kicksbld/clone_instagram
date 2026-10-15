@@ -26,9 +26,11 @@ final class LikeSynchronizer {
     /// État voulu, par post, pendant qu'un appel est en cours.
     @ObservationIgnored private var desired: [String: Bool] = [:]
     @ObservationIgnored private let service: any EngagementService
+    @ObservationIgnored private let analytics: any AnalyticsService
 
-    init(service: any EngagementService) {
+    init(service: any EngagementService, analytics: any AnalyticsService = NoopAnalyticsService()) {
         self.service = service
+        self.analytics = analytics
     }
 
     /// Le post avec son dernier état de like connu, quel que soit l'écran qui l'a changé.
@@ -48,12 +50,12 @@ final class LikeSynchronizer {
 
     /// Bouton J'aime : like ou unlike.
     func toggleLike(_ post: Post) async -> LikeOutcome? {
-        await setLiked(!displayed(post).isLiked, post: post)
+        await setLiked(!displayed(post).isLiked, post: post, source: .button)
     }
 
     /// Double tap sur la photo : like seulement, jamais d'unlike (comme Instagram).
     func likeFromDoubleTap(_ post: Post) async -> LikeOutcome? {
-        await setLiked(true, post: post)
+        await setLiked(true, post: post, source: .doubleTap)
     }
 
     /// Déconnexion : rien n'est gardé pour le compte suivant.
@@ -66,7 +68,7 @@ final class LikeSynchronizer {
      `nil` si rien n'a été envoyé : état déjà voulu, ou appel déjà en cours (c'est lui qui enverra le nouvel
      état et rendra l'issue à l'écran qui l'a lancé).
      */
-    private func setLiked(_ isLiked: Bool, post: Post) async -> LikeOutcome? {
+    private func setLiked(_ isLiked: Bool, post: Post, source: LikeSource) async -> LikeOutcome? {
         let shown = displayed(post)
         guard shown.isLiked != isLiked else { return nil }
         var optimistic = shown
@@ -91,6 +93,10 @@ final class LikeSynchronizer {
             }
         }
         statuses[post.id] = current
+        // Like confirmé par l'API (ADR-013) ; un unlike n'est pas suivi.
+        if current.isLiked, !shown.isLiked {
+            analytics.track(.postLiked(source))
+        }
         return .confirmed
     }
 

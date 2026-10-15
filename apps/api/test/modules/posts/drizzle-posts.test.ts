@@ -12,6 +12,7 @@ import {
   DrizzlePostRepository,
 } from '../../../src/modules/posts/infrastructure/persistence/drizzle-post-repository.ts';
 import { DrizzleAccountReader } from '../../../src/modules/social/infrastructure/persistence/drizzle-account-reader.ts';
+import { noopAnalyticsTracker } from '../../../src/shared/infrastructure/analytics/posthog-analytics-tracker.ts';
 import { DrizzleUnitOfWork } from '../../../src/shared/infrastructure/persistence/drizzle-unit-of-work.ts';
 import { uuidV7Generator } from '../../../src/shared/infrastructure/uuid-v7-generator.ts';
 import { connectTestDatabase } from '../../support/database.ts';
@@ -31,6 +32,7 @@ const createPost = new CreatePost(
   })),
   uuidV7Generator,
   clock,
+  noopAnalyticsTracker,
 );
 
 const deletePost = new DeletePost(

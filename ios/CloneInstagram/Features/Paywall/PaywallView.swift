@@ -50,12 +50,13 @@ struct PaywallView: View {
 
     private var header: some View {
         VStack(spacing: 8) {
-            Image(systemName: "plus.circle")
+            Image(systemName: viewModel.variant.symbol)
                 .font(.largeTitle)
                 .accessibilityHidden(true)
-            Text("Clone Plus")
+            Text(viewModel.variant.title)
                 .font(.title.bold())
-            Text("Plus de façons de vous exprimer et de partager avec votre communauté.")
+                .multilineTextAlignment(.center)
+            Text(viewModel.variant.subtitle)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -137,7 +138,7 @@ struct PaywallView: View {
                         if viewModel.isWorking {
                             ProgressView()
                         } else {
-                            Text("S'abonner pour \(offer.price)/\(offer.period)")
+                            Text(viewModel.variant.subscribeTitle(price: offer.price, period: offer.period))
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -154,5 +155,36 @@ struct PaywallView: View {
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 8)
+    }
+}
+
+/// Textes de chaque variante de l'A/B test (ADR-013) : `test` met l'icône d'app personnalisée en avant.
+private extension PaywallVariant {
+    var symbol: String {
+        switch self {
+        case .control: "plus.circle"
+        case .test: "app.badge"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .control: "Clone Plus"
+        case .test: "Exprimez votre style"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .control: "Plus de façons de vous exprimer et de partager avec votre communauté."
+        case .test: "Avec Clone Plus, choisissez l'icône de Clone sur votre écran d'accueil, et bientôt plus encore."
+        }
+    }
+
+    func subscribeTitle(price: String, period: String) -> String {
+        switch self {
+        case .control: "S'abonner pour \(price)/\(period)"
+        case .test: "Essayer Clone Plus"
+        }
     }
 }

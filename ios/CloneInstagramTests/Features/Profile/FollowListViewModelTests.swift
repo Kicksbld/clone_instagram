@@ -5,9 +5,10 @@ struct FollowListViewModelTests {
     private static let viewerId = "0199a1b2-0000-7000-8000-000000000001"
     private static let ownerId = "0199a1b2-5eed-7000-8000-000000000001"
     private let social = FakeSocialService()
+    private let analytics = FakeAnalyticsService()
 
     private func makeViewModel() -> FollowListViewModel {
-        FollowListViewModel(kind: .followers, userId: Self.ownerId, viewerId: Self.viewerId, social: social)
+        FollowListViewModel(kind: .followers, userId: Self.ownerId, viewerId: Self.viewerId, social: social, analytics: analytics)
     }
 
     private func user(_ index: Int, isPrivate: Bool = false, isFollowing: Bool = false) -> UserSummary {
@@ -69,6 +70,7 @@ struct FollowListViewModelTests {
 
         #expect(viewModel.users.map(\.isFollowing) == [true, false])
         #expect(viewModel.actionErrorMessage != nil)
+        #expect(analytics.events == [.userFollowed(.list)])
     }
 
     @Test func `pas de bouton sur moi ni sur un compte privé non suivi`() {

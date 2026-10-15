@@ -1,3 +1,4 @@
+import type { AnalyticsTracker } from '../../../../shared/application/analytics-tracker.ts';
 import type { Clock } from '../../../../shared/application/clock.ts';
 import type { IdGenerator } from '../../../../shared/application/id-generator.ts';
 import type { UnitOfWork } from '../../../../shared/application/unit-of-work.ts';
@@ -15,19 +16,21 @@ export interface CreatePostInput {
 
 /**
  * Publier un post (ADR-008) : chaque média doit être `ready`, à l'auteur, de `purpose` `post` et
- * jamais utilisé. Dans une transaction : post, rattachement des médias et `post_count`.
+ * jamais utilisé. Dans une transaction : post, rattachement des médias et `post_count` ; puis
+ * `post_created` (ADR-013).
  */
 export class CreatePost {
   constructor(
     private readonly transaction: UnitOfWork<CreatePostTransaction>,
     private readonly ids: IdGenerator,
     private readonly clock: Clock,
+    private readonly analytics: AnalyticsTracker,
   ) {}
 
   async execute(input: CreatePostInput): Promise<Post> {
     const caption = normalizeCaption(input.caption);
 
-    return this.transaction.run(async ({ accounts, media, posts, reader }) => {
+    const created = await this.transaction.run(async ({ accounts, media, posts, reader }) => {
       if (!(await accounts.findById(input.authorId))) throw new ProfileNotFoundError();
 
       for (const mediaId of input.mediaIds) {
@@ -48,5 +51,11 @@ export class CreatePost {
       if (!post) throw new Error('Post créé introuvable dans sa transaction');
       return post;
     });
+    // Après la validation de la transaction (ADR-013).
+    this.analytics.track(input.authorId, {
+      name: 'post_created',
+      properties: { kind: created.kind, media_count: created.media.length },
+    });
+    return created;
   }
 }

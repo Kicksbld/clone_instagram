@@ -54,6 +54,15 @@ packages:
   purchases-ios:
     url: https://github.com/RevenueCat/purchases-ios-spm
     exactVersion: 5.95.0
+  # Dépendance indirecte (swift-openapi-urlsession → DequeModule), épinglée : la 1.7 appelle des fonctions du
+  # runtime Swift 6.4 (iOS 27) et l'app plante au lancement sur iOS 26 (`Symbol not found: _swift_initBorrow`).
+  swift-collections:
+    url: https://github.com/apple/swift-collections
+    exactVersion: 1.6.0
+  # Analytics et A/B test du paywall (ADR-010, ADR-013).
+  posthog-ios:
+    url: https://github.com/PostHog/posthog-ios
+    exactVersion: 3.92.0
 
 targets:
   CloneInstagram:
@@ -120,6 +129,8 @@ targets:
         product: Auth
       - package: purchases-ios
         product: RevenueCat
+      - package: posthog-ios
+        product: PostHog
     preBuildScripts:
       - name: SwiftLint et SwiftFormat
         basedOnDependencyAnalysis: false

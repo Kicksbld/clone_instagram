@@ -16,7 +16,8 @@ struct RootView: View {
             identity: dependencies.identity,
             purchases: dependencies.purchases,
             subscriptions: dependencies.subscriptions,
-            appIcons: dependencies.appIcons
+            appIcons: dependencies.appIcons,
+            analytics: dependencies.analytics
         ))
     }
 
@@ -45,6 +46,7 @@ struct RootView: View {
                     auth: dependencies.auth,
                     identity: dependencies.identity,
                     uploads: dependencies.uploads,
+                    analytics: dependencies.analytics,
                     onFinished: viewModel.finishOnboarding(with:)
                 ),
                 exitTitle: entry == .newAccount ? "Annuler" : "Se déconnecter",
@@ -170,6 +172,8 @@ struct RootView: View {
                 planStatus: profile.planStatus,
                 purchases: dependencies.purchases,
                 subscriptions: dependencies.subscriptions,
+                analytics: dependencies.analytics,
+                source: onClose == nil ? .settings : .onboarding,
                 onPlanChanged: viewModel.updatePlan
             ),
             onClose: onClose
@@ -217,6 +221,7 @@ private struct SocialDestinations: ViewModifier {
                         viewerId: viewerId,
                         identity: dependencies.identity,
                         social: dependencies.social,
+                        analytics: dependencies.analytics,
                         onFollowChange: onFollowChange
                     ),
                     posts: dependencies.posts
@@ -250,6 +255,7 @@ private struct SocialDestinations: ViewModifier {
             userId: route.userId,
             viewerId: viewerId,
             social: dependencies.social,
+            analytics: dependencies.analytics,
             onFollowChange: onFollowChange
         )
     }

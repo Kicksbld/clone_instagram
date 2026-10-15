@@ -7,7 +7,13 @@ final class OnboardingViewModel {
     /// Écran racine de la pile ; devient `profilePhoto` une fois le profil créé (pas de retour arrière).
     private(set) var rootStep: OnboardingStep
     var path: [OnboardingStep] = [] {
-        didSet { errorMessage = nil }
+        didSet {
+            errorMessage = nil
+            // Étape franchie (ADR-013) ; un retour arrière n'envoie rien.
+            if path.count > oldValue.count {
+                trackCompleted(oldValue.last ?? rootStep)
+            }
+        }
     }
 
     var currentStep: OnboardingStep {
@@ -31,6 +37,7 @@ final class OnboardingViewModel {
     private let auth: any AuthService
     private let identity: any IdentityService
     private let uploads: any UploadService
+    private let analytics: any AnalyticsService
     private let now: () -> Date
     private let sleep: (Duration) async throws -> Void
     private let onFinished: (Profile) -> Void
@@ -42,6 +49,7 @@ final class OnboardingViewModel {
         auth: any AuthService,
         identity: any IdentityService,
         uploads: any UploadService,
+        analytics: any AnalyticsService = NoopAnalyticsService(),
         now: @escaping () -> Date = Date.init,
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         onFinished: @escaping (Profile) -> Void
@@ -50,6 +58,7 @@ final class OnboardingViewModel {
         self.auth = auth
         self.identity = identity
         self.uploads = uploads
+        self.analytics = analytics
         self.now = now
         self.sleep = sleep
         self.onFinished = onFinished
@@ -196,6 +205,9 @@ final class OnboardingViewModel {
                 birthDate: BirthDate(birthDate)
             )
             profile = created
+            // Profil créé : identifié avant le paywall, la variante reste la même (ADR-013).
+            analytics.identify(profileId: created.id)
+            trackCompleted(.terms)
             rootStep = .profilePhoto
             path = []
         } catch .usernameTaken {
@@ -211,6 +223,10 @@ final class OnboardingViewModel {
     }
 
     // MARK: - Interne
+
+    private func trackCompleted(_ step: OnboardingStep) {
+        analytics.track(.onboardingStepCompleted(step.analyticsName))
+    }
 
     private func sendCode() async throws(AuthServiceError) {
         try await auth.sendSignupCode(to: email)
@@ -318,6 +334,7 @@ extension OnboardingViewModel {
 
     func finish() {
         guard let profile else { return }
+        trackCompleted(.completed)
         onFinished(profile)
     }
 }

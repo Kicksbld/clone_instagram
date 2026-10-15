@@ -92,6 +92,7 @@ final class PublishQueue: PostPublishing {
     private let store: any PendingPostStore
     private let uploads: any MediaUploading
     private let posts: any PostService
+    private let analytics: any AnalyticsService
     private let prepare: Prepare
     private var tasks: [UUID: Task<Void, Never>] = [:]
 
@@ -99,6 +100,7 @@ final class PublishQueue: PostPublishing {
         store: any PendingPostStore,
         uploads: any MediaUploading,
         posts: any PostService,
+        analytics: any AnalyticsService = NoopAnalyticsService(),
         prepare: @escaping Prepare = { data, directory throws(ImagePreparationError) in
             try await ImagePreparer.prepare(data, in: directory)
         }
@@ -106,6 +108,7 @@ final class PublishQueue: PostPublishing {
         self.store = store
         self.uploads = uploads
         self.posts = posts
+        self.analytics = analytics
         self.prepare = prepare
         items = store.load()
     }
@@ -268,6 +271,7 @@ final class PublishQueue: PostPublishing {
             fail(item.id, Self.message(for: error))
             return
         }
+        analytics.track(.postPublished(mediaCount: item.media.count))
         finish(item.id)
     }
 
