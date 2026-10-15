@@ -823,7 +823,6 @@ components:
   schemas:
     Health:
       type: object
-      additionalProperties: false
       required: [status]
       properties:
         status:
@@ -853,7 +852,6 @@ components:
     Me:
       type: object
       description: Profil de l'utilisateur authentifié.
-      additionalProperties: false
       required:
         [
           id,
@@ -916,7 +914,6 @@ components:
     SubscriptionStatus:
       type: object
       description: Mon plan Clone Plus.
-      additionalProperties: false
       required: [plan]
       properties:
         plan:
@@ -956,7 +953,6 @@ components:
           description: Nouvelle photo de profil ; le retrait passe par `DELETE /v1/me/avatar`.
     UsernameAvailability:
       type: object
-      additionalProperties: false
       required: [username, available, suggestions]
       properties:
         username:
@@ -972,7 +968,6 @@ components:
     UserProfile:
       type: object
       description: Profil public d'un utilisateur, vu par l'appelant (sans date de naissance ni statut).
-      additionalProperties: false
       required:
         [
           id,
@@ -1018,7 +1013,6 @@ components:
     Relationship:
       type: object
       description: Relation entre l'appelant et le profil ; les deux valeurs sont `false` sur son propre profil.
-      additionalProperties: false
       required: [following, followedBy]
       properties:
         following:
@@ -1030,7 +1024,6 @@ components:
     UserSummary:
       type: object
       description: Compte dans une liste ou un résultat de recherche, vu par l'appelant.
-      additionalProperties: false
       required: [id, username, fullName, isPrivate, relationship]
       properties:
         id:
@@ -1049,7 +1042,6 @@ components:
           $ref: '#/components/schemas/Relationship'
     UserPage:
       type: object
-      additionalProperties: false
       required: [items]
       properties:
         items:
@@ -1062,7 +1054,6 @@ components:
           description: Curseur de la page suivante ; absent sur la dernière page.
     UserSearchResults:
       type: object
-      additionalProperties: false
       required: [items]
       properties:
         items:
@@ -1073,7 +1064,6 @@ components:
     FollowStatus:
       type: object
       description: Relation après l'action, et compteur d'abonnés du compte suivi.
-      additionalProperties: false
       required: [following, followerCount]
       properties:
         following:
@@ -1085,7 +1075,6 @@ components:
     ImageVariants:
       type: object
       description: URL publiques des variantes WebP d'une image (ADR-008).
-      additionalProperties: false
       required: [thumb, medium, large]
       properties:
         thumb:
@@ -1138,7 +1127,6 @@ components:
           maximum: 20971520
     MediaUploadIntent:
       type: object
-      additionalProperties: false
       required: [mediaId, uploadUrl, expiresAt]
       properties:
         mediaId:
@@ -1154,7 +1142,6 @@ components:
     Media:
       type: object
       description: Un de mes médias.
-      additionalProperties: false
       required: [id, kind, purpose, status]
       properties:
         id:
@@ -1201,7 +1188,6 @@ components:
     PostAuthor:
       type: object
       description: Auteur d'un post.
-      additionalProperties: false
       required: [id, username]
       properties:
         id:
@@ -1215,7 +1201,6 @@ components:
     PostMedia:
       type: object
       description: Une image d'un post ; `width` et `height` (en pixels) donnent son ratio d'affichage.
-      additionalProperties: false
       required: [variants, width, height]
       properties:
         variants:
@@ -1228,7 +1213,6 @@ components:
           minimum: 1
     Post:
       type: object
-      additionalProperties: false
       required:
         [id, kind, caption, author, media, likeCount, viewerHasLiked, commentCount, createdAt]
       properties:
@@ -1263,7 +1247,6 @@ components:
           format: date-time
     PostPage:
       type: object
-      additionalProperties: false
       required: [items]
       properties:
         items:
@@ -1277,7 +1260,6 @@ components:
     LikeStatus:
       type: object
       description: État du like après l'action, et nombre de likes du post.
-      additionalProperties: false
       required: [liked, likeCount]
       properties:
         liked:
@@ -1306,7 +1288,6 @@ components:
     Comment:
       type: object
       description: Commentaire ou réponse, vu par l'appelant.
-      additionalProperties: false
       required: [id, postId, author, body, replyCount, createdAt, viewerCanDelete]
       properties:
         id:
@@ -1335,7 +1316,6 @@ components:
           description: L'appelant peut supprimer ce commentaire (il en est l'auteur, ou l'auteur du post).
     CommentPage:
       type: object
-      additionalProperties: false
       required: [items]
       properties:
         items:
@@ -1349,7 +1329,6 @@ components:
     ProblemDetails:
       type: object
       description: Erreur au format Problem Details (RFC 9457).
-      additionalProperties: false
       required: [type, title, status, detail, code]
       properties:
         type:

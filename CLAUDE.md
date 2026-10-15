@@ -44,8 +44,10 @@ pnpm install
 pnpm dev                    # API (:3000) + worker + backoffice (:3001)
 pnpm lint | pnpm typecheck | pnpm test | pnpm build
 pnpm contract:generate      # régénère les clients depuis openapi.yaml
+pnpm contract:breaking      # aucune rupture de compatibilité avec main (oasdiff, ADR-019)
 pnpm db:migrate | pnpm db:seed
-ios/scripts/bootstrap.sh    # app iOS : outils Homebrew, .xcconfig locaux, xcodegen generate
+ios/scripts/bootstrap.sh    # app iOS : outils Homebrew, puis ios/scripts/sync.sh
+ios/scripts/sync.sh         # après chaque git pull : branche vs main, clés .xcconfig manquantes, xcodegen generate
 xcodebuild test             # app iOS, lancé en local (pas de CI macOS) ; commande complète dans ios/CLAUDE.md
 ```
 
@@ -54,7 +56,7 @@ Outils de qualité et tests par niveau : ADR-014.
 ## Règles non négociables (rappel)
 
 1. **L'API est la seule porte d'entrée vers les données** (ADR-004). Supabase = infrastructure (Postgres, Auth, Storage) : ni PostgREST côté client, ni Realtime, ni RLS comme autorisation. Exceptions : connexion Supabase Auth, fichiers via URL présignées / publiques. RLS activé **sans policy** sur toutes nos tables.
-2. **Contract-first** (ADR-003) : `openapi.yaml` → valider → `pnpm contract:generate` → implémenter. Jamais d'endpoint ou de champ inventé.
+2. **Contract-first** (ADR-003) : `openapi.yaml` → valider → `pnpm contract:generate` → implémenter. Jamais d'endpoint ou de champ inventé. Entrées strictes, réponses tolérantes, aucune rupture de compatibilité sans décision du lead dev (ADR-019).
 3. **Hexagonal par module** (ADR-005) : `domain/` sans import externe → `application/{ports,use-cases}` → `infrastructure/{http,persistence}` ; composition manuelle dans `main.ts`. Le contrôleur authentifie, **le use case autorise**. Écritures multi-tables via `UnitOfWork`. Erreurs typées → Problem Details.
 4. **Visibilité unique** (ADR-006) : toute lecture passe par `shared/domain/visibility`. Contenu invisible → **404**, jamais 403.
 5. **Données** (ADR-007) : migrations drizzle-kit uniquement, jamais le schéma `auth`, UUID v7, `timestamptz` UTC, `text` + `CHECK`, pas de FK polymorphe, pagination par curseur `(created_at, id)`, jamais `OFFSET`.

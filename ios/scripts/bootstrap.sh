@@ -5,12 +5,5 @@ cd "$(dirname "$0")/.."
 
 brew bundle --file Brewfile
 
-config_dir=CloneInstagram/Resources/Config
-for name in Local Demo; do
-  if [ ! -f "$config_dir/$name.xcconfig" ]; then
-    cp "$config_dir/$name.example.xcconfig" "$config_dir/$name.xcconfig"
-    echo "Créé : $config_dir/$name.xcconfig (à compléter)"
-  fi
-done
-
-xcodegen generate
+# Configurations locales et projet Xcode : même étape qu'après chaque `git pull`.
+exec scripts/sync.sh

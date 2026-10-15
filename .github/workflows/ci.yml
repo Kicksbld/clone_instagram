@@ -54,6 +54,19 @@ jobs:
           pnpm contract:generate
           git diff --exit-code -- packages/contract/generated ios/CloneInstagram/Core/API/OpenAPI/openapi.yaml
 
+      - name: Contrat (aucune rupture de compatibilité avec main, ADR-019)
+        env:
+          OASDIFF_VERSION: 1.33.0
+          OASDIFF_SHA256: 43a4e328e2d13ba1552d760aa68d2485c75c5621f309f6ff64ae895188345247
+        run: |
+          curl -fsSL -o /tmp/oasdiff.tar.gz \
+            "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
+          echo "${OASDIFF_SHA256}  /tmp/oasdiff.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/oasdiff"
+          tar -xzf /tmp/oasdiff.tar.gz -C "$RUNNER_TEMP/oasdiff" oasdiff
+          git fetch --depth=1 origin main
+          PATH="$RUNNER_TEMP/oasdiff:$PATH" scripts/contract-breaking.sh FETCH_HEAD
+
       - name: Lint (dont dependency-cruiser et règles d'import)
         run: pnpm lint
 
