@@ -192,4 +192,19 @@ struct APIIdentityServiceTests {
 
         await #expect(throws: expected) { try await service.fetchUserProfile(username: "lea.martin") }
     }
+
+    @Test func `PATCH /me/settings → profil avec le paramètre enregistré`() async throws {
+        let body = Self.meJSON.replacingOccurrences(of: #""isPrivate":false"#, with: #""isPrivate":true"#)
+        let service = try makeService(.response(status: 200, contentType: "application/json", body: body))
+
+        let profile = try await service.updateSettings(isPrivate: true)
+
+        #expect(profile.isPrivate)
+    }
+
+    @Test func `PATCH /me/settings sans profil → profileNotFound`() async throws {
+        let service = try makeService(problem(404, "profile_not_found"))
+
+        await #expect(throws: IdentityServiceError.profileNotFound) { try await service.updateSettings(isPrivate: true) }
+    }
 }

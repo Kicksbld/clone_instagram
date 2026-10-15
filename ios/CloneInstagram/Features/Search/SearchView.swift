@@ -4,6 +4,7 @@ import SwiftUI
 /// résultat ouvre le profil (`ProfileRoute`, destination fournie par le routeur racine).
 struct SearchView: View {
     @State private var viewModel: SearchViewModel
+    @Environment(\.blockedUserIds) private var blockedUserIds
 
     init(viewModel: SearchViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -28,6 +29,7 @@ struct SearchView: View {
                 }
                 await viewModel.search()
             }
+            .onChange(of: blockedUserIds) { viewModel.hideUsers(blockedUserIds) }
     }
 
     @ViewBuilder

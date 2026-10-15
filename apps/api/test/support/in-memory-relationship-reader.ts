@@ -8,10 +8,18 @@ export interface FollowEntry {
   createdAt: Date;
 }
 
+/** Blocage enregistré, avec sa date. */
+export interface BlockEntry {
+  blockerId: string;
+  blockedId: string;
+  createdAt: Date;
+}
+
 /** Adapter en mémoire (ADR-005) : mêmes règles que les tables `follows` et `blocks`. */
 export class InMemoryRelationshipReader implements RelationshipReader {
   private readonly followEntries = new Map<string, FollowEntry>();
-  private readonly blocks = new Set<string>();
+  /** Blocages et leur date (ordre de la liste des bloqués). */
+  private readonly blockEntries = new Map<string, BlockEntry>();
   private clock = Date.parse('2026-01-01T00:00:00.000Z');
 
   /** Abonnement créé 1 ms après le précédent ; `false` s'il existait déjà. */
@@ -35,12 +43,29 @@ export class InMemoryRelationshipReader implements RelationshipReader {
     return [...this.followEntries.values()];
   }
 
-  block(blockerId: string, blockedId: string): void {
-    this.blocks.add(`${blockerId}>${blockedId}`);
+  /** Blocage créé 1 ms après l'écriture précédente ; `false` s'il existait déjà. */
+  block(blockerId: string, blockedId: string): boolean {
+    const key = `${blockerId}>${blockedId}`;
+    if (this.blockEntries.has(key)) return false;
+    this.clock += 1;
+    this.blockEntries.set(key, { blockerId, blockedId, createdAt: new Date(this.clock) });
+    return true;
+  }
+
+  unblock(blockerId: string, blockedId: string): boolean {
+    return this.blockEntries.delete(`${blockerId}>${blockedId}`);
+  }
+
+  isBlocking(blockerId: string, blockedId: string): boolean {
+    return this.blockEntries.has(`${blockerId}>${blockedId}`);
+  }
+
+  get blocks(): BlockEntry[] {
+    return [...this.blockEntries.values()];
   }
 
   isBlockedEitherWay(a: string, b: string): boolean {
-    return this.blocks.has(`${a}>${b}`) || this.blocks.has(`${b}>${a}`);
+    return this.isBlocking(a, b) || this.isBlocking(b, a);
   }
 
   between(viewerId: string, ownerId: string): Promise<Relationship> {

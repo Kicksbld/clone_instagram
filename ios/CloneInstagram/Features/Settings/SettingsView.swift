@@ -1,14 +1,20 @@
 import StoreKit
 import SwiftUI
 
-/// Paramètres (wireframe). En T10, seule la ligne « Clone Plus » existe ; le reste arrive en T12.
-/// Le paywall est fourni par le routeur racine : une feature n'importe pas une autre (ADR-010).
+/// Paramètres et activité (wireframe, comme Instagram) : Clone Plus, confidentialité du compte, comptes
+/// bloqués et déconnexion. Le paywall est fourni par le routeur racine : une feature n'importe pas une autre
+/// (ADR-010).
 struct SettingsView<Paywall: View>: View {
     let planStatus: PlanStatus
     let icons: AppIconViewModel
+    let privacy: AccountPrivacyViewModel
+    let blockedAccounts: BlockedAccountsViewModel
     /// Plan relu par l'API à l'ouverture de Clone Plus.
     let onRefreshPlan: () async -> Void
+    let onSignOut: () -> Void
     @ViewBuilder let paywall: () -> Paywall
+
+    @State private var isConfirmingSignOut = false
 
     var body: some View {
         List {
@@ -23,9 +29,34 @@ struct SettingsView<Paywall: View>: View {
                     }
                 }
             }
+            Section("Qui peut voir votre contenu") {
+                NavigationLink {
+                    AccountPrivacyView(viewModel: privacy)
+                } label: {
+                    LabeledContent {
+                        Text(privacy.isPrivate ? "Privé" : "Public")
+                    } label: {
+                        Label("Confidentialité du compte", systemImage: "lock")
+                    }
+                }
+            }
+            Section("Comment les autres peuvent interagir avec vous") {
+                NavigationLink {
+                    BlockedAccountsView(viewModel: blockedAccounts)
+                } label: {
+                    Label("Comptes bloqués", systemImage: "hand.raised")
+                }
+            }
+            Section("Connexion") {
+                Button("Se déconnecter", role: .destructive) { isConfirmingSignOut = true }
+            }
         }
         .navigationTitle("Paramètres et activité")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Se déconnecter ?", isPresented: $isConfirmingSignOut, titleVisibility: .visible) {
+            Button("Se déconnecter", role: .destructive, action: onSignOut)
+            Button("Annuler", role: .cancel) {}
+        }
     }
 }
 

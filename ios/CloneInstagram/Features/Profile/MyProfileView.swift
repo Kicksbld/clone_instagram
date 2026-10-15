@@ -6,7 +6,6 @@ import SwiftUI
 struct MyProfileView<EditProfile: View, Settings: View>: View {
     let profile: Profile
     let onRefresh: () async -> Void
-    let onSignOut: () -> Void
     /// « Suivre des comptes » : ouvre l'onglet Recherche.
     let onFollowAccounts: () -> Void
     /// Grille de mes publications.
@@ -14,7 +13,7 @@ struct MyProfileView<EditProfile: View, Settings: View>: View {
     /// Change à chaque post publié : la grille se recharge.
     var postsReloadToken = 0
     @ViewBuilder let editProfile: () -> EditProfile
-    /// Menu ☰ : Paramètres (Clone Plus en T10).
+    /// Menu ☰ : Paramètres et activité.
     @ViewBuilder let settings: () -> Settings
 
     @State private var isEditing = false
@@ -33,10 +32,6 @@ struct MyProfileView<EditProfile: View, Settings: View>: View {
         .navigationDestination(isPresented: $isEditing, destination: editProfile)
         .navigationDestination(isPresented: $isShowingSettings, destination: settings)
         .toolbar {
-            // Provisoire jusqu'aux paramètres complets (T12).
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Se déconnecter", action: onSignOut)
-            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Paramètres", systemImage: "line.3.horizontal") { isShowingSettings = true }
             }

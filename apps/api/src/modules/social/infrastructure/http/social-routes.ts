@@ -5,11 +5,15 @@ import type { FastifyInstance } from 'fastify';
 import { authenticatedUserId } from '../../../../shared/infrastructure/auth/authentication.ts';
 import { routeSchemaFor } from '../../../../shared/infrastructure/http/contract-schemas.ts';
 import { parseCursor } from '../../../../shared/infrastructure/http/cursor.ts';
+import type { Page } from '../../../../shared/domain/pagination.ts';
 import type { PublicMediaUrls } from '../../../../shared/infrastructure/http/public-media-urls.ts';
+import type { BlockUser } from '../../application/use-cases/block-user.ts';
 import type { FollowUser } from '../../application/use-cases/follow-user.ts';
+import type { ListBlocks } from '../../application/use-cases/list-blocks.ts';
 import type { ListFollowers } from '../../application/use-cases/list-followers.ts';
 import type { ListFollowing } from '../../application/use-cases/list-following.ts';
 import type { SearchUsers } from '../../application/use-cases/search-users.ts';
+import type { UnblockUser } from '../../application/use-cases/unblock-user.ts';
 import type { UnfollowUser } from '../../application/use-cases/unfollow-user.ts';
 import type { UserSummary } from '../../domain/user-summary.ts';
 
@@ -19,6 +23,9 @@ export interface SocialUseCases {
   listFollowers: ListFollowers;
   listFollowing: ListFollowing;
   searchUsers: SearchUsers;
+  blockUser: BlockUser;
+  unblockUser: UnblockUser;
+  listBlocks: ListBlocks;
 }
 
 type UserPage = components['schemas']['UserPage'];
@@ -59,6 +66,47 @@ export function registerSocialRoutes(
     },
   );
 
+  const toUserPage = (page: Page<UserSummary>): UserPage => ({
+    items: page.items.map(toUserSummary),
+    ...(page.next && { nextCursor: encodeCursor(page.next) }),
+  });
+
+  app.put<{ Params: { id: string } }>(
+    '/v1/users/:id/block',
+    { schema: routeSchemaFor('blockUser') },
+    async (request, reply): Promise<void> => {
+      await useCases.blockUser.execute({
+        viewerId: authenticatedUserId(request),
+        userId: request.params.id,
+      });
+      reply.status(204);
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/v1/users/:id/block',
+    { schema: routeSchemaFor('unblockUser') },
+    async (request, reply): Promise<void> => {
+      await useCases.unblockUser.execute({
+        viewerId: authenticatedUserId(request),
+        userId: request.params.id,
+      });
+      reply.status(204);
+    },
+  );
+
+  app.get<{ Querystring: { cursor?: string } }>(
+    '/v1/me/blocks',
+    { schema: routeSchemaFor('listBlocks') },
+    async (request): Promise<UserPage> => {
+      const page = await useCases.listBlocks.execute({
+        viewerId: authenticatedUserId(request),
+        after: parseCursor(request.query.cursor),
+      });
+      return toUserPage(page);
+    },
+  );
+
   const lists = [
     ['/v1/users/:id/followers', 'listFollowers', useCases.listFollowers],
     ['/v1/users/:id/following', 'listFollowing', useCases.listFollowing],
@@ -73,10 +121,7 @@ export function registerSocialRoutes(
           userId: request.params.id,
           after: parseCursor(request.query.cursor),
         });
-        return {
-          items: page.items.map(toUserSummary),
-          ...(page.next && { nextCursor: encodeCursor(page.next) }),
-        };
+        return toUserPage(page);
       },
     );
   }

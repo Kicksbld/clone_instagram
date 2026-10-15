@@ -7,7 +7,7 @@ import SwiftUI
 struct PostView: View {
     let post: Post
     let isDeleting: Bool
-    /// Menu « … » → « Supprimer » ; `nil` si le post n'est pas à moi.
+    /// Menu « … » → « Supprimer » ; `nil` si le post n'est pas à moi (« Signaler » et « Bloquer » à la place).
     let onDelete: (() -> Void)?
     /// Bouton J'aime : like ou unlike.
     let onToggleLike: () -> Void
@@ -23,6 +23,7 @@ struct PostView: View {
     @State private var doubleTapCount = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openComments) private var openComments
+    @Environment(\.moderation) private var moderation
 
     init(
         post: Post,
@@ -52,16 +53,14 @@ struct PostView: View {
                 }
                 .buttonStyle(.plain)
                 Spacer()
-                if let onDelete {
-                    if isDeleting {
-                        ProgressView()
-                    } else {
-                        Menu("Plus d'options", systemImage: "ellipsis") {
-                            Button("Supprimer", systemImage: "trash", role: .destructive, action: onDelete)
-                        }
-                        .labelStyle(.iconOnly)
-                        .foregroundStyle(.primary)
+                if isDeleting {
+                    ProgressView()
+                } else if onDelete != nil || moderation != nil {
+                    Menu("Plus d'options", systemImage: "ellipsis") {
+                        menuItems
                     }
+                    .labelStyle(.iconOnly)
+                    .foregroundStyle(.primary)
                 }
             }
             .padding(.horizontal)
@@ -229,6 +228,22 @@ struct PostView: View {
     }
 
     /// J'aime et Commenter actifs ; Partager et Enregistrer (plus tard) restent désactivés.
+    /// Mon post : « Supprimer » ; celui d'un autre : « Signaler » et « Bloquer », comme Instagram.
+    @ViewBuilder
+    private var menuItems: some View {
+        if let onDelete {
+            Button("Supprimer", systemImage: "trash", role: .destructive, action: onDelete)
+        } else if let moderation {
+            let author = BlockRoute(userId: post.author.id, username: post.author.username)
+            Button("Signaler", systemImage: "exclamationmark.bubble", role: .destructive) {
+                moderation.report(ReportRoute(target: .post(id: post.id), author: author))
+            }
+            Button("Bloquer", systemImage: "hand.raised", role: .destructive) {
+                moderation.block(author)
+            }
+        }
+    }
+
     private var actions: some View {
         HStack(spacing: 16) {
             Button(

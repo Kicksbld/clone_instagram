@@ -14,17 +14,22 @@ import { GetMe } from '../../src/modules/identity/application/use-cases/get-me.t
 import { GetProfile } from '../../src/modules/identity/application/use-cases/get-profile.ts';
 import { RemoveAvatar } from '../../src/modules/identity/application/use-cases/remove-avatar.ts';
 import { UpdateMe } from '../../src/modules/identity/application/use-cases/update-me.ts';
+import { UpdateSettings } from '../../src/modules/identity/application/use-cases/update-settings.ts';
 import { CompleteUpload } from '../../src/modules/media/application/use-cases/complete-upload.ts';
 import { GetMedia } from '../../src/modules/media/application/use-cases/get-media.ts';
 import { RequestUpload } from '../../src/modules/media/application/use-cases/request-upload.ts';
+import { CreateReport } from '../../src/modules/moderation/application/use-cases/create-report.ts';
 import { CreatePost } from '../../src/modules/posts/application/use-cases/create-post.ts';
 import { DeletePost } from '../../src/modules/posts/application/use-cases/delete-post.ts';
 import { GetPost } from '../../src/modules/posts/application/use-cases/get-post.ts';
 import { ListUserPosts } from '../../src/modules/posts/application/use-cases/list-user-posts.ts';
+import { BlockUser } from '../../src/modules/social/application/use-cases/block-user.ts';
 import { FollowUser } from '../../src/modules/social/application/use-cases/follow-user.ts';
+import { ListBlocks } from '../../src/modules/social/application/use-cases/list-blocks.ts';
 import { ListFollowers } from '../../src/modules/social/application/use-cases/list-followers.ts';
 import { ListFollowing } from '../../src/modules/social/application/use-cases/list-following.ts';
 import { SearchUsers } from '../../src/modules/social/application/use-cases/search-users.ts';
+import { UnblockUser } from '../../src/modules/social/application/use-cases/unblock-user.ts';
 import { UnfollowUser } from '../../src/modules/social/application/use-cases/unfollow-user.ts';
 import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-media-urls.ts';
 import {
@@ -42,7 +47,8 @@ import { InMemoryMediaRepository } from './in-memory-media-repository.ts';
 import { InMemoryPosts } from './in-memory-posts.ts';
 import { InMemoryProfileRepository } from './in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from './in-memory-relationship-reader.ts';
-import { InMemorySocialGraph } from './in-memory-social-graph.ts';
+import { InMemoryReports } from './in-memory-reports.ts';
+import { InMemoryBlocks, InMemorySocialGraph } from './in-memory-social-graph.ts';
 import { testTokenVerifier } from './tokens.ts';
 
 export const TEST_NOW = new Date('2026-09-25T12:00:00.000Z');
@@ -69,6 +75,14 @@ export function buildTestApp() {
     follows: graph,
     counters: graph,
   });
+  const blocks = new InMemoryBlocks(relationships);
+  const blockTransaction = new InMemoryUnitOfWork({
+    accounts: graph,
+    relationships,
+    blocks,
+    follows: graph,
+    counters: graph,
+  });
   const posts = new InMemoryPosts(profiles, media);
   const createPostTransaction = new InMemoryUnitOfWork({
     accounts: graph,
@@ -91,6 +105,7 @@ export function buildTestApp() {
     comments,
     reader: comments,
   });
+  const reports = new InMemoryReports(profiles, likes, comments);
   const clock = { now: () => TEST_NOW };
   const subscriptions = new InMemorySubscriptions();
   const subscriptionProvider = new InMemorySubscriptionProvider();
@@ -102,6 +117,7 @@ export function buildTestApp() {
       identity: {
         getMe: new GetMe(profiles),
         updateMe: new UpdateMe(profiles, avatarTransaction),
+        updateSettings: new UpdateSettings(profiles),
         removeAvatar: new RemoveAvatar(avatarTransaction),
         completeOnboarding: new CompleteOnboarding(profiles, clock, analytics),
         checkUsernameAvailability: new CheckUsernameAvailability(profiles),
@@ -119,6 +135,9 @@ export function buildTestApp() {
         listFollowers: new ListFollowers(graph, relationships, graph),
         listFollowing: new ListFollowing(graph, relationships, graph),
         searchUsers: new SearchUsers(graph),
+        blockUser: new BlockUser(blockTransaction),
+        unblockUser: new UnblockUser(graph, blocks),
+        listBlocks: new ListBlocks(graph),
       },
       posts: {
         createPost: new CreatePost(
@@ -155,6 +174,14 @@ export function buildTestApp() {
           analytics,
         ),
       },
+      moderation: {
+        createReport: new CreateReport(
+          reports,
+          relationships,
+          reports,
+          sequentialIds('0199a1b2-0000-7000-c100-'),
+        ),
+      },
       mediaUrls: publicMediaUrls(TEST_MEDIA_BASE_URL),
     },
   });
@@ -169,5 +196,6 @@ export function buildTestApp() {
     subscriptions,
     subscriptionProvider,
     analytics,
+    reports,
   };
 }

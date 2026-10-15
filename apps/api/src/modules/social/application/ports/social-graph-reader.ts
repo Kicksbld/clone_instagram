@@ -9,6 +9,13 @@ export interface ListQuery {
   limit: number;
 }
 
+export interface BlockedListQuery {
+  /** Auteur des blocages. */
+  viewerId: string;
+  after: PageCursor | null;
+  limit: number;
+}
+
 export interface SearchQuery {
   viewerId: string;
   /** Texte normalisé (`normalizeSearchQuery`). */
@@ -24,6 +31,8 @@ export interface SearchQuery {
 export interface SocialGraphReader {
   listFollowers(query: ListQuery): Promise<Page<UserSummary>>;
   listFollowing(query: ListQuery): Promise<Page<UserSummary>>;
+  /** Comptes actifs bloqués par l'appelant ; curseur `(blocks.created_at, id du profil)`. */
+  listBlocked(query: BlockedListQuery): Promise<Page<UserSummary>>;
   /** Tri : username exact, username qui commence par la requête, comptes suivis, similarité, abonnés. */
   search(query: SearchQuery): Promise<UserSummary[]>;
 }

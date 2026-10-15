@@ -42,6 +42,8 @@ protocol IdentityService: Sendable {
     func updateMe(_ changes: ProfileChanges) async throws(IdentityServiceError) -> Profile
     /// Retire ma photo de profil (`DELETE /v1/me/avatar`).
     func removeAvatar() async throws(IdentityServiceError) -> Profile
+    /// Compte privé ou public (`PATCH /v1/me/settings`).
+    func updateSettings(isPrivate: Bool) async throws(IdentityServiceError) -> Profile
     /// Profil d'un autre utilisateur (`GET /v1/users/{username}`).
     func fetchUserProfile(username: String) async throws(IdentityServiceError) -> UserProfile
 }
@@ -129,6 +131,25 @@ struct APIIdentityService: IdentityService {
             throw Self.error(409) { try response.body.applicationProblemJson }
         case let .unprocessableContent(response):
             throw Self.error(422) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
+    func updateSettings(isPrivate: Bool) async throws(IdentityServiceError) -> Profile {
+        let body = Components.Schemas.UpdateSettingsRequest(isPrivate: isPrivate)
+        let output = try await call { try await client.updateSettings(body: .json(body)) }
+        switch output {
+        case let .ok(response):
+            return try Profile(Self.unwrap { try response.body.json })
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .notFound(response):
+            throw Self.error(404) { try response.body.applicationProblemJson }
         case .internalServerError:
             throw .unexpectedResponse(statusCode: 500)
         case let .undocumented(statusCode, _):

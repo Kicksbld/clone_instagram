@@ -39,3 +39,12 @@ export {
   type SubscriptionRow,
   type SubscriptionStatus,
 } from './billing.ts';
+export {
+  REPORT_REASONS,
+  REPORT_STATUSES,
+  reports,
+  type NewReportRow,
+  type ReportReason,
+  type ReportRow,
+  type ReportStatus,
+} from './moderation.ts';

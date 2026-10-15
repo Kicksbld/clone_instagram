@@ -4,6 +4,9 @@ import SwiftUI
 struct UserProfileView: View {
     @State private var viewModel: UserProfileViewModel
     @State private var isConfirmingUnfollow = false
+    @Environment(\.moderation) private var moderation
+    @Environment(\.blockedUserIds) private var blockedUserIds
+    @Environment(\.dismiss) private var dismiss
     private let posts: any PostService
 
     init(viewModel: UserProfileViewModel, posts: any PostService) {
@@ -16,6 +19,19 @@ struct UserProfileView: View {
             .navigationTitle(viewModel.username)
             .navigationBarTitleDisplayMode(.inline)
             .task { await viewModel.load() }
+            .toolbar {
+                if case let .loaded(profile) = viewModel.state, let moderation {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        moderationMenu(profile, actions: moderation)
+                    }
+                }
+            }
+            // Compte bloqué depuis ce profil : il devient invisible, retour à l'écran précédent (ADR-006).
+            .onChange(of: blockedUserIds) {
+                if case let .loaded(profile) = viewModel.state, blockedUserIds.contains(profile.id) {
+                    dismiss()
+                }
+            }
             .alert(
                 "Action impossible",
                 isPresented: Binding(
@@ -91,6 +107,19 @@ struct UserProfileView: View {
                 Text(message)
             } actions: {
                 Button("Réessayer") { Task { await viewModel.load() } }
+            }
+        }
+    }
+
+    /// Menu « … » de la barre du haut, comme Instagram : « Bloquer » et « Signaler ».
+    private func moderationMenu(_ profile: UserProfile, actions: ModerationActions) -> some View {
+        let account = BlockRoute(userId: profile.id, username: profile.username)
+        return Menu("Plus d'options", systemImage: "ellipsis") {
+            Button("Bloquer", systemImage: "hand.raised", role: .destructive) {
+                actions.block(account)
+            }
+            Button("Signaler", systemImage: "exclamationmark.bubble", role: .destructive) {
+                actions.report(ReportRoute(target: .user(id: profile.id), author: account))
             }
         }
     }

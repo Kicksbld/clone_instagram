@@ -18,6 +18,8 @@ final class FakeIdentityService: IdentityService {
     var onboardingResults: [Result<Profile, IdentityServiceError>] = []
     var updateError: IdentityServiceError?
     var removeAvatarError: IdentityServiceError?
+    /// Erreur de `updateSettings` ; sinon le profil renvoyé reflète le paramètre demandé.
+    var settingsError: IdentityServiceError?
     /// Réponses successives de `fetchUserProfile` ; `userNotFound` quand la liste est vide.
     var userProfileResults: [Result<UserProfile, IdentityServiceError>] = []
 
@@ -25,6 +27,7 @@ final class FakeIdentityService: IdentityService {
     private(set) var onboardingRequests: [OnboardingRequest] = []
     private(set) var updates: [ProfileChanges] = []
     private(set) var removeAvatarCount = 0
+    private(set) var settingsUpdates: [Bool] = []
     private(set) var fetchedUsernames: [String] = []
 
     func fetchMe() async throws(IdentityServiceError) -> Profile {
@@ -71,6 +74,14 @@ final class FakeIdentityService: IdentityService {
         return .fixture()
     }
 
+    func updateSettings(isPrivate: Bool) async throws(IdentityServiceError) -> Profile {
+        settingsUpdates.append(isPrivate)
+        if let settingsError {
+            throw settingsError
+        }
+        return .fixture(isPrivate: isPrivate)
+    }
+
     func fetchUserProfile(username: String) async throws(IdentityServiceError) -> UserProfile {
         fetchedUsernames.append(username)
         guard !userProfileResults.isEmpty else { throw .userNotFound }
@@ -87,13 +98,18 @@ extension ImageVariants {
 }
 
 extension Profile {
-    static func fixture(username: String = "killian", fullName: String = "Killian", bio: String = "") -> Profile {
+    static func fixture(
+        username: String = "killian",
+        fullName: String = "Killian",
+        bio: String = "",
+        isPrivate: Bool = false
+    ) -> Profile {
         Profile(
             id: "0199a1b2-0000-7000-8000-000000000001",
             username: username,
             fullName: fullName,
             bio: bio,
-            isPrivate: false,
+            isPrivate: isPrivate,
             status: .active,
             followerCount: 0,
             followingCount: 0,
