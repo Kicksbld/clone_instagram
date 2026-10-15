@@ -9,6 +9,7 @@ import {
   type Subscription,
 } from '../../../src/modules/billing/domain/subscription.ts';
 import { ProfileNotFoundError } from '../../../src/modules/identity/domain/errors.ts';
+import { InMemoryAnalyticsTracker } from '../../support/fakes.ts';
 import {
   InMemorySubscriptionProvider,
   InMemorySubscriptions,
@@ -63,10 +64,12 @@ describe('RefreshSubscription', () => {
   let accounts: Set<string>;
   let subscriptions: InMemorySubscriptions;
   let provider: InMemorySubscriptionProvider;
+  let analytics: InMemoryAnalyticsTracker;
   let refresh: RefreshSubscription;
 
   beforeEach(() => {
     accounts = new Set([ME]);
+    analytics = new InMemoryAnalyticsTracker();
     subscriptions = new InMemorySubscriptions();
     provider = new InMemorySubscriptionProvider();
     refresh = new RefreshSubscription(
@@ -81,6 +84,7 @@ describe('RefreshSubscription', () => {
       subscriptions,
       provider,
       { now: () => NOW },
+      analytics,
     );
   });
 
@@ -157,6 +161,66 @@ describe('RefreshSubscription', () => {
     await expect(refresh.execute({ userId: ME })).resolves.toMatchObject({
       plan: 'free',
       providerUnavailable: true,
+    });
+  });
+
+  describe('subscription_activated (ADR-013)', () => {
+    const activated = {
+      distinctId: ME,
+      event: { name: 'subscription_activated', properties: { product_id: PRODUCT } },
+    };
+    const active = () => ({
+      status: 'active' as const,
+      productId: PRODUCT,
+      expiresAt: minutes(60 * 24 * 30),
+    });
+
+    it('jamais abonné → plus : envoyé une fois', async () => {
+      provider.customers.set(ME, active());
+
+      await refresh.execute({ userId: ME });
+
+      expect(analytics.events).toEqual([activated]);
+    });
+
+    it('expiré → plus : envoyé', async () => {
+      await subscriptions.save(subscription({ status: 'expired', expiresAt: minutes(-60) }));
+      provider.customers.set(ME, active());
+
+      await refresh.execute({ userId: ME });
+
+      expect(analytics.events).toEqual([activated]);
+    });
+
+    it('déjà plus, relu chez RevenueCat (renouvellement) → rien', async () => {
+      await subscriptions.save(subscription({ refreshedAt: minutes(-30) }));
+      provider.customers.set(ME, active());
+
+      await refresh.execute({ userId: ME });
+
+      expect(provider.calls).toBe(1);
+      expect(analytics.events).toEqual([]);
+    });
+
+    it.each([
+      [
+        'abonné relu il y a moins de 5 min',
+        () => subscriptions.save(subscription({ refreshedAt: minutes(-1) })),
+      ],
+      ['jamais abonné', () => Promise.resolve()],
+      [
+        'RevenueCat injoignable',
+        () => {
+          provider.unavailable = true;
+          return Promise.resolve();
+        },
+      ],
+    ])('%s → rien', async (_case, given) => {
+      await given();
+
+      await refresh.execute({ userId: ME });
+
+      expect(analytics.events).toEqual([]);
     });
   });
 

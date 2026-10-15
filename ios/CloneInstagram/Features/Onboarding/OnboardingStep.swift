@@ -14,6 +14,25 @@ enum OnboardingStep: Hashable {
     case completed
 }
 
+extension OnboardingStep {
+    /// Nom de l'étape dans les analytics (ADR-013).
+    var analyticsName: OnboardingStepName {
+        switch self {
+        case .createAccount: .createAccount
+        case .email: .email
+        case .confirmationCode: .confirmationCode
+        case .password: .password
+        case .birthDate: .birthDate
+        case .fullName: .fullName
+        case .username: .username
+        case .terms: .terms
+        case .profilePhoto: .profilePhoto
+        case .bio: .bio
+        case .completed: .completed
+        }
+    }
+}
+
 /// Point d'entrée de l'onboarding.
 enum OnboardingEntry: Hashable {
     /// Depuis l'écran de bienvenue : « Commencer ».

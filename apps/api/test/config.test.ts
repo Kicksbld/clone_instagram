@@ -15,7 +15,12 @@ const required = {
 
 describe('configuration', () => {
   it('applique les valeurs par défaut', () => {
-    expect(loadConfig(required)).toEqual({ ...required, API_PORT: 3000, LOG_LEVEL: 'info' });
+    expect(loadConfig(required)).toEqual({
+      ...required,
+      API_PORT: 3000,
+      LOG_LEVEL: 'info',
+      POSTHOG_HOST: 'https://eu.i.posthog.com',
+    });
   });
 
   it('traite une variable vide comme absente', () => {
@@ -46,8 +51,19 @@ describe('configuration', () => {
     ['PUBLIC_MEDIA_BASE_URL absente', { PUBLIC_MEDIA_BASE_URL: '' }],
     ['REVENUECAT_SECRET_KEY absente', { REVENUECAT_SECRET_KEY: '' }],
     ['REVENUECAT_PROJECT_ID absent', { REVENUECAT_PROJECT_ID: '' }],
+    ['POSTHOG_HOST qui n’est pas une URL', { POSTHOG_HOST: 'eu.i.posthog.com' }],
   ])('refuse de démarrer : %s', (_label, env) => {
     expect(() => loadConfig({ ...required, ...env })).toThrow(InvalidConfigError);
+  });
+
+  it('PostHog est optionnel : sans clé, l’API démarre (ADR-013)', () => {
+    expect(loadConfig(required).POSTHOG_PROJECT_API_KEY).toBeUndefined();
+    expect(
+      loadConfig({ ...required, POSTHOG_PROJECT_API_KEY: 'phc_test', POSTHOG_HOST: '' }),
+    ).toMatchObject({
+      POSTHOG_PROJECT_API_KEY: 'phc_test',
+      POSTHOG_HOST: 'https://eu.i.posthog.com',
+    });
   });
 
   it('n’affiche jamais la valeur fautive', () => {

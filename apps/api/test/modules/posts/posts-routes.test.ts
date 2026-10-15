@@ -101,6 +101,19 @@ describe('POST /v1/posts', () => {
     expect((await get('/v1/me')).json()).toMatchObject({ postCount: 1 });
   });
 
+  it('envoie post_created sans légende ni identifiant de média (ADR-013)', async () => {
+    const photos = givenReadyPhotos(ME, 3);
+
+    await publish({ kind: 'post', caption: 'Mon week-end', mediaIds: photos });
+
+    expect(context.analytics.events).toEqual([
+      {
+        distinctId: ME,
+        event: { name: 'post_created', properties: { kind: 'post', media_count: 3 } },
+      },
+    ]);
+  });
+
   it('sans légende → légende vide', async () => {
     context.media.addReady({ id: PHOTO, ownerId: ME, purpose: 'post' });
 
@@ -156,6 +169,7 @@ describe('POST /v1/posts', () => {
     expect(response.statusCode).toBe(status);
     expect(response.json()).toMatchObject({ code });
     expect(context.posts.rows.size).toBe(0);
+    expect(context.analytics.events).toEqual([]);
   });
 
   it('média inexistant → 404 media_not_found', async () => {

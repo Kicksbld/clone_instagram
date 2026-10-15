@@ -1,3 +1,4 @@
+import type { AnalyticsTracker } from '../../../../shared/application/analytics-tracker.ts';
 import type { Clock } from '../../../../shared/application/clock.ts';
 import { isOldEnough } from '../../domain/age.ts';
 import { AgeRequirementNotMetError, ProfileAlreadyExistsError } from '../../domain/errors.ts';
@@ -11,11 +12,12 @@ export interface CompleteOnboardingInput {
   birthDate: string;
 }
 
-/** Crée le profil à l'acceptation des conditions (ADR-018). */
+/** Crée le profil à l'acceptation des conditions (ADR-018), puis `profile_created` (ADR-013). */
 export class CompleteOnboarding {
   constructor(
     private readonly profiles: ProfileRepository,
     private readonly clock: Clock,
+    private readonly analytics: AnalyticsTracker,
   ) {}
 
   async execute(input: CompleteOnboardingInput): Promise<Profile> {
@@ -23,11 +25,13 @@ export class CompleteOnboarding {
     if (!isOldEnough(input.birthDate, this.clock.now())) throw new AgeRequirementNotMetError();
 
     // Username pris, y compris par une inscription simultanée : contrainte d'unicité (adapter).
-    return this.profiles.create({
+    const profile = await this.profiles.create({
       id: input.userId,
       username: input.username,
       fullName: normalizeFullName(input.fullName),
       birthDate: input.birthDate,
     });
+    this.analytics.track(profile.id, { name: 'profile_created' });
+    return profile;
   }
 }

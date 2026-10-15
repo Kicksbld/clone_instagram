@@ -3,12 +3,13 @@ import Testing
 
 struct LikeSynchronizerTests {
     private let service = FakeEngagementService()
+    private let analytics = FakeAnalyticsService()
     private let likes: LikeSynchronizer
     /// Post non aimé, 4 likes.
     private let post: Post
 
     init() {
-        likes = LikeSynchronizer(service: service)
+        likes = LikeSynchronizer(service: service, analytics: analytics)
         var post = Post.fixture()
         post.likeCount = 4
         self.post = post
@@ -29,6 +30,31 @@ struct LikeSynchronizerTests {
         #expect(outcome == .confirmed)
         #expect(shown == LikeStatus(isLiked: true, likeCount: 7))
         #expect(service.calls == [.init(isLiking: true, postId: post.id)])
+    }
+
+    @Test func `like confirmé → post_liked avec sa source (ADR-013)`() async {
+        service.results = [.success(LikeStatus(isLiked: true, likeCount: 5))]
+        _ = await likes.likeFromDoubleTap(post)
+
+        #expect(analytics.events == [.postLiked(.doubleTap)])
+    }
+
+    @Test func `like en échec → aucun événement`() async {
+        service.results = [.failure(.unreachable)]
+
+        _ = await likes.toggleLike(post)
+
+        #expect(analytics.events.isEmpty)
+    }
+
+    @Test func `unlike confirmé → aucun événement`() async {
+        var liked = post
+        liked.isLiked = true
+        service.results = [.success(LikeStatus(isLiked: false, likeCount: 3))]
+
+        _ = await likes.toggleLike(liked)
+
+        #expect(analytics.events.isEmpty)
     }
 
     @Test func `post déjà aimé : unlike envoyé par DELETE`() async {

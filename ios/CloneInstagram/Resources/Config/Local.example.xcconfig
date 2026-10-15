@@ -14,5 +14,11 @@ SUPABASE_PUBLISHABLE_KEY =
 // Clé publique (Apple App Store) de RevenueCat, non secrète (Project Settings → API Keys, ADR-012).
 REVENUECAT_API_KEY =
 
+// Clé projet PostHog, non secrète (Project Settings → Project API key, ADR-013). Vide : aucun envoi, paywall `control`.
+POSTHOG_API_KEY =
+
+// Hôte PostHog (région UE).
+POSTHOG_HOST = https:/$()/eu.i.posthog.com
+
 // Team ID Apple du compte développeur (Sign in with Apple, achat intégré).
 DEVELOPMENT_TEAM = CNLG2XPDKN

@@ -23,6 +23,7 @@ final class UserProfileViewModel {
     private let viewerId: String
     private let identity: any IdentityService
     private let social: any SocialService
+    private let analytics: any AnalyticsService
     private let onFollowChange: () async -> Void
 
     private var isLoaded: Bool {
@@ -39,12 +40,14 @@ final class UserProfileViewModel {
         viewerId: String,
         identity: any IdentityService,
         social: any SocialService,
+        analytics: any AnalyticsService = NoopAnalyticsService(),
         onFollowChange: @escaping () async -> Void = {}
     ) {
         self.username = username
         self.viewerId = viewerId
         self.identity = identity
         self.social = social
+        self.analytics = analytics
         self.onFollowChange = onFollowChange
     }
 
@@ -98,6 +101,9 @@ final class UserProfileViewModel {
             profile.isFollowing = status.isFollowing
             profile.followerCount = status.followerCount
             state = .loaded(profile)
+            if following, status.isFollowing {
+                analytics.track(.userFollowed(.profile))
+            }
             await onFollowChange()
         } catch .userNotFound {
             state = .notFound

@@ -20,39 +20,15 @@ struct AppDependencies {
     let purchases: any PurchaseService
     let subscriptions: any SubscriptionService
     let appIcons: any AppIconService
+    /// Événements et variante du paywall (PostHog, ADR-013).
+    let analytics: any AnalyticsService
 
     static func live(bundle: Bundle = .main) -> AppDependencies {
-        let auth: any AuthService = if let configuration = try? SupabaseConfiguration(bundle: bundle) {
-            SupabaseAuthService(configuration: configuration)
-        } else {
-            UnavailableAuthService()
-        }
-        let purchases: any PurchaseService = if let configuration = try? RevenueCatConfiguration(bundle: bundle) {
-            RevenueCatPurchaseService(configuration: configuration)
-        } else {
-            UnavailablePurchaseService()
-        }
+        let auth = makeAuth(bundle: bundle)
+        let purchases = makePurchases(bundle: bundle)
+        let analytics = makeAnalytics(bundle: bundle)
         guard let configuration = try? APIConfiguration(bundle: bundle) else {
-            let posts = UnavailablePostService()
-            return AppDependencies(
-                auth: auth,
-                identity: UnavailableIdentityService(),
-                uploads: UnavailableUploadService(),
-                social: UnavailableSocialService(),
-                posts: posts,
-                likes: LikeSynchronizer(service: UnavailableEngagementService()),
-                comments: UnavailableCommentService(),
-                commentCounts: CommentCountStore(),
-                publishQueue: PublishQueue(
-                    store: FilePendingPostStore.applicationSupport,
-                    uploads: UnavailableUploadService(),
-                    posts: posts
-                ),
-                imagePrefetcher: NukeImagePrefetcher(),
-                purchases: purchases,
-                subscriptions: UnavailableSubscriptionService(),
-                appIcons: SystemAppIconService()
-            )
+            return unavailable(auth: auth, purchases: purchases, analytics: analytics)
         }
         let client = APIClientFactory.makeClient(configuration: configuration) { await auth.accessToken() }
         let uploads = UploadManager(media: APIMediaService(client: client), uploader: BackgroundFileUploader.shared)
@@ -63,15 +39,79 @@ struct AppDependencies {
             uploads: uploads,
             social: APISocialService(client: client),
             posts: posts,
-            likes: LikeSynchronizer(service: APIEngagementService(client: client)),
+            likes: LikeSynchronizer(service: APIEngagementService(client: client), analytics: analytics),
             comments: APICommentService(client: client),
             commentCounts: CommentCountStore(),
-            publishQueue: PublishQueue(store: FilePendingPostStore.applicationSupport, uploads: uploads, posts: posts),
+            publishQueue: PublishQueue(
+                store: FilePendingPostStore.applicationSupport,
+                uploads: uploads,
+                posts: posts,
+                analytics: analytics
+            ),
             imagePrefetcher: NukeImagePrefetcher(),
             purchases: purchases,
             subscriptions: APISubscriptionService(client: client),
-            appIcons: SystemAppIconService()
+            appIcons: SystemAppIconService(),
+            analytics: analytics
         )
+    }
+}
+
+extension AppDependencies {
+    /// URL de l'API absente ou invalide : services « indisponibles », l'app affiche une erreur au lieu de planter.
+    private static func unavailable(
+        auth: any AuthService,
+        purchases: any PurchaseService,
+        analytics: any AnalyticsService
+    ) -> AppDependencies {
+        let posts = UnavailablePostService()
+        return AppDependencies(
+            auth: auth,
+            identity: UnavailableIdentityService(),
+            uploads: UnavailableUploadService(),
+            social: UnavailableSocialService(),
+            posts: posts,
+            likes: LikeSynchronizer(service: UnavailableEngagementService(), analytics: analytics),
+            comments: UnavailableCommentService(),
+            commentCounts: CommentCountStore(),
+            publishQueue: PublishQueue(
+                store: FilePendingPostStore.applicationSupport,
+                uploads: UnavailableUploadService(),
+                posts: posts,
+                analytics: analytics
+            ),
+            imagePrefetcher: NukeImagePrefetcher(),
+            purchases: purchases,
+            subscriptions: UnavailableSubscriptionService(),
+            appIcons: SystemAppIconService(),
+            analytics: analytics
+        )
+    }
+
+    /// Clé ou URL absente : service « indisponible », l'app affiche une erreur au lieu de planter.
+    private static func makeAuth(bundle: Bundle) -> any AuthService {
+        if let configuration = try? SupabaseConfiguration(bundle: bundle) {
+            SupabaseAuthService(configuration: configuration)
+        } else {
+            UnavailableAuthService()
+        }
+    }
+
+    private static func makePurchases(bundle: Bundle) -> any PurchaseService {
+        if let configuration = try? RevenueCatConfiguration(bundle: bundle) {
+            RevenueCatPurchaseService(configuration: configuration)
+        } else {
+            UnavailablePurchaseService()
+        }
+    }
+
+    /// Sans clé PostHog : aucun envoi, paywall `control` (ADR-013).
+    private static func makeAnalytics(bundle: Bundle) -> any AnalyticsService {
+        if let configuration = try? PostHogConfiguration(bundle: bundle) {
+            PostHogAnalyticsService(configuration: configuration)
+        } else {
+            NoopAnalyticsService()
+        }
     }
 }
 

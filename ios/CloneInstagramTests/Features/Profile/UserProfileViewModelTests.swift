@@ -5,6 +5,7 @@ struct UserProfileViewModelTests {
     private static let viewerId = "0199a1b2-0000-7000-8000-000000000001"
     private let identity = FakeIdentityService()
     private let social = FakeSocialService()
+    private let analytics = FakeAnalyticsService()
 
     private func makeViewModel(onFollowChange: @escaping () async -> Void = {}) -> UserProfileViewModel {
         UserProfileViewModel(
@@ -12,6 +13,7 @@ struct UserProfileViewModelTests {
             viewerId: Self.viewerId,
             identity: identity,
             social: social,
+            analytics: analytics,
             onFollowChange: onFollowChange
         )
     }
@@ -97,6 +99,7 @@ struct UserProfileViewModelTests {
         #expect(loadedProfile(viewModel)?.isFollowing == true)
         #expect(loadedProfile(viewModel)?.followerCount == 10)
         #expect(changes == 1)
+        #expect(analytics.events == [.userFollowed(.profile)])
     }
 
     @Test(arguments: [SocialServiceError.unreachable, .accountPrivate])
@@ -110,6 +113,7 @@ struct UserProfileViewModelTests {
 
         #expect(viewModel.state == .loaded(.fixture()))
         #expect(viewModel.followErrorMessage != nil)
+        #expect(analytics.events.isEmpty)
     }
 
     @Test func `ne plus suivre : compteur décrémenté`() async {

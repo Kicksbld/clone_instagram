@@ -19,6 +19,9 @@ const configSchema = z.object({
   // T10 : REST API v2 de RevenueCat, clé secrète V2 (Customers et Subscriptions en lecture, ADR-012).
   REVENUECAT_SECRET_KEY: z.string().min(1),
   REVENUECAT_PROJECT_ID: z.string().min(1),
+  // T11 : événements serveur PostHog (ADR-013). Optionnel : sans clé, aucun envoi.
+  POSTHOG_PROJECT_API_KEY: z.string().min(1).optional(),
+  POSTHOG_HOST: z.url({ protocol: /^https?$/ }).default('https://eu.i.posthog.com'),
 });
 
 export type Config = z.infer<typeof configSchema>;

@@ -86,6 +86,23 @@ struct RootViewModelTests {
         #expect(viewModel.route == .home(.fixture()))
     }
 
+    @Test func `lancement identifie le profil ; déconnexion réinitialise les analytics (ADR-013)`() async {
+        let analytics = FakeAnalyticsService()
+        let identity = FakeIdentityService()
+        identity.meResults = [.success(.fixture())]
+        let viewModel = RootViewModel(
+            auth: FakeAuthService(currentProvider: .email),
+            identity: identity,
+            analytics: analytics
+        )
+
+        await viewModel.start()
+        #expect(analytics.identified == [Profile.fixture().id])
+
+        await viewModel.signOut()
+        #expect(analytics.resetCount == 1)
+    }
+
     @Test func `fin de l'onboarding → paywall → « Plus tard » → accueil ; déconnexion → bienvenue`() async {
         let auth = FakeAuthService(currentProvider: .email)
         let purchases = FakePurchaseService()

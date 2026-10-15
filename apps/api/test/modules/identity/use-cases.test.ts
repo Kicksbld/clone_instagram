@@ -12,7 +12,7 @@ import {
   UsernameTakenError,
   UserNotFoundError,
 } from '../../../src/modules/identity/domain/errors.ts';
-import { InMemoryUnitOfWork } from '../../support/fakes.ts';
+import { InMemoryAnalyticsTracker, InMemoryUnitOfWork } from '../../support/fakes.ts';
 import { InMemoryMediaRepository } from '../../support/in-memory-media-repository.ts';
 import { InMemoryProfileRepository } from '../../support/in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from '../../support/in-memory-relationship-reader.ts';
@@ -23,9 +23,11 @@ const ME = '0199a1b2-0000-7000-8000-000000000001';
 const OTHER = '0199a1b2-0000-7000-8000-000000000002';
 
 let profiles: InMemoryProfileRepository;
+let analytics: InMemoryAnalyticsTracker;
 
 beforeEach(() => {
   profiles = new InMemoryProfileRepository(() => NOW);
+  analytics = new InMemoryAnalyticsTracker();
 });
 
 describe('GetMe', () => {
@@ -53,7 +55,7 @@ describe('CompleteOnboarding', () => {
   };
 
   it('crée le profil avec le nom nettoyé et les valeurs par défaut', async () => {
-    const profile = await new CompleteOnboarding(profiles, clock).execute(input);
+    const profile = await new CompleteOnboarding(profiles, clock, analytics).execute(input);
 
     expect(profile).toMatchObject({
       id: ME,
@@ -68,31 +70,44 @@ describe('CompleteOnboarding', () => {
     expect(profiles.rows.has(ME)).toBe(true);
   });
 
-  it('username pris → username_taken', async () => {
+  it('envoie profile_created, sans propriété (ADR-013)', async () => {
+    await new CompleteOnboarding(profiles, clock, analytics).execute(input);
+
+    expect(analytics.events).toEqual([{ distinctId: ME, event: { name: 'profile_created' } }]);
+  });
+
+  it('username pris → username_taken, aucun événement', async () => {
     profiles.add({ id: OTHER, username: 'killian' });
-    await expect(new CompleteOnboarding(profiles, clock).execute(input)).rejects.toBeInstanceOf(
-      UsernameTakenError,
-    );
+    await expect(
+      new CompleteOnboarding(profiles, clock, analytics).execute(input),
+    ).rejects.toBeInstanceOf(UsernameTakenError);
+    expect(analytics.events).toEqual([]);
   });
 
   it('profil déjà créé → profile_already_exists, même si le username est celui d’un autre', async () => {
     profiles.add({ id: ME, username: 'moi' });
     profiles.add({ id: OTHER, username: 'killian' });
-    await expect(new CompleteOnboarding(profiles, clock).execute(input)).rejects.toBeInstanceOf(
-      ProfileAlreadyExistsError,
-    );
+    await expect(
+      new CompleteOnboarding(profiles, clock, analytics).execute(input),
+    ).rejects.toBeInstanceOf(ProfileAlreadyExistsError);
   });
 
   it('moins de 13 ans → age_requirement_not_met, sans créer de profil', async () => {
     await expect(
-      new CompleteOnboarding(profiles, clock).execute({ ...input, birthDate: '2013-09-26' }),
+      new CompleteOnboarding(profiles, clock, analytics).execute({
+        ...input,
+        birthDate: '2013-09-26',
+      }),
     ).rejects.toBeInstanceOf(AgeRequirementNotMetError);
     expect(profiles.rows.size).toBe(0);
   });
 
   it('13 ans le jour même → accepté', async () => {
     await expect(
-      new CompleteOnboarding(profiles, clock).execute({ ...input, birthDate: '2013-09-25' }),
+      new CompleteOnboarding(profiles, clock, analytics).execute({
+        ...input,
+        birthDate: '2013-09-25',
+      }),
     ).resolves.toMatchObject({ id: ME });
   });
 });

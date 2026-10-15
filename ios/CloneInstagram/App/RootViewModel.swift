@@ -24,19 +24,22 @@ final class RootViewModel {
     private let purchases: any PurchaseService
     private let subscriptions: any SubscriptionService
     private let appIcons: any AppIconService
+    private let analytics: any AnalyticsService
 
     init(
         auth: any AuthService,
         identity: any IdentityService,
         purchases: any PurchaseService = UnavailablePurchaseService(),
         subscriptions: any SubscriptionService = UnavailableSubscriptionService(),
-        appIcons: any AppIconService = SystemAppIconService()
+        appIcons: any AppIconService = SystemAppIconService(),
+        analytics: any AnalyticsService = NoopAnalyticsService()
     ) {
         self.auth = auth
         self.identity = identity
         self.purchases = purchases
         self.subscriptions = subscriptions
         self.appIcons = appIcons
+        self.analytics = analytics
     }
 
     func start() async {
@@ -48,6 +51,8 @@ final class RootViewModel {
         do {
             let profile = try await identity.fetchMe()
             route = .home(profile)
+            // Reconnexion, nouvel appareil : événements rattachés au profil (ADR-013).
+            analytics.identify(profileId: profile.id)
             // Au lancement (ADR-012) : client RevenueCat rattaché au profil, puis plan relu par l'API.
             await purchases.logIn(profileId: profile.id)
             await refreshPlan()
@@ -77,6 +82,8 @@ final class RootViewModel {
     /// Le client RevenueCat est rattaché au profil pendant que le paywall s'affiche.
     func finishOnboarding(with profile: Profile) {
         route = .paywall(profile)
+        // Déjà fait à la création du profil ; aussi ici pour un profil existant retrouvé pendant l'onboarding.
+        analytics.identify(profileId: profile.id)
         let purchases = purchases
         Task { await purchases.logIn(profileId: profile.id) }
     }
@@ -132,6 +139,7 @@ final class RootViewModel {
     }
 
     func signOut() async {
+        analytics.reset()
         await purchases.logOut()
         await auth.signOut()
         route = .welcome

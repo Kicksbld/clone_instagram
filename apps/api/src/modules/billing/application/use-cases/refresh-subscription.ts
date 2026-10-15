@@ -1,7 +1,8 @@
+import type { AnalyticsTracker } from '../../../../shared/application/analytics-tracker.ts';
 import type { Clock } from '../../../../shared/application/clock.ts';
 import { ProfileNotFoundError } from '../../../identity/domain/errors.ts';
 import type { AccountReader } from '../../../social/application/ports/account-reader.ts';
-import { isFresh, planOf, type PlanStatus } from '../../domain/subscription.ts';
+import { isFresh, isPlus, planOf, type PlanStatus } from '../../domain/subscription.ts';
 import {
   type SubscriptionProvider,
   SubscriptionProviderUnavailableError,
@@ -24,6 +25,7 @@ export class RefreshSubscription {
     private readonly subscriptions: SubscriptionRepository,
     private readonly provider: SubscriptionProvider,
     private readonly clock: Clock,
+    private readonly analytics: AnalyticsTracker,
   ) {}
 
   async execute(input: { userId: string }): Promise<RefreshResult> {
@@ -44,6 +46,13 @@ export class RefreshSubscription {
 
     const subscription = { userId: input.userId, ...fetched, refreshedAt: now };
     await this.subscriptions.save(subscription);
+    // Passage de `free` à `plus` seulement : un renouvellement ou une relecture n'envoie rien (ADR-013).
+    if (!isPlus(stored, now) && isPlus(subscription, now)) {
+      this.analytics.track(input.userId, {
+        name: 'subscription_activated',
+        properties: { product_id: subscription.productId },
+      });
+    }
     return { ...planOf(subscription, now), providerUnavailable: false };
   }
 }

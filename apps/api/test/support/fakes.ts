@@ -1,3 +1,7 @@
+import type {
+  AnalyticsEvent,
+  AnalyticsTracker,
+} from '../../src/shared/application/analytics-tracker.ts';
 import type { JobQueue } from '../../src/shared/application/job-queue.ts';
 import type { UnitOfWork } from '../../src/shared/application/unit-of-work.ts';
 import type { MediaStorage } from '../../src/modules/media/application/ports/media-storage.ts';
@@ -37,3 +41,12 @@ export const sequentialIds = (prefix = '0199a1b2-0000-7000-9000-') => {
   let next = 0;
   return { next: () => `${prefix}${String(++next).padStart(12, '0')}` };
 };
+
+/** Analytics en mémoire (ADR-013) : enregistre les événements, aucun appel à PostHog. */
+export class InMemoryAnalyticsTracker implements AnalyticsTracker {
+  readonly events: { distinctId: string; event: AnalyticsEvent }[] = [];
+
+  track(distinctId: string, event: AnalyticsEvent): void {
+    this.events.push({ distinctId, event });
+  }
+}

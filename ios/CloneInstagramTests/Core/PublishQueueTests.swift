@@ -7,9 +7,10 @@ struct PublishQueueTests {
     private let store = TemporaryPendingPostStore()
     private let uploads = FakeMediaUploading()
     private let posts = FakePostService()
+    private let analytics = FakeAnalyticsService()
 
     private func makeQueue() -> PublishQueue {
-        PublishQueue(store: store, uploads: uploads, posts: posts) { _, directory throws(ImagePreparationError) in
+        PublishQueue(store: store, uploads: uploads, posts: posts, analytics: analytics) { _, directory throws(ImagePreparationError) in
             let url = directory.appending(path: "\(UUID().uuidString).jpg")
             do {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -46,6 +47,28 @@ struct PublishQueueTests {
         #expect(store.load().isEmpty)
         let sentFile = try #require(uploads.sent.first?.image.fileURL)
         #expect(!FileManager.default.fileExists(atPath: sentFile.path(percentEncoded: false)))
+    }
+
+    @Test func `post publié → post_published avec le nombre de photos (ADR-013)`() async throws {
+        try await publish(makeQueue(), photos: 3)
+
+        #expect(analytics.events == [.postPublished(mediaCount: 3)])
+    }
+
+    @Test func `post déjà créé à la reprise (409) → compté une fois`() async throws {
+        posts.createResults = [.failure(.mediaAlreadyAttached)]
+
+        try await publish(makeQueue())
+
+        #expect(analytics.events == [.postPublished(mediaCount: 1)])
+    }
+
+    @Test func `création en échec → aucun événement`() async throws {
+        posts.createResults = [.failure(.unreachable)]
+
+        try await publish(makeQueue())
+
+        #expect(analytics.events.isEmpty)
     }
 
     @Test func `envoi en échec : publication gardée avec un message, puis Réessayer la termine`() async throws {

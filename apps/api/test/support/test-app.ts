@@ -27,7 +27,13 @@ import { ListFollowing } from '../../src/modules/social/application/use-cases/li
 import { SearchUsers } from '../../src/modules/social/application/use-cases/search-users.ts';
 import { UnfollowUser } from '../../src/modules/social/application/use-cases/unfollow-user.ts';
 import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-media-urls.ts';
-import { FakeMediaStorage, InMemoryJobQueue, InMemoryUnitOfWork, sequentialIds } from './fakes.ts';
+import {
+  FakeMediaStorage,
+  InMemoryAnalyticsTracker,
+  InMemoryJobQueue,
+  InMemoryUnitOfWork,
+  sequentialIds,
+} from './fakes.ts';
 import { InMemorySubscriptionProvider, InMemorySubscriptions } from './in-memory-billing.ts';
 import { InMemoryComments } from './in-memory-comments.ts';
 import { InMemoryFeedReader } from './in-memory-feed.ts';
@@ -88,6 +94,7 @@ export function buildTestApp() {
   const clock = { now: () => TEST_NOW };
   const subscriptions = new InMemorySubscriptions();
   const subscriptionProvider = new InMemorySubscriptionProvider();
+  const analytics = new InMemoryAnalyticsTracker();
   const app = buildApp({
     logLevel: 'silent',
     dependencies: {
@@ -96,7 +103,7 @@ export function buildTestApp() {
         getMe: new GetMe(profiles),
         updateMe: new UpdateMe(profiles, avatarTransaction),
         removeAvatar: new RemoveAvatar(avatarTransaction),
-        completeOnboarding: new CompleteOnboarding(profiles, clock),
+        completeOnboarding: new CompleteOnboarding(profiles, clock, analytics),
         checkUsernameAvailability: new CheckUsernameAvailability(profiles),
         getProfile: new GetProfile(profiles, relationships),
         getPlan: new GetPlan(subscriptions, clock),
@@ -118,6 +125,7 @@ export function buildTestApp() {
           createPostTransaction,
           sequentialIds('0199a1b2-0000-7000-a000-'),
           clock,
+          analytics,
         ),
         deletePost: new DeletePost(new InMemoryUnitOfWork({ media, posts })),
         getPost: new GetPost(posts, relationships),
@@ -144,6 +152,7 @@ export function buildTestApp() {
           subscriptions,
           subscriptionProvider,
           clock,
+          analytics,
         ),
       },
       mediaUrls: publicMediaUrls(TEST_MEDIA_BASE_URL),
@@ -159,5 +168,6 @@ export function buildTestApp() {
     comments,
     subscriptions,
     subscriptionProvider,
+    analytics,
   };
 }
