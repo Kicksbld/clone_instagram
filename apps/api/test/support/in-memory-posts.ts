@@ -17,7 +17,10 @@ export const TEST_IMAGE_SIZE = { width: 1080, height: 1350 };
  * `(created_at, id)` décroissant) ; auteurs et médias lus dans les autres adapters en mémoire.
  */
 export class InMemoryPosts implements PostRepository, PostReader {
-  readonly rows = new Map<string, NewPost & { deletedAt: Date | null; likeCount: number }>();
+  readonly rows = new Map<
+    string,
+    NewPost & { deletedAt: Date | null; likeCount: number; commentCount?: number }
+  >();
   /** Likes (`post_likes`), clé `userId:postId` ; écrits par `InMemoryLikes`. */
   readonly likes = new Set<string>();
 
@@ -82,7 +85,10 @@ export class InMemoryPosts implements PostRepository, PostReader {
     };
   }
 
-  private toPost(row: NewPost & { likeCount: number }, viewerId: string): Post {
+  private toPost(
+    row: NewPost & { likeCount: number; commentCount?: number },
+    viewerId: string,
+  ): Post {
     const author = this.profiles.rows.get(row.authorId);
     if (!author) throw new Error(`Auteur absent : ${row.authorId}`);
     return {
@@ -91,6 +97,7 @@ export class InMemoryPosts implements PostRepository, PostReader {
       caption: row.caption,
       likeCount: row.likeCount,
       viewerHasLiked: this.likes.has(`${viewerId}:${row.id}`),
+      commentCount: row.commentCount ?? 0,
       createdAt: row.createdAt,
       author: {
         id: author.id,

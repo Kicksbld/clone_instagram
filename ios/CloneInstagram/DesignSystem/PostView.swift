@@ -2,8 +2,8 @@ import NukeUI
 import SwiftUI
 
 /// Un post comme dans le feed et le détail d'Instagram (wireframe) : en-tête (auteur, menu « … »), photos
-/// (carrousel) au ratio de la première, actions, mentions J'aime, légende et date. Partagé par les features
-/// Feed et Post.
+/// (carrousel) au ratio de la première, actions, mentions J'aime, légende, lien vers les commentaires et
+/// date. Partagé par les features Feed et Post ; les commentaires s'ouvrent par `openComments`.
 struct PostView: View {
     let post: Post
     let isDeleting: Bool
@@ -22,6 +22,7 @@ struct PostView: View {
     /// Incrémenté à chaque double tap : déclenche le cœur sur la photo.
     @State private var doubleTapCount = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openComments) private var openComments
 
     init(
         post: Post,
@@ -79,6 +80,12 @@ struct PostView: View {
                 }
                 if !post.caption.isEmpty {
                     caption
+                }
+                if post.commentCount > 0, openComments != nil {
+                    Button(commentCountText, action: showComments)
+                        .buttonStyle(.plain)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
                 Text(post.createdAt, format: .relative(presentation: .named))
                     .font(.caption)
@@ -210,7 +217,18 @@ struct PostView: View {
         return post.likeCount == 1 ? "\(count) mention J'aime" : "\(count) mentions J'aime"
     }
 
-    /// J'aime actif ; Commenter (T9), Partager et Enregistrer (plus tard) restent désactivés.
+    /// « Afficher 1 commentaire », « Afficher les 12 commentaires », comme Instagram.
+    private var commentCountText: String {
+        post.commentCount == 1
+            ? "Afficher 1 commentaire"
+            : "Afficher les \(post.commentCount.formatted()) commentaires"
+    }
+
+    private func showComments() {
+        openComments?(CommentsRoute(postId: post.id, commentCount: post.commentCount))
+    }
+
+    /// J'aime et Commenter actifs ; Partager et Enregistrer (plus tard) restent désactivés.
     private var actions: some View {
         HStack(spacing: 16) {
             Button(
@@ -221,8 +239,10 @@ struct PostView: View {
             .foregroundStyle(.primary)
             .contentTransition(.symbolEffect(.replace))
             .symbolEffect(.bounce, value: post.isLiked)
+            Button("Commenter", systemImage: "bubble.right", action: showComments)
+                .foregroundStyle(.primary)
+                .disabled(openComments == nil)
             Group {
-                Button("Commenter", systemImage: "bubble.right") {}
                 Button("Partager", systemImage: "paperplane") {}
                 Spacer()
                 Button("Enregistrer", systemImage: "bookmark") {}

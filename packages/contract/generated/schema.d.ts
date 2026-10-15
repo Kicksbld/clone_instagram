@@ -287,6 +287,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/posts/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Commentaires d'un post
+         * @description Commentaires de premier niveau non supprimés, du plus récent au plus ancien, par pages de 20. Commentaires des auteurs bloqués dans un sens ou dans l'autre et des comptes non actifs absents (ADR-006).
+         *     Post inexistant, supprimé ou invisible pour l'appelant → `404 post_not_found`.
+         */
+        get: operations["listComments"];
+        put?: never;
+        /**
+         * Commenter un post ou répondre à un commentaire
+         * @description Corps de 1 à 2 200 caractères, sans espaces en début ni en fin (retirés). Avec `parentId`, répond à un commentaire de premier niveau de ce post (un seul niveau de réponse).
+         *     `commentCount` du post augmente de 1 (réponses comprises) ; `replyCount` du parent aussi pour une réponse. Limité à 30 commentaires par minute (`429 rate_limited`).
+         */
+        post: operations["createComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/comments/{id}/replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Réponses à un commentaire
+         * @description Réponses non supprimées, du plus récent au plus ancien, par pages de 20. Réponses des auteurs bloqués dans un sens ou dans l'autre et des comptes non actifs absentes (ADR-006).
+         *     Commentaire inexistant, supprimé, ou dont le post ou l'auteur est invisible pour l'appelant → `404 comment_not_found`.
+         */
+        get: operations["listReplies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/comments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Supprimer un commentaire
+         * @description Suppression logique (ADR-007) par l'auteur du commentaire ou par l'auteur du post. Supprimer un commentaire supprime ses réponses : `commentCount` du post baisse de 1 + nombre de réponses supprimées ; supprimer une réponse baisse aussi `replyCount` de son parent.
+         *     Commentaire inexistant, déjà supprimé, invisible, ou supprimé par quelqu'un d'autre → `404 comment_not_found`, jamais `403` (ADR-006).
+         */
+        delete: operations["deleteComment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/feed": {
         parameters: {
             query?: never;
@@ -622,6 +690,8 @@ export interface components {
             likeCount: number;
             /** @description L'appelant aime ce post. */
             viewerHasLiked: boolean;
+            /** @description Nombre de commentaires non supprimés, réponses comprises. */
+            commentCount: number;
             /** Format: date-time */
             createdAt: string;
         };
@@ -635,6 +705,41 @@ export interface components {
             /** @description L'appelant aime ce post. */
             liked: boolean;
             likeCount: number;
+        };
+        /** @description Texte du commentaire, 2 200 caractères au plus, avec au moins un caractère visible ; espaces de début et de fin retirés. */
+        CommentBody: string;
+        CreateCommentRequest: {
+            body: components["schemas"]["CommentBody"];
+            /**
+             * Format: uuid
+             * @description Commentaire de premier niveau de ce post auquel on répond ; absent pour un commentaire de premier niveau.
+             */
+            parentId?: string;
+        };
+        /** @description Commentaire ou réponse, vu par l'appelant. */
+        Comment: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            postId: string;
+            /**
+             * Format: uuid
+             * @description Commentaire auquel celui-ci répond ; absent pour un commentaire de premier niveau.
+             */
+            parentId?: string;
+            author: components["schemas"]["PostAuthor"];
+            body: components["schemas"]["CommentBody"];
+            /** @description Nombre de réponses non supprimées ; toujours 0 pour une réponse. */
+            replyCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description L'appelant peut supprimer ce commentaire (il en est l'auteur, ou l'auteur du post). */
+            viewerCanDelete: boolean;
+        };
+        CommentPage: {
+            items: components["schemas"]["Comment"][];
+            /** @description Curseur de la page suivante ; absent sur la dernière page. */
+            nextCursor?: string;
         };
         /** @description Erreur au format Problem Details (RFC 9457). */
         ProblemDetails: {
@@ -742,6 +847,15 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
+        /** @description Commentaire inexistant, supprimé ou invisible pour l'appelant (`comment_not_found`). */
+        CommentNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
         /** @description Trop de requêtes (`rate_limited`) ; réessayer après `Retry-After` secondes. */
         RateLimited: {
             headers: {
@@ -769,6 +883,7 @@ export interface components {
         Cursor: string;
         MediaId: string;
         PostId: string;
+        CommentId: string;
     };
     requestBodies: never;
     headers: never;
@@ -1307,6 +1422,136 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["LikeTargetNotFound"];
             429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listComments: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["PostId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de commentaires. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["PostNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCommentRequest"];
+            };
+        };
+        responses: {
+            /** @description Commentaire publié. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Comment"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Post inexistant, supprimé ou invisible (`post_not_found`), commentaire parent inexistant, supprimé, invisible ou d'un autre post (`comment_not_found`), ou onboarding non terminé (`profile_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Réponse à une réponse (`reply_to_reply`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listReplies: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de réponses. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["CommentNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    deleteComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CommentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Commentaire supprimé. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["CommentNotFound"];
             500: components["responses"]["InternalError"];
         };
     };

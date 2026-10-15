@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Détail d'un post (wireframe, comme Instagram) : auteur et menu « … », photos (carrousel) au ratio de la
-/// première, actions (J'aime ; Commenter arrive en T9), mentions J'aime, légende et date.
+/// première, actions (J'aime, Commenter), mentions J'aime, légende, lien vers les commentaires et date.
 struct PostDetailView: View {
     @State private var viewModel: PostDetailViewModel
     @State private var isConfirmingDelete = false

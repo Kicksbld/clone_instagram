@@ -38,6 +38,8 @@ info:
     | `cannot_follow_self` | 422 | Se suivre ou ne plus se suivre soi-même |
     | `invalid_cursor` | 400 | Curseur de pagination mal formé |
     | `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |
+    | `comment_not_found` | 404 | Commentaire inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; commentaire parent d'un autre post ; suppression par quelqu'un qui n'est ni l'auteur du commentaire ni celui du post |
+    | `reply_to_reply` | 422 | Réponse à une réponse (un seul niveau de réponse) |
 
     Pagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).
 servers:
@@ -61,7 +63,7 @@ tags:
   - name: feed
     description: Feed d'accueil chronologique (ADR-007), selon la politique de visibilité (ADR-006)
   - name: engagement
-    description: Likes des posts, selon la politique de visibilité (ADR-006)
+    description: Likes et commentaires des posts, selon la politique de visibilité (ADR-006)
 paths:
   /health:
     get:
@@ -529,6 +531,121 @@ paths:
           $ref: '#/components/responses/LikeTargetNotFound'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/posts/{id}/comments:
+    get:
+      operationId: listComments
+      tags: [engagement]
+      summary: Commentaires d'un post
+      description: |
+        Commentaires de premier niveau non supprimés, du plus récent au plus ancien, par pages de 20. Commentaires des auteurs bloqués dans un sens ou dans l'autre et des comptes non actifs absents (ADR-006).
+        Post inexistant, supprimé ou invisible pour l'appelant → `404 post_not_found`.
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page de commentaires.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/PostNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createComment
+      tags: [engagement]
+      summary: Commenter un post ou répondre à un commentaire
+      description: |
+        Corps de 1 à 2 200 caractères, sans espaces en début ni en fin (retirés). Avec `parentId`, répond à un commentaire de premier niveau de ce post (un seul niveau de réponse).
+        `commentCount` du post augmente de 1 (réponses comprises) ; `replyCount` du parent aussi pour une réponse. Limité à 30 commentaires par minute (`429 rate_limited`).
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommentRequest'
+      responses:
+        '201':
+          description: Commentaire publié.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: Post inexistant, supprimé ou invisible (`post_not_found`), commentaire parent inexistant, supprimé, invisible ou d'un autre post (`comment_not_found`), ou onboarding non terminé (`profile_not_found`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          description: Réponse à une réponse (`reply_to_reply`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/comments/{id}/replies:
+    get:
+      operationId: listReplies
+      tags: [engagement]
+      summary: Réponses à un commentaire
+      description: |
+        Réponses non supprimées, du plus récent au plus ancien, par pages de 20. Réponses des auteurs bloqués dans un sens ou dans l'autre et des comptes non actifs absentes (ADR-006).
+        Commentaire inexistant, supprimé, ou dont le post ou l'auteur est invisible pour l'appelant → `404 comment_not_found`.
+      parameters:
+        - $ref: '#/components/parameters/CommentId'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page de réponses.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/CommentNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/comments/{id}:
+    delete:
+      operationId: deleteComment
+      tags: [engagement]
+      summary: Supprimer un commentaire
+      description: |
+        Suppression logique (ADR-007) par l'auteur du commentaire ou par l'auteur du post. Supprimer un commentaire supprime ses réponses : `commentCount` du post baisse de 1 + nombre de réponses supprimées ; supprimer une réponse baisse aussi `replyCount` de son parent.
+        Commentaire inexistant, déjà supprimé, invisible, ou supprimé par quelqu'un d'autre → `404 comment_not_found`, jamais `403` (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/CommentId'
+      responses:
+        '204':
+          description: Commentaire supprimé.
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/CommentNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
   /v1/feed:
@@ -1060,7 +1177,8 @@ components:
     Post:
       type: object
       additionalProperties: false
-      required: [id, kind, caption, author, media, likeCount, viewerHasLiked, createdAt]
+      required:
+        [id, kind, caption, author, media, likeCount, viewerHasLiked, commentCount, createdAt]
       properties:
         id:
           type: string
@@ -1084,6 +1202,10 @@ components:
         viewerHasLiked:
           type: boolean
           description: L'appelant aime ce post.
+        commentCount:
+          type: integer
+          minimum: 0
+          description: Nombre de commentaires non supprimés, réponses comprises.
         createdAt:
           type: string
           format: date-time
@@ -1112,6 +1234,66 @@ components:
         likeCount:
           type: integer
           minimum: 0
+    CommentBody:
+      type: string
+      description: Texte du commentaire, 2 200 caractères au plus, avec au moins un caractère visible ; espaces de début et de fin retirés.
+      minLength: 1
+      maxLength: 2200
+      pattern: '\S'
+    CreateCommentRequest:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body:
+          $ref: '#/components/schemas/CommentBody'
+        parentId:
+          type: string
+          format: uuid
+          description: Commentaire de premier niveau de ce post auquel on répond ; absent pour un commentaire de premier niveau.
+    Comment:
+      type: object
+      description: Commentaire ou réponse, vu par l'appelant.
+      additionalProperties: false
+      required: [id, postId, author, body, replyCount, createdAt, viewerCanDelete]
+      properties:
+        id:
+          type: string
+          format: uuid
+        postId:
+          type: string
+          format: uuid
+        parentId:
+          type: string
+          format: uuid
+          description: Commentaire auquel celui-ci répond ; absent pour un commentaire de premier niveau.
+        author:
+          $ref: '#/components/schemas/PostAuthor'
+        body:
+          $ref: '#/components/schemas/CommentBody'
+        replyCount:
+          type: integer
+          minimum: 0
+          description: Nombre de réponses non supprimées ; toujours 0 pour une réponse.
+        createdAt:
+          type: string
+          format: date-time
+        viewerCanDelete:
+          type: boolean
+          description: L'appelant peut supprimer ce commentaire (il en est l'auteur, ou l'auteur du post).
+    CommentPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/Comment'
+        nextCursor:
+          type: string
+          description: Curseur de la page suivante ; absent sur la dernière page.
     ProblemDetails:
       type: object
       description: Erreur au format Problem Details (RFC 9457).
@@ -1170,6 +1352,13 @@ components:
       schema:
         type: string
         format: uuid
+    CommentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     ValidationFailed:
       description: Entrée non conforme au schéma (`validation_failed`).
@@ -1221,6 +1410,12 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     LikeTargetNotFound:
       description: Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`), ou onboarding non terminé (`profile_not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    CommentNotFound:
+      description: Commentaire inexistant, supprimé ou invisible pour l'appelant (`comment_not_found`).
       content:
         application/problem+json:
           schema:

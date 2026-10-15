@@ -87,7 +87,7 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
     registerSocialRoutes(v1, dependencies.social, dependencies.mediaUrls);
     registerPostsRoutes(v1, dependencies.posts, dependencies.mediaUrls);
     registerFeedRoutes(v1, dependencies.feed, dependencies.mediaUrls);
-    registerEngagementRoutes(v1, dependencies.engagement);
+    registerEngagementRoutes(v1, dependencies.engagement, dependencies.mediaUrls);
     done();
   });
 

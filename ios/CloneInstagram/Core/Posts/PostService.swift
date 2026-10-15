@@ -225,6 +225,7 @@ private extension Post {
             media: media,
             likeCount: dto.likeCount,
             isLiked: dto.viewerHasLiked,
+            commentCount: dto.commentCount,
             createdAt: dto.createdAt
         )
     }

@@ -81,6 +81,7 @@ describe('POST /v1/posts', () => {
         },
       ],
       likeCount: 0,
+      commentCount: 0,
       viewerHasLiked: false,
       createdAt: '2026-09-25T12:00:00.000Z',
     });

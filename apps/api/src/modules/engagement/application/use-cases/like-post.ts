@@ -1,7 +1,7 @@
 import type { UnitOfWork } from '../../../../shared/application/unit-of-work.ts';
 import type { LikeStatus } from '../../domain/like.ts';
 import type { LikeTransaction } from '../ports/like-transaction.ts';
-import { requireLikeablePost } from '../require-likeable-post.ts';
+import { requireEngageablePost } from '../require-visible-post.ts';
 
 /**
  * Aimer un post visible (use case de référence d'ADR-005), y compris le sien. Idempotent :
@@ -12,7 +12,7 @@ export class LikePost {
 
   execute(input: { viewerId: string; postId: string }): Promise<LikeStatus> {
     return this.transaction.run(async (scope) => {
-      const post = await requireLikeablePost(scope, input.viewerId, input.postId);
+      const post = await requireEngageablePost(scope, input.viewerId, input.postId);
       const created = await scope.likes.add(input.viewerId, post.id);
       const likeCount = created ? await scope.likes.applyLikeCount(post.id, 1) : post.likeCount;
       return { liked: true, likeCount };

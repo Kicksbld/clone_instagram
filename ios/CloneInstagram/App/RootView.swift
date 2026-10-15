@@ -6,6 +6,8 @@ struct RootView: View {
     @State private var viewModel: RootViewModel
     /// Incrémenté à chaque post supprimé : grille et compteurs de mon profil se rechargent.
     @State private var deletedPostCount = 0
+    /// Feuille des commentaires ouverte depuis un post (feed, détail).
+    @State private var commentsRoute: CommentsRoute?
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
@@ -57,6 +59,7 @@ struct RootView: View {
                         viewerId: profile.id,
                         posts: dependencies.posts,
                         likes: dependencies.likes,
+                        commentCounts: dependencies.commentCounts,
                         prefetcher: dependencies.imagePrefetcher,
                         onDeleted: { deletedPostCount += 1 }
                     ),
@@ -64,11 +67,13 @@ struct RootView: View {
                     publishedCount: dependencies.publishQueue.publishedCount,
                     onSearch: openSearch
                 )
+                .environment(\.openComments, openComments)
                 .modifier(SocialDestinations(
                     dependencies: dependencies,
                     viewerId: profile.id,
                     onFollowChange: viewModel.refreshProfile,
-                    onPostDeleted: { deletedPostCount += 1 }
+                    onPostDeleted: { deletedPostCount += 1 },
+                    openComments: openComments
                 ))
             } profileTab: { openSearch in
                 MyProfileView(
@@ -93,7 +98,8 @@ struct RootView: View {
                     dependencies: dependencies,
                     viewerId: profile.id,
                     onFollowChange: viewModel.refreshProfile,
-                    onPostDeleted: { deletedPostCount += 1 }
+                    onPostDeleted: { deletedPostCount += 1 },
+                    openComments: openComments
                 ))
             } searchTab: {
                 SearchView(viewModel: SearchViewModel(social: dependencies.social))
@@ -101,7 +107,8 @@ struct RootView: View {
                         dependencies: dependencies,
                         viewerId: profile.id,
                         onFollowChange: viewModel.refreshProfile,
-                        onPostDeleted: { deletedPostCount += 1 }
+                        onPostDeleted: { deletedPostCount += 1 },
+                        openComments: openComments
                     ))
             } createPost: { close in
                 CreatePostView(
@@ -114,6 +121,18 @@ struct RootView: View {
             .task(id: profile.id) { dependencies.publishQueue.resume(for: profile.id) }
             .onChange(of: postsRevision) {
                 Task { await viewModel.refreshProfile() }
+            }
+            .sheet(item: $commentsRoute) { route in
+                CommentsView(
+                    viewModel: CommentsViewModel(
+                        route: route,
+                        viewer: PostAuthor(id: profile.id, username: profile.username, avatar: profile.avatar),
+                        service: dependencies.comments,
+                        counts: dependencies.commentCounts
+                    )
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
         case let .failed(message):
             ContentUnavailableView {
@@ -132,10 +151,17 @@ struct RootView: View {
         dependencies.publishQueue.publishedCount + deletedPostCount
     }
 
-    /// Les publications en attente et les likes ne sont jamais repris pour un autre compte.
+    /// Ouvre la feuille des commentaires d'un post.
+    private var openComments: OpenCommentsAction {
+        OpenCommentsAction { commentsRoute = $0 }
+    }
+
+    /// Les publications en attente, les likes et les compteurs de commentaires ne sont jamais repris pour
+    /// un autre compte.
     private func signOut() {
         dependencies.publishQueue.discardAll()
         dependencies.likes.reset()
+        dependencies.commentCounts.reset()
         Task { await viewModel.signOut() }
     }
 }
@@ -149,6 +175,8 @@ private struct SocialDestinations: ViewModifier {
     let onFollowChange: () async -> Void
     /// Après la suppression d'un de mes posts.
     let onPostDeleted: () -> Void
+    /// Feuille des commentaires, ouverte depuis le détail d'un post.
+    let openComments: OpenCommentsAction
 
     func body(content: Content) -> some View {
         content
@@ -171,9 +199,11 @@ private struct SocialDestinations: ViewModifier {
                         viewerId: viewerId,
                         posts: dependencies.posts,
                         likes: dependencies.likes,
+                        commentCounts: dependencies.commentCounts,
                         onDeleted: onPostDeleted
                     )
                 )
+                .environment(\.openComments, openComments)
             }
             .navigationDestination(for: FollowListRoute.self) { route in
                 FollowListsView(

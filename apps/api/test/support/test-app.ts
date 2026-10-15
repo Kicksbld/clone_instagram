@@ -1,5 +1,9 @@
 import { buildApp } from '../../src/app.ts';
+import { CreateComment } from '../../src/modules/engagement/application/use-cases/create-comment.ts';
+import { DeleteComment } from '../../src/modules/engagement/application/use-cases/delete-comment.ts';
 import { LikePost } from '../../src/modules/engagement/application/use-cases/like-post.ts';
+import { ListComments } from '../../src/modules/engagement/application/use-cases/list-comments.ts';
+import { ListReplies } from '../../src/modules/engagement/application/use-cases/list-replies.ts';
 import { UnlikePost } from '../../src/modules/engagement/application/use-cases/unlike-post.ts';
 import { GetFeed } from '../../src/modules/feed/application/use-cases/get-feed.ts';
 import { CheckUsernameAvailability } from '../../src/modules/identity/application/use-cases/check-username-availability.ts';
@@ -22,6 +26,7 @@ import { SearchUsers } from '../../src/modules/social/application/use-cases/sear
 import { UnfollowUser } from '../../src/modules/social/application/use-cases/unfollow-user.ts';
 import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-media-urls.ts';
 import { FakeMediaStorage, InMemoryJobQueue, InMemoryUnitOfWork, sequentialIds } from './fakes.ts';
+import { InMemoryComments } from './in-memory-comments.ts';
 import { InMemoryFeedReader } from './in-memory-feed.ts';
 import { InMemoryLikes } from './in-memory-likes.ts';
 import { InMemoryMediaRepository } from './in-memory-media-repository.ts';
@@ -69,6 +74,14 @@ export function buildTestApp() {
     posts: likes,
     likes,
   });
+  const comments = new InMemoryComments(profiles, posts, relationships);
+  const commentTransaction = new InMemoryUnitOfWork({
+    accounts: graph,
+    relationships,
+    posts: likes,
+    comments,
+    reader: comments,
+  });
   const clock = { now: () => TEST_NOW };
   const app = buildApp({
     logLevel: 'silent',
@@ -110,9 +123,17 @@ export function buildTestApp() {
       engagement: {
         likePost: new LikePost(likeTransaction),
         unlikePost: new UnlikePost(likeTransaction),
+        createComment: new CreateComment(
+          commentTransaction,
+          sequentialIds('0199a1b2-0000-7000-b100-'),
+          clock,
+        ),
+        listComments: new ListComments(relationships, likes, comments),
+        listReplies: new ListReplies(relationships, comments, comments),
+        deleteComment: new DeleteComment(commentTransaction),
       },
       mediaUrls: publicMediaUrls(TEST_MEDIA_BASE_URL),
     },
   });
-  return { app, profiles, media, jobs, relationships, posts };
+  return { app, profiles, media, jobs, relationships, posts, comments };
 }

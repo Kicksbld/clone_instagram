@@ -34,6 +34,8 @@ export interface Post {
   likeCount: number;
   /** L'appelant aime ce post (T8). */
   viewerHasLiked: boolean;
+  /** Commentaires non supprimés, réponses comprises (T9). */
+  commentCount: number;
   createdAt: Date;
 }
 
