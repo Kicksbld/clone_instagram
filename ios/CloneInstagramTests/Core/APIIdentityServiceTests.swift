@@ -6,7 +6,7 @@ struct APIIdentityServiceTests {
     private static let meJSON = """
     {"id":"0199a1b2-0000-7000-8000-000000000001","username":"killian","fullName":"Killian","bio":"Dev",\
     "birthDate":"2000-01-31","isPrivate":false,"status":"active","followerCount":1,"followingCount":2,\
-    "postCount":3,"createdAt":"2026-09-25T12:00:00.000Z"}
+    "postCount":3,"plan":"free","createdAt":"2026-09-25T12:00:00.000Z"}
     """
 
     private func makeService(_ reply: StubTransport.Reply) throws -> APIIdentityService {

@@ -86,15 +86,90 @@ struct RootViewModelTests {
         #expect(viewModel.route == .home(.fixture()))
     }
 
-    @Test func `fin de l'onboarding → accueil ; déconnexion → bienvenue`() async {
+    @Test func `fin de l'onboarding → paywall → « Plus tard » → accueil ; déconnexion → bienvenue`() async {
         let auth = FakeAuthService(currentProvider: .email)
-        let viewModel = RootViewModel(auth: auth, identity: FakeIdentityService())
+        let purchases = FakePurchaseService()
+        let viewModel = RootViewModel(auth: auth, identity: FakeIdentityService(), purchases: purchases)
 
         viewModel.finishOnboarding(with: .fixture())
+        #expect(viewModel.route == .paywall(.fixture()))
+
+        viewModel.closePaywall()
         #expect(viewModel.route == .home(.fixture()))
 
         await viewModel.signOut()
         #expect(viewModel.route == .welcome)
         #expect(auth.currentProvider == nil)
+        #expect(purchases.calls.last == "logOut")
+    }
+
+    @Test func `abonnement confirmé sur le paywall → accueil en plan plus`() {
+        let viewModel = RootViewModel(auth: FakeAuthService(currentProvider: .email), identity: FakeIdentityService())
+        viewModel.finishOnboarding(with: .fixture())
+
+        viewModel.updatePlan(.plusFixture)
+        viewModel.closePaywall()
+
+        guard case let .home(profile) = viewModel.route else {
+            Issue.record("Route attendue : home, obtenue : \(viewModel.route)")
+            return
+        }
+        #expect(profile.planStatus == .plusFixture)
+    }
+
+    @Test func `lancement → client RevenueCat rattaché au profil, plan relu par l'API`() async {
+        let identity = FakeIdentityService()
+        identity.meResults = [.success(.fixture())]
+        let purchases = FakePurchaseService()
+        let subscriptions = FakeSubscriptionService()
+        subscriptions.results = [.success(.plusFixture)]
+        let viewModel = RootViewModel(
+            auth: FakeAuthService(currentProvider: .email),
+            identity: identity,
+            purchases: purchases,
+            subscriptions: subscriptions
+        )
+
+        await viewModel.start()
+
+        #expect(purchases.calls == ["logIn(0199a1b2-0000-7000-8000-000000000001)"])
+        var expected = Profile.fixture()
+        expected.planStatus = .plusFixture
+        #expect(viewModel.route == .home(expected))
+    }
+
+    @Test func `API injoignable au rafraîchissement → dernier plan conservé`() async {
+        let identity = FakeIdentityService()
+        var plus = Profile.fixture()
+        plus.planStatus = .plusFixture
+        identity.meResults = [.success(plus)]
+        let subscriptions = FakeSubscriptionService()
+        subscriptions.results = [.failure(.unreachable)]
+        let viewModel = RootViewModel(
+            auth: FakeAuthService(currentProvider: .email),
+            identity: identity,
+            subscriptions: subscriptions
+        )
+
+        await viewModel.start()
+
+        #expect(viewModel.route == .home(plus))
+    }
+
+    @Test func `abonnement expiré → icône personnalisée retirée`() async {
+        let identity = FakeIdentityService()
+        identity.meResults = [.success(.fixture())]
+        let icons = FakeAppIconService()
+        icons.current = .citron
+        let viewModel = RootViewModel(
+            auth: FakeAuthService(currentProvider: .email),
+            identity: identity,
+            subscriptions: FakeSubscriptionService(),
+            appIcons: icons
+        )
+
+        await viewModel.start()
+
+        #expect(icons.changes == [.standard])
     }
 }

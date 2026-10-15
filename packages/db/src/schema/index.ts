@@ -33,3 +33,9 @@ export {
   type NewCommentRow,
   type PostLikeRow,
 } from './engagement.ts';
+export {
+  SUBSCRIPTION_STATUSES,
+  subscriptions,
+  type SubscriptionRow,
+  type SubscriptionStatus,
+} from './billing.ts';

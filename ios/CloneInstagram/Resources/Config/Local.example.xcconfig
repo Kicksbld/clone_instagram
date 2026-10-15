@@ -11,5 +11,8 @@ SUPABASE_URL = http:/$()/localhost:54321
 // Clé publique (publishable) de Supabase, non secrète : « Publishable » de `supabase status`.
 SUPABASE_PUBLISHABLE_KEY =
 
+// Clé publique (Apple App Store) de RevenueCat, non secrète (Project Settings → API Keys, ADR-012).
+REVENUECAT_API_KEY =
+
 // Team ID Apple du compte développeur (Sign in with Apple, achat intégré).
 DEVELOPMENT_TEAM = CNLG2XPDKN

@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// Mon profil (wireframe) : en-tête depuis `GET /v1/me`, « Modifier le profil », carte « Compléter
-/// votre profil », grille des publications. L'écran « Modifier le profil » est fourni par le routeur racine.
-struct MyProfileView<EditProfile: View>: View {
+/// votre profil », grille des publications. Les écrans « Modifier le profil » et Paramètres sont fournis par
+/// le routeur racine.
+struct MyProfileView<EditProfile: View, Settings: View>: View {
     let profile: Profile
     let onRefresh: () async -> Void
     let onSignOut: () -> Void
@@ -13,8 +14,11 @@ struct MyProfileView<EditProfile: View>: View {
     /// Change à chaque post publié : la grille se recharge.
     var postsReloadToken = 0
     @ViewBuilder let editProfile: () -> EditProfile
+    /// Menu ☰ : Paramètres (Clone Plus en T10).
+    @ViewBuilder let settings: () -> Settings
 
     @State private var isEditing = false
+    @State private var isShowingSettings = false
 
     var body: some View {
         ScrollView {
@@ -27,10 +31,14 @@ struct MyProfileView<EditProfile: View>: View {
         .navigationTitle(profile.username)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $isEditing, destination: editProfile)
+        .navigationDestination(isPresented: $isShowingSettings, destination: settings)
         .toolbar {
-            // Provisoire jusqu'aux paramètres (T12).
+            // Provisoire jusqu'aux paramètres complets (T12).
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Se déconnecter", action: onSignOut)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Paramètres", systemImage: "line.3.horizontal") { isShowingSettings = true }
             }
         }
     }

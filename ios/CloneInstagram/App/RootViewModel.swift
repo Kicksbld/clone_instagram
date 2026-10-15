@@ -2,6 +2,7 @@ import Foundation
 import Observation
 
 /// Routeur racine (ADR-010) : non connecté → bienvenue ; session sans profil → onboarding ; sinon accueil.
+/// Fin de l'onboarding → paywall Clone Plus (ADR-012) → accueil.
 @Observable
 final class RootViewModel {
     enum Route: Equatable {
@@ -10,6 +11,8 @@ final class RootViewModel {
         case welcome
         case login
         case onboarding(OnboardingEntry)
+        /// Paywall de fin d'onboarding (« Plus tard » mène à l'accueil).
+        case paywall(Profile)
         case home(Profile)
         case failed(message: String)
     }
@@ -18,10 +21,22 @@ final class RootViewModel {
 
     private let auth: any AuthService
     private let identity: any IdentityService
+    private let purchases: any PurchaseService
+    private let subscriptions: any SubscriptionService
+    private let appIcons: any AppIconService
 
-    init(auth: any AuthService, identity: any IdentityService) {
+    init(
+        auth: any AuthService,
+        identity: any IdentityService,
+        purchases: any PurchaseService = UnavailablePurchaseService(),
+        subscriptions: any SubscriptionService = UnavailableSubscriptionService(),
+        appIcons: any AppIconService = SystemAppIconService()
+    ) {
         self.auth = auth
         self.identity = identity
+        self.purchases = purchases
+        self.subscriptions = subscriptions
+        self.appIcons = appIcons
     }
 
     func start() async {
@@ -31,7 +46,11 @@ final class RootViewModel {
             return
         }
         do {
-            route = try await .home(identity.fetchMe())
+            let profile = try await identity.fetchMe()
+            route = .home(profile)
+            // Au lancement (ADR-012) : client RevenueCat rattaché au profil, puis plan relu par l'API.
+            await purchases.logIn(profileId: profile.id)
+            await refreshPlan()
         } catch .profileNotFound {
             route = .onboarding(.resume(provider))
         } catch .unauthenticated {
@@ -54,7 +73,17 @@ final class RootViewModel {
         route = .welcome
     }
 
+    /// Profil créé et onboarding terminé : paywall avant l'accueil.
+    /// Le client RevenueCat est rattaché au profil pendant que le paywall s'affiche.
     func finishOnboarding(with profile: Profile) {
+        route = .paywall(profile)
+        let purchases = purchases
+        Task { await purchases.logIn(profileId: profile.id) }
+    }
+
+    /// « Plus tard », ou abonnement confirmé : accueil.
+    func closePaywall() {
+        guard case let .paywall(profile) = route else { return }
         route = .home(profile)
     }
 
@@ -64,6 +93,38 @@ final class RootViewModel {
         route = .home(profile)
     }
 
+    /// Plan confirmé par l'API (paywall, Paramètres > Clone Plus).
+    func updatePlan(_ planStatus: PlanStatus) {
+        applyPlan(planStatus)
+        Task { await resetIconIfNeeded(planStatus) }
+    }
+
+    /// Plan relu par l'API ; une erreur laisse le dernier plan connu (non bloquant).
+    func refreshPlan() async {
+        guard let planStatus = try? await subscriptions.refresh() else { return }
+        applyPlan(planStatus)
+        await resetIconIfNeeded(planStatus)
+    }
+
+    private func applyPlan(_ planStatus: PlanStatus) {
+        switch route {
+        case var .paywall(profile):
+            profile.planStatus = planStatus
+            route = .paywall(profile)
+        case var .home(profile):
+            profile.planStatus = planStatus
+            route = .home(profile)
+        default:
+            break
+        }
+    }
+
+    /// Abonnement terminé : l'icône personnalisée, avantage Plus, revient à l'icône principale.
+    private func resetIconIfNeeded(_ planStatus: PlanStatus) async {
+        guard planStatus.plan == .free, appIcons.current != .standard else { return }
+        try? await appIcons.setIcon(.standard)
+    }
+
     /// Tirer pour rafraîchir mon profil (compteurs, photo…) ; l'erreur laisse le profil affiché.
     func refreshProfile() async {
         guard case .home = route, let profile = try? await identity.fetchMe() else { return }
@@ -71,6 +132,7 @@ final class RootViewModel {
     }
 
     func signOut() async {
+        await purchases.logOut()
         await auth.signOut()
         route = .welcome
     }

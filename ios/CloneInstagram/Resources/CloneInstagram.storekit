@@ -1,0 +1,76 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "fr_FR",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "6F0E1C2A",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6815768027",
+    "_developerTeamID" : "CNLG2XPDKN",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "fr_FR",
+    "_storefront" : "FRA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "C1A55E01",
+      "localizations" : [
+        {
+          "description" : "",
+          "displayName" : "Clone Plus",
+          "locale" : "fr_FR"
+        }
+      ],
+      "name" : "Clone Plus",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "4.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "C1A55E02",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Icône d'app personnalisée et avantages Clone Plus.",
+              "displayName" : "Clone Plus mensuel",
+              "locale" : "fr_FR"
+            }
+          ],
+          "productID" : "com.killianboularand.cloneinstagram.plus.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Clone Plus mensuel",
+          "subscriptionGroupID" : "C1A55E01",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

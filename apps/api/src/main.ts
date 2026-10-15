@@ -3,6 +3,10 @@ import { createDatabase, type Executor } from '@clone/db';
 import { StorageClient } from '@supabase/storage-js';
 
 import { buildApp } from './app.ts';
+import { GetPlan } from './modules/billing/application/use-cases/get-plan.ts';
+import { RefreshSubscription } from './modules/billing/application/use-cases/refresh-subscription.ts';
+import { DrizzleSubscriptionRepository } from './modules/billing/infrastructure/persistence/drizzle-subscription-repository.ts';
+import { RevenueCatSubscriptionProvider } from './modules/billing/infrastructure/revenuecat/revenuecat-subscription-provider.ts';
 import { CreateComment } from './modules/engagement/application/use-cases/create-comment.ts';
 import { DeleteComment } from './modules/engagement/application/use-cases/delete-comment.ts';
 import { LikePost } from './modules/engagement/application/use-cases/like-post.ts';
@@ -102,6 +106,7 @@ const commentTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => 
   reader: new DrizzleCommentReader(tx),
 }));
 const commentReader = new DrizzleCommentReader(database.db);
+const subscriptions = new DrizzleSubscriptionRepository(database.db);
 const jobs = new BullMqJobQueue(config.REDIS_URL);
 const secretKey = config.SUPABASE_SERVICE_ROLE_KEY;
 const storage = new SupabaseMediaStorage(
@@ -127,6 +132,7 @@ const app = buildApp({
       completeOnboarding: new CompleteOnboarding(profiles, systemClock),
       checkUsernameAvailability: new CheckUsernameAvailability(profiles),
       getProfile: new GetProfile(profiles, relationships),
+      getPlan: new GetPlan(subscriptions, systemClock),
     },
     media: {
       requestUpload: new RequestUpload(media, storage, uuidV7Generator),
@@ -164,6 +170,17 @@ const app = buildApp({
         commentReader,
       ),
       deleteComment: new DeleteComment(commentTransaction),
+    },
+    billing: {
+      refreshSubscription: new RefreshSubscription(
+        accounts,
+        subscriptions,
+        new RevenueCatSubscriptionProvider({
+          secretKey: config.REVENUECAT_SECRET_KEY,
+          projectId: config.REVENUECAT_PROJECT_ID,
+        }),
+        systemClock,
+      ),
     },
     mediaUrls: publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL),
   },

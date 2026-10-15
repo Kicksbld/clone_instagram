@@ -46,6 +46,7 @@ describe('GET /v1/me', () => {
       followerCount: 0,
       followingCount: 0,
       postCount: 0,
+      plan: 'free',
       createdAt: '2026-09-25T12:00:00.000Z',
     });
   });

@@ -2,6 +2,7 @@ import type { components, operations } from '@clone/contract';
 import type { FastifyInstance } from 'fastify';
 
 import { authenticatedUserId } from '../../../../shared/infrastructure/auth/authentication.ts';
+import type { GetPlan } from '../../../billing/application/use-cases/get-plan.ts';
 import { routeSchemaFor } from '../../../../shared/infrastructure/http/contract-schemas.ts';
 import type { PublicMediaUrls } from '../../../../shared/infrastructure/http/public-media-urls.ts';
 import type { CheckUsernameAvailability } from '../../application/use-cases/check-username-availability.ts';
@@ -19,6 +20,8 @@ export interface IdentityUseCases {
   completeOnboarding: CompleteOnboarding;
   checkUsernameAvailability: CheckUsernameAvailability;
   getProfile: GetProfile;
+  /** Module `billing` : plan Clone Plus des réponses `Me` (ADR-012). */
+  getPlan: GetPlan;
 }
 
 type Me = components['schemas']['Me'];
@@ -35,11 +38,16 @@ export function registerIdentityRoutes(
   useCases: IdentityUseCases,
   urls: PublicMediaUrls,
 ): void {
-  const toMe = ({ avatar, createdAt, ...profile }: Profile): Me => ({
-    ...profile,
-    ...(avatar && { avatar: urls.of(avatar.variants) }),
-    createdAt: createdAt.toISOString(),
-  });
+  const toMe = async ({ avatar, createdAt, ...profile }: Profile): Promise<Me> => {
+    const { plan, expiresAt } = await useCases.getPlan.execute({ userId: profile.id });
+    return {
+      ...profile,
+      ...(avatar && { avatar: urls.of(avatar.variants) }),
+      plan,
+      ...(expiresAt && { plusExpiresAt: expiresAt.toISOString() }),
+      createdAt: createdAt.toISOString(),
+    };
+  };
 
   // Profil public : ni date de naissance, ni statut, ni date de création.
   const toUserProfile = ({ profile, relationship, canViewContent }: ProfileView): UserProfile => ({

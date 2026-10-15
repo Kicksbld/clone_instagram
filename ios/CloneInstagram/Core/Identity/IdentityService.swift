@@ -215,8 +215,18 @@ private extension Profile {
             followerCount: dto.followerCount,
             followingCount: dto.followingCount,
             postCount: dto.postCount,
-            avatar: dto.avatar.flatMap(ImageVariants.init)
+            avatar: dto.avatar.flatMap(ImageVariants.init),
+            planStatus: PlanStatus(plan: Plan(dto.plan), expiresAt: dto.plusExpiresAt)
         )
+    }
+}
+
+extension Plan {
+    init(_ plan: Components.Schemas.Plan) {
+        switch plan {
+        case .free: self = .free
+        case .plus: self = .plus
+        }
     }
 }
 

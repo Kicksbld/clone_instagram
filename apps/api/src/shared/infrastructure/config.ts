@@ -16,6 +16,9 @@ const configSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   // URL Supabase joignable depuis l'iPhone : URL publiques des médias et URL d'upload (ADR-008).
   PUBLIC_MEDIA_BASE_URL: z.url({ protocol: /^https?$/ }),
+  // T10 : REST API v2 de RevenueCat, clé secrète V2 (Customers et Subscriptions en lecture, ADR-012).
+  REVENUECAT_SECRET_KEY: z.string().min(1),
+  REVENUECAT_PROJECT_ID: z.string().min(1),
 });
 
 export type Config = z.infer<typeof configSchema>;

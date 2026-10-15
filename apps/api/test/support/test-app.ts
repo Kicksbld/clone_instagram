@@ -1,4 +1,6 @@
 import { buildApp } from '../../src/app.ts';
+import { GetPlan } from '../../src/modules/billing/application/use-cases/get-plan.ts';
+import { RefreshSubscription } from '../../src/modules/billing/application/use-cases/refresh-subscription.ts';
 import { CreateComment } from '../../src/modules/engagement/application/use-cases/create-comment.ts';
 import { DeleteComment } from '../../src/modules/engagement/application/use-cases/delete-comment.ts';
 import { LikePost } from '../../src/modules/engagement/application/use-cases/like-post.ts';
@@ -26,6 +28,7 @@ import { SearchUsers } from '../../src/modules/social/application/use-cases/sear
 import { UnfollowUser } from '../../src/modules/social/application/use-cases/unfollow-user.ts';
 import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-media-urls.ts';
 import { FakeMediaStorage, InMemoryJobQueue, InMemoryUnitOfWork, sequentialIds } from './fakes.ts';
+import { InMemorySubscriptionProvider, InMemorySubscriptions } from './in-memory-billing.ts';
 import { InMemoryComments } from './in-memory-comments.ts';
 import { InMemoryFeedReader } from './in-memory-feed.ts';
 import { InMemoryLikes } from './in-memory-likes.ts';
@@ -83,6 +86,8 @@ export function buildTestApp() {
     reader: comments,
   });
   const clock = { now: () => TEST_NOW };
+  const subscriptions = new InMemorySubscriptions();
+  const subscriptionProvider = new InMemorySubscriptionProvider();
   const app = buildApp({
     logLevel: 'silent',
     dependencies: {
@@ -94,6 +99,7 @@ export function buildTestApp() {
         completeOnboarding: new CompleteOnboarding(profiles, clock),
         checkUsernameAvailability: new CheckUsernameAvailability(profiles),
         getProfile: new GetProfile(profiles, relationships),
+        getPlan: new GetPlan(subscriptions, clock),
       },
       media: {
         requestUpload: new RequestUpload(media, new FakeMediaStorage(clock.now), sequentialIds()),
@@ -132,8 +138,26 @@ export function buildTestApp() {
         listReplies: new ListReplies(relationships, comments, comments),
         deleteComment: new DeleteComment(commentTransaction),
       },
+      billing: {
+        refreshSubscription: new RefreshSubscription(
+          graph,
+          subscriptions,
+          subscriptionProvider,
+          clock,
+        ),
+      },
       mediaUrls: publicMediaUrls(TEST_MEDIA_BASE_URL),
     },
   });
-  return { app, profiles, media, jobs, relationships, posts, comments };
+  return {
+    app,
+    profiles,
+    media,
+    jobs,
+    relationships,
+    posts,
+    comments,
+    subscriptions,
+    subscriptionProvider,
+  };
 }
