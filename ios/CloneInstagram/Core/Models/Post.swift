@@ -1,6 +1,6 @@
 import Foundation
 
-/// Post publié, vu par moi (ADR-006) : auteur, images dans l'ordre d'affichage, légende, likes.
+/// Post publié, vu par moi (ADR-006) : auteur, images dans l'ordre d'affichage, légende, likes, commentaires.
 struct Post: Equatable, Identifiable {
     let id: String
     let caption: String
@@ -10,6 +10,8 @@ struct Post: Equatable, Identifiable {
     var likeCount = 0
     /// J'aime ce post.
     var isLiked = false
+    /// Commentaires, réponses comprises ; modifiable après un commentaire publié ou supprimé.
+    var commentCount = 0
     let createdAt: Date
 
     /// Première image : vignette de la grille.

@@ -23,6 +23,7 @@ final class PostDetailViewModel {
     private let viewerId: String
     private let posts: any PostService
     private let likes: LikeSynchronizer
+    private let commentCounts: CommentCountStore
     /// Après une suppression : grille et compteur de mon profil sont rechargés.
     private let onDeleted: () -> Void
 
@@ -31,12 +32,14 @@ final class PostDetailViewModel {
         viewerId: String,
         posts: any PostService,
         likes: LikeSynchronizer,
+        commentCounts: CommentCountStore = CommentCountStore(),
         onDeleted: @escaping () -> Void = {}
     ) {
         self.postId = postId
         self.viewerId = viewerId
         self.posts = posts
         self.likes = likes
+        self.commentCounts = commentCounts
         self.onDeleted = onDeleted
     }
 
@@ -69,9 +72,9 @@ final class PostDetailViewModel {
         return true
     }
 
-    /// Le post avec son dernier état de like, partagé avec les autres écrans.
+    /// Le post avec son dernier état de like et son nombre de commentaires, partagés avec les autres écrans.
     func displayed(_ post: Post) -> Post {
-        likes.displayed(post)
+        commentCounts.displayed(likes.displayed(post))
     }
 
     /// Bouton J'aime : like ou unlike, affiché tout de suite (optimiste).
@@ -104,6 +107,7 @@ final class PostDetailViewModel {
         do {
             let post = try await posts.fetchPost(id: postId)
             likes.record([post])
+            commentCounts.record([post])
             state = .loaded(post)
         } catch .postNotFound {
             state = .notFound

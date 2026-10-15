@@ -101,7 +101,7 @@ export function pageOf(rows: Post[], limit: number): Page<Post> {
 
 /**
  * Posts non supprimés filtrés par `where`, du plus récent au plus ancien, avec auteur, médias et
- * likes vus par `viewerId`. Partagé par les lectures de posts et le feed (ADR-007).
+ * likes vus par `viewerId`, et nombre de commentaires. Partagé par les lectures de posts et le feed (ADR-007).
  */
 export async function selectPosts(
   db: Executor,
@@ -119,6 +119,7 @@ export async function selectPosts(
       viewerHasLiked: sql<boolean>`EXISTS (
         SELECT 1 FROM ${postLikes} AS l WHERE l.user_id = ${viewerId} AND l.post_id = ${posts.id}
       )`,
+      commentCount: posts.commentCount,
       createdAt: posts.createdAt,
       authorId: profiles.id,
       username: profiles.username,
@@ -168,6 +169,7 @@ export async function selectPosts(
     caption: row.caption,
     likeCount: row.likeCount,
     viewerHasLiked: row.viewerHasLiked,
+    commentCount: row.commentCount,
     createdAt: row.createdAt,
     author: {
       id: row.authorId,

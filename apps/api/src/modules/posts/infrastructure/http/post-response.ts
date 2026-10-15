@@ -25,6 +25,7 @@ export function toPostResponse(post: Post, urls: PublicMediaUrls): PostResponse 
     })),
     likeCount: post.likeCount,
     viewerHasLiked: post.viewerHasLiked,
+    commentCount: post.commentCount,
     createdAt: post.createdAt.toISOString(),
   };
 }

@@ -9,6 +9,9 @@ struct AppDependencies {
     let posts: any PostService
     /// Likes partagés par le feed et le détail des posts.
     let likes: LikeSynchronizer
+    let comments: any CommentService
+    /// Nombre de commentaires des posts, partagé par le feed, le détail et la feuille de commentaires.
+    let commentCounts: CommentCountStore
     /// Publications en cours, persistées (ADR-008).
     let publishQueue: PublishQueue
     /// Préchargement des photos du feed (Nuke).
@@ -29,6 +32,8 @@ struct AppDependencies {
                 social: UnavailableSocialService(),
                 posts: posts,
                 likes: LikeSynchronizer(service: UnavailableEngagementService()),
+                comments: UnavailableCommentService(),
+                commentCounts: CommentCountStore(),
                 publishQueue: PublishQueue(
                     store: FilePendingPostStore.applicationSupport,
                     uploads: UnavailableUploadService(),
@@ -47,6 +52,8 @@ struct AppDependencies {
             social: APISocialService(client: client),
             posts: posts,
             likes: LikeSynchronizer(service: APIEngagementService(client: client)),
+            comments: APICommentService(client: client),
+            commentCounts: CommentCountStore(),
             publishQueue: PublishQueue(store: FilePendingPostStore.applicationSupport, uploads: uploads, posts: posts),
             imagePrefetcher: NukeImagePrefetcher()
         )

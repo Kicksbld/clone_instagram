@@ -3,8 +3,16 @@ import { createDatabase, type Executor } from '@clone/db';
 import { StorageClient } from '@supabase/storage-js';
 
 import { buildApp } from './app.ts';
+import { CreateComment } from './modules/engagement/application/use-cases/create-comment.ts';
+import { DeleteComment } from './modules/engagement/application/use-cases/delete-comment.ts';
 import { LikePost } from './modules/engagement/application/use-cases/like-post.ts';
+import { ListComments } from './modules/engagement/application/use-cases/list-comments.ts';
+import { ListReplies } from './modules/engagement/application/use-cases/list-replies.ts';
 import { UnlikePost } from './modules/engagement/application/use-cases/unlike-post.ts';
+import {
+  DrizzleCommentReader,
+  DrizzleCommentRepository,
+} from './modules/engagement/infrastructure/persistence/drizzle-comments.ts';
 import {
   DrizzleLikeablePostReader,
   DrizzleLikeRepository,
@@ -86,6 +94,14 @@ const likeTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   posts: new DrizzleLikeablePostReader(tx),
   likes: new DrizzleLikeRepository(tx),
 }));
+const commentTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  accounts: new DrizzleAccountReader(tx),
+  relationships: new DrizzleRelationshipReader(tx),
+  posts: new DrizzleLikeablePostReader(tx),
+  comments: new DrizzleCommentRepository(tx),
+  reader: new DrizzleCommentReader(tx),
+}));
+const commentReader = new DrizzleCommentReader(database.db);
 const jobs = new BullMqJobQueue(config.REDIS_URL);
 const secretKey = config.SUPABASE_SERVICE_ROLE_KEY;
 const storage = new SupabaseMediaStorage(
@@ -136,6 +152,18 @@ const app = buildApp({
     engagement: {
       likePost: new LikePost(likeTransaction),
       unlikePost: new UnlikePost(likeTransaction),
+      createComment: new CreateComment(commentTransaction, uuidV7Generator, systemClock),
+      listComments: new ListComments(
+        relationships,
+        new DrizzleLikeablePostReader(database.db),
+        commentReader,
+      ),
+      listReplies: new ListReplies(
+        relationships,
+        new DrizzleCommentRepository(database.db),
+        commentReader,
+      ),
+      deleteComment: new DeleteComment(commentTransaction),
     },
     mediaUrls: publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL),
   },

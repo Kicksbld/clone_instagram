@@ -35,6 +35,7 @@ final class FeedViewModel {
     private let viewerId: String
     private let service: any PostService
     private let likes: LikeSynchronizer
+    private let commentCounts: CommentCountStore
     private let prefetcher: any ImagePrefetching
     private let now: () -> Date
     /// Après une suppression : grille et compteur de mon profil sont rechargés.
@@ -47,6 +48,7 @@ final class FeedViewModel {
         viewerId: String,
         posts: any PostService,
         likes: LikeSynchronizer,
+        commentCounts: CommentCountStore = CommentCountStore(),
         prefetcher: any ImagePrefetching,
         now: @escaping () -> Date = Date.init,
         onDeleted: @escaping () -> Void = {}
@@ -54,6 +56,7 @@ final class FeedViewModel {
         self.viewerId = viewerId
         service = posts
         self.likes = likes
+        self.commentCounts = commentCounts
         self.prefetcher = prefetcher
         self.now = now
         self.onDeleted = onDeleted
@@ -118,6 +121,7 @@ final class FeedViewModel {
         do {
             let page = try await service.listFeed(cursor: nil)
             likes.record(page.items)
+            commentCounts.record(page.items)
             posts = page.items
             nextCursor = page.nextCursor
             loadMoreFailed = false
@@ -138,6 +142,7 @@ final class FeedViewModel {
         do {
             let page = try await service.listFeed(cursor: cursor)
             likes.record(page.items)
+            commentCounts.record(page.items)
             let known = Set(posts.map(\.id))
             posts += page.items.filter { !known.contains($0.id) }
             nextCursor = page.nextCursor
@@ -188,9 +193,9 @@ final class FeedViewModel {
         onDeleted()
     }
 
-    /// Le post avec son dernier état de like, partagé avec les autres écrans.
+    /// Le post avec son dernier état de like et son nombre de commentaires, partagés avec les autres écrans.
     func displayed(_ post: Post) -> Post {
-        likes.displayed(post)
+        commentCounts.displayed(likes.displayed(post))
     }
 
     /// Bouton J'aime : like ou unlike, affiché tout de suite (optimiste).
