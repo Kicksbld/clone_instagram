@@ -50,6 +50,10 @@ packages:
   supabase-swift:
     url: https://github.com/supabase/supabase-swift
     exactVersion: 2.55.2
+  # Achat Clone Plus (ADR-010, ADR-012) : module `RevenueCat` uniquement (paywall maison, sans RevenueCatUI).
+  purchases-ios:
+    url: https://github.com/RevenueCat/purchases-ios-spm
+    exactVersion: 5.95.0
 
 targets:
   CloneInstagram:
@@ -63,6 +67,8 @@ targets:
           # Chemins explicites : le motif `**/.gitkeep` ne couvre pas les fichiers cachés.
           - 'Core/Models/.gitkeep'
           - 'DesignSystem/.gitkeep'
+          # Configuration StoreKit : lue par le schéma, jamais copiée dans l'app.
+          - 'Resources/CloneInstagram.storekit'
     configFiles:
       Local: CloneInstagram/Resources/Config/Local.xcconfig
       Demo: CloneInstagram/Resources/Config/Demo.xcconfig
@@ -87,6 +93,8 @@ targets:
         # Création d'un post : la photo la plus récente est présélectionnée, comme Instagram (ADR-010).
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Clone affiche vos photos pour que vous puissiez les publier.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Icônes alternatives, avantage Clone Plus (ADR-012) : `AppIcon` de `Core/Billing/AppIconService`.
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIcon-Citron AppIcon-Rose
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
         # La phase SwiftLint / SwiftFormat lit les sources hors de la liste d'entrées du script.
@@ -110,6 +118,8 @@ targets:
         product: NukeUI
       - package: supabase-swift
         product: Auth
+      - package: purchases-ios
+        product: RevenueCat
     preBuildScripts:
       - name: SwiftLint et SwiftFormat
         basedOnDependencyAnalysis: false
@@ -167,6 +177,8 @@ schemes:
         CloneInstagramTests: [test]
     run:
       config: Local
+      # Achat Clone Plus sans App Store Connect, dans le simulateur (ADR-012) ; Demo passe par la sandbox.
+      storeKitConfiguration: CloneInstagram/Resources/CloneInstagram.storekit
     test:
       config: Local
       targets:

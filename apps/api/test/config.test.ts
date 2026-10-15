@@ -9,6 +9,8 @@ const required = {
   REDIS_URL: 'redis://127.0.0.1:6379',
   SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test',
   PUBLIC_MEDIA_BASE_URL: 'http://192.168.1.20:54321',
+  REVENUECAT_SECRET_KEY: 'sk_test',
+  REVENUECAT_PROJECT_ID: 'proj_test',
 };
 
 describe('configuration', () => {
@@ -42,6 +44,8 @@ describe('configuration', () => {
     ['REDIS_URL qui n’est pas une URL Redis', { REDIS_URL: 'http://localhost:6379' }],
     ['SUPABASE_SERVICE_ROLE_KEY absente', { SUPABASE_SERVICE_ROLE_KEY: '' }],
     ['PUBLIC_MEDIA_BASE_URL absente', { PUBLIC_MEDIA_BASE_URL: '' }],
+    ['REVENUECAT_SECRET_KEY absente', { REVENUECAT_SECRET_KEY: '' }],
+    ['REVENUECAT_PROJECT_ID absent', { REVENUECAT_PROJECT_ID: '' }],
   ])('refuse de démarrer : %s', (_label, env) => {
     expect(() => loadConfig({ ...required, ...env })).toThrow(InvalidConfigError);
   });

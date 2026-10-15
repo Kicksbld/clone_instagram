@@ -11,7 +11,13 @@ struct RootView: View {
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
-        _viewModel = State(initialValue: RootViewModel(auth: dependencies.auth, identity: dependencies.identity))
+        _viewModel = State(initialValue: RootViewModel(
+            auth: dependencies.auth,
+            identity: dependencies.identity,
+            purchases: dependencies.purchases,
+            subscriptions: dependencies.subscriptions,
+            appIcons: dependencies.appIcons
+        ))
     }
 
     var body: some View {
@@ -52,6 +58,8 @@ struct RootView: View {
                 onLogin: viewModel.showLogin
             )
             .id(entry)
+        case let .paywall(profile):
+            paywall(for: profile, onClose: viewModel.closePaywall)
         case let .home(profile):
             HomeView(publishQueue: dependencies.publishQueue) { openSearch in
                 FeedView(
@@ -92,6 +100,15 @@ struct RootView: View {
                                 onUpdated: viewModel.updateProfile
                             )
                         )
+                    },
+                    settings: {
+                        SettingsView(
+                            planStatus: profile.planStatus,
+                            icons: AppIconViewModel(service: dependencies.appIcons),
+                            onRefreshPlan: viewModel.refreshPlan
+                        ) {
+                            paywall(for: profile, onClose: nil)
+                        }
                     }
                 )
                 .modifier(SocialDestinations(
@@ -144,6 +161,19 @@ struct RootView: View {
                 Button("Se déconnecter", action: signOut)
             }
         }
+    }
+
+    /// Paywall Clone Plus : fin de l'onboarding (`onClose` = « Plus tard ») ou Paramètres > Clone Plus.
+    private func paywall(for profile: Profile, onClose: (() -> Void)?) -> some View {
+        PaywallView(
+            viewModel: PaywallViewModel(
+                planStatus: profile.planStatus,
+                purchases: dependencies.purchases,
+                subscriptions: dependencies.subscriptions,
+                onPlanChanged: viewModel.updatePlan
+            ),
+            onClose: onClose
+        )
     }
 
     /// Change à chaque post publié ou supprimé.

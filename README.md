@@ -96,12 +96,14 @@ Le projet Xcode est généré à partir de `ios/project.yml` et n'est pas versio
 
 **Lancer** : Supabase et l'API doivent tourner (`supabase start`, `pnpm dev`). Dans Xcode, choisir le schéma `CloneInstagram` et un simulateur, puis ▶︎. L'écran de bienvenue s'affiche (« Commencer », « J'ai déjà un compte »). À l'inscription, le code de confirmation arrive dans Mailpit (http://127.0.0.1:54324). Les écrans sont des wireframes : le style viendra dans une tranche dédiée.
 
-Chaque `.xcconfig` contient `API_BASE_URL`, `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY` (clé publique, non secrète). Sur iPhone, `API_BASE_URL` et `SUPABASE_URL` utilisent l'IP du Mac, comme `PUBLIC_MEDIA_BASE_URL` dans `.env` (envoi et affichage des photos) ; `pnpm dev` doit tourner pour que le worker traite les photos.
+Chaque `.xcconfig` contient `API_BASE_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` et `REVENUECAT_API_KEY` (clés publiques, non secrètes ; la clé RevenueCat est la clé « Apple App Store » de Project Settings → API Keys). Un `.xcconfig` créé avant T10 doit recevoir la ligne `REVENUECAT_API_KEY = …` (voir les modèles `*.example.xcconfig`) ; sans elle, le paywall affiche « L'abonnement n'est pas disponible ». Sur iPhone, `API_BASE_URL` et `SUPABASE_URL` utilisent l'IP du Mac, comme `PUBLIC_MEDIA_BASE_URL` dans `.env` (envoi et affichage des photos) ; `pnpm dev` doit tourner pour que le worker traite les photos.
 
 | Configuration | Schéma | Fichier à compléter (non versionné) | API appelée |
 |---|---|---|---|
 | Local | `CloneInstagram` | `ios/CloneInstagram/Resources/Config/Local.xcconfig` | `http://localhost:3000` (simulateur) ; sur iPhone, l'IP du Mac |
 | Demo | `CloneInstagram-Demo` | `ios/CloneInstagram/Resources/Config/Demo.xcconfig` | API Railway et Supabase Cloud |
+
+**Clone Plus (T10, ADR-012)** : le paywall s'affiche en fin d'onboarding et dans Profil → ☰ → Clone Plus. Le schéma `CloneInstagram` (Local) utilise le fichier StoreKit `ios/CloneInstagram/Resources/CloneInstagram.storekit` : achat simulé, sans App Store Connect (Xcode → Debug → StoreKit → Manage Transactions pour annuler ou faire expirer). Le schéma `CloneInstagram-Demo` passe par la sandbox d'Apple : sur iPhone, se connecter au testeur sandbox dans Réglages → Developer → Sandbox Apple Account. Dans les deux cas, l'app n'affiche `plus` que lorsque l'API le confirme (`POST /v1/me/subscription/refresh`, qui interroge RevenueCat).
 
 **Tests** (en local, pas de CI macOS) :
 
@@ -191,6 +193,7 @@ Même code qu'en local ; seule la configuration change (variables dans Railway e
   ```bash
   SUPABASE_URL=https://<ref>.supabase.co SUPABASE_PUBLISHABLE_KEY=<clé publishable> pnpm test:supabase
   ```
+- **Clone Plus (T10, ADR-012)** : variables du service `api` sur Railway : `REVENUECAT_SECRET_KEY` (clé secrète V2, Customers en lecture-écriture et Subscriptions en lecture) et `REVENUECAT_PROJECT_ID` ; mêmes variables dans `.env` en local (l'API refuse de démarrer sans elles).
 - **Coût** : Railway, offre Hobby (5 $ / mois après l'essai de 29 jours) ; Supabase en offre gratuite. Le projet Supabase gratuit se met en pause après une période d'inactivité : le réveiller depuis le dashboard avant une démo.
 
 ## 8. Organisation du code

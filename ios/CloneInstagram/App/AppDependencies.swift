@@ -16,12 +16,21 @@ struct AppDependencies {
     let publishQueue: PublishQueue
     /// Préchargement des photos du feed (Nuke).
     let imagePrefetcher: any ImagePrefetching
+    /// Achat Clone Plus (RevenueCat) et plan vérifié par l'API (ADR-012).
+    let purchases: any PurchaseService
+    let subscriptions: any SubscriptionService
+    let appIcons: any AppIconService
 
     static func live(bundle: Bundle = .main) -> AppDependencies {
         let auth: any AuthService = if let configuration = try? SupabaseConfiguration(bundle: bundle) {
             SupabaseAuthService(configuration: configuration)
         } else {
             UnavailableAuthService()
+        }
+        let purchases: any PurchaseService = if let configuration = try? RevenueCatConfiguration(bundle: bundle) {
+            RevenueCatPurchaseService(configuration: configuration)
+        } else {
+            UnavailablePurchaseService()
         }
         guard let configuration = try? APIConfiguration(bundle: bundle) else {
             let posts = UnavailablePostService()
@@ -39,7 +48,10 @@ struct AppDependencies {
                     uploads: UnavailableUploadService(),
                     posts: posts
                 ),
-                imagePrefetcher: NukeImagePrefetcher()
+                imagePrefetcher: NukeImagePrefetcher(),
+                purchases: purchases,
+                subscriptions: UnavailableSubscriptionService(),
+                appIcons: SystemAppIconService()
             )
         }
         let client = APIClientFactory.makeClient(configuration: configuration) { await auth.accessToken() }
@@ -55,7 +67,10 @@ struct AppDependencies {
             comments: APICommentService(client: client),
             commentCounts: CommentCountStore(),
             publishQueue: PublishQueue(store: FilePendingPostStore.applicationSupport, uploads: uploads, posts: posts),
-            imagePrefetcher: NukeImagePrefetcher()
+            imagePrefetcher: NukeImagePrefetcher(),
+            purchases: purchases,
+            subscriptions: APISubscriptionService(client: client),
+            appIcons: SystemAppIconService()
         )
     }
 }

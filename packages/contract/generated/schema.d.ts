@@ -68,6 +68,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/subscription/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rafraîchir mon abonnement Clone Plus
+         * @description Relit mon abonnement auprès de RevenueCat (ADR-012) : appelé après un achat, une restauration et au lancement de l'app. Sans corps.
+         *
+         *     - Abonnement `plus` actif rafraîchi il y a moins de 5 minutes : aucun appel à RevenueCat, statut enregistré renvoyé.
+         *     - Plan `free` : RevenueCat est toujours appelé (un achat récent doit être vu tout de suite).
+         *     - RevenueCat injoignable : dernier statut connu renvoyé.
+         */
+        post: operations["refreshSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/onboarding": {
         parameters: {
             query?: never;
@@ -503,8 +527,28 @@ export interface components {
             postCount: number;
             /** @description Photo de profil ; absente si aucune photo. */
             avatar?: components["schemas"]["ImageVariants"];
+            plan: components["schemas"]["Plan"];
+            /**
+             * Format: date-time
+             * @description Fin de la période payée de Clone Plus ; absente si le plan est `free`.
+             */
+            plusExpiresAt?: string;
             /** Format: date-time */
             createdAt: string;
+        };
+        /**
+         * @description Plan de l'utilisateur selon l'API (règle `isPlus`, ADR-012) ; seul ce plan débloque un avantage dans l'app.
+         * @enum {string}
+         */
+        Plan: "free" | "plus";
+        /** @description Mon plan Clone Plus. */
+        SubscriptionStatus: {
+            plan: components["schemas"]["Plan"];
+            /**
+             * Format: date-time
+             * @description Fin de la période payée ; absente si le plan est `free`.
+             */
+            expiresAt?: string;
         };
         CompleteOnboardingRequest: {
             username: components["schemas"]["Username"];
@@ -1009,6 +1053,30 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["ProfileNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    refreshSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Mon plan après rafraîchissement. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionStatus"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["ProfileNotFound"];
+            429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
         };
     };

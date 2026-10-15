@@ -40,6 +40,7 @@ info:
     | `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |
     | `comment_not_found` | 404 | Commentaire inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; commentaire parent d'un autre post ; suppression par quelqu'un qui n'est ni l'auteur du commentaire ni celui du post |
     | `reply_to_reply` | 422 | Réponse à une réponse (un seul niveau de réponse) |
+    | `plus_required` | 403 | Avantage réservé à Clone Plus demandé sans abonnement actif (ADR-012) ; aucune route P0 ne le renvoie encore |
 
     Pagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).
 servers:
@@ -64,6 +65,8 @@ tags:
     description: Feed d'accueil chronologique (ADR-007), selon la politique de visibilité (ADR-006)
   - name: engagement
     description: Likes et commentaires des posts, selon la politique de visibilité (ADR-006)
+  - name: billing
+    description: Abonnement Clone Plus, vérifié par l'API auprès de RevenueCat (ADR-012)
 paths:
   /health:
     get:
@@ -159,6 +162,32 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '404':
           $ref: '#/components/responses/ProfileNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/me/subscription/refresh:
+    post:
+      operationId: refreshSubscription
+      tags: [billing]
+      summary: Rafraîchir mon abonnement Clone Plus
+      description: |
+        Relit mon abonnement auprès de RevenueCat (ADR-012) : appelé après un achat, une restauration et au lancement de l'app. Sans corps.
+
+        - Abonnement `plus` actif rafraîchi il y a moins de 5 minutes : aucun appel à RevenueCat, statut enregistré renvoyé.
+        - Plan `free` : RevenueCat est toujours appelé (un achat récent doit être vu tout de suite).
+        - RevenueCat injoignable : dernier statut connu renvoyé.
+      responses:
+        '200':
+          description: Mon plan après rafraîchissement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionStatus'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
   /v1/me/onboarding:
@@ -837,6 +866,7 @@ components:
           followerCount,
           followingCount,
           postCount,
+          plan,
           createdAt,
         ]
       properties:
@@ -870,9 +900,31 @@ components:
         avatar:
           $ref: '#/components/schemas/ImageVariants'
           description: Photo de profil ; absente si aucune photo.
+        plan:
+          $ref: '#/components/schemas/Plan'
+        plusExpiresAt:
+          type: string
+          format: date-time
+          description: Fin de la période payée de Clone Plus ; absente si le plan est `free`.
         createdAt:
           type: string
           format: date-time
+    Plan:
+      type: string
+      description: Plan de l'utilisateur selon l'API (règle `isPlus`, ADR-012) ; seul ce plan débloque un avantage dans l'app.
+      enum: [free, plus]
+    SubscriptionStatus:
+      type: object
+      description: Mon plan Clone Plus.
+      additionalProperties: false
+      required: [plan]
+      properties:
+        plan:
+          $ref: '#/components/schemas/Plan'
+        expiresAt:
+          type: string
+          format: date-time
+          description: Fin de la période payée ; absente si le plan est `free`.
     CompleteOnboardingRequest:
       type: object
       additionalProperties: false

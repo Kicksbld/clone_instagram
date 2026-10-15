@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 
 import {
+  type BillingUseCases,
+  registerBillingRoutes,
+} from './modules/billing/infrastructure/http/billing-routes.ts';
+import {
   type EngagementUseCases,
   registerEngagementRoutes,
 } from './modules/engagement/infrastructure/http/engagement-routes.ts';
@@ -47,6 +51,7 @@ export interface AppDependencies {
   posts: PostsUseCases;
   feed: FeedUseCases;
   engagement: EngagementUseCases;
+  billing: BillingUseCases;
   mediaUrls: PublicMediaUrls;
 }
 
@@ -88,6 +93,7 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
     registerPostsRoutes(v1, dependencies.posts, dependencies.mediaUrls);
     registerFeedRoutes(v1, dependencies.feed, dependencies.mediaUrls);
     registerEngagementRoutes(v1, dependencies.engagement, dependencies.mediaUrls);
+    registerBillingRoutes(v1, dependencies.billing);
     done();
   });
 

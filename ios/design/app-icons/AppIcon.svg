@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect id="background" width="512" height="512" fill="#111111"/>
+  <g id="icon">
+    <rect x="112" y="112" width="288" height="288" rx="80" fill="none" stroke="#FFFFFF" stroke-width="30"/>
+    <path id="lens-full" d="M 256 186 A 70 70 0 0 0 256 326 Z" fill="#C6F432"/>
+    <path id="lens-copy" d="M 256 186 A 70 70 0 0 1 256 326" fill="none" stroke="#C6F432" stroke-width="22"/>
+    <circle id="flash" cx="340" cy="172" r="18" fill="#FFFFFF"/>
+  </g>
+</svg>

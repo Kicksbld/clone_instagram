@@ -7,6 +7,20 @@ enum AccountStatus: Equatable {
     case banned
 }
 
+/// Plan Clone Plus selon l'API (règle `isPlus`, ADR-012) : seul ce plan débloque un avantage.
+enum Plan: Equatable {
+    case free
+    case plus
+}
+
+/// Mon plan et la fin de la période payée (`nil` en `free`).
+struct PlanStatus: Equatable {
+    let plan: Plan
+    let expiresAt: Date?
+
+    static let free = PlanStatus(plan: .free, expiresAt: nil)
+}
+
 /// Mon profil, modèle de l'app (distinct du type généré).
 struct Profile: Equatable, Identifiable {
     let id: String
@@ -20,6 +34,12 @@ struct Profile: Equatable, Identifiable {
     let postCount: Int
     /// Photo de profil ; `nil` sans photo.
     var avatar: ImageVariants?
+    /// Plan Clone Plus renvoyé par l'API (`GET /v1/me`, `POST /v1/me/subscription/refresh`).
+    var planStatus: PlanStatus = .free
+
+    var isPlus: Bool {
+        planStatus.plan == .plus
+    }
 }
 
 /// Profil d'un autre utilisateur, vu par moi (`GET /v1/users/{username}`, ADR-006).
