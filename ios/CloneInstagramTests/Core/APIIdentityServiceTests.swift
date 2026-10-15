@@ -39,6 +39,15 @@ struct APIIdentityServiceTests {
         ))
     }
 
+    @Test func `GET /me ignore un champ ajouté par une version plus récente de l'API (ADR-019)`() async throws {
+        let body = Self.meJSON.replacingOccurrences(of: #""plan":"free""#, with: #""plan":"free","nouveauChamp":{"a":1}"#)
+        let service = try makeService(.response(status: 200, contentType: "application/json", body: body))
+
+        let profile = try await service.fetchMe()
+
+        #expect(profile.username == "killian")
+    }
+
     @Test(arguments: [
         (404, "profile_not_found", IdentityServiceError.profileNotFound),
         (401, "unauthenticated", .unauthenticated),

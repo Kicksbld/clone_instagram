@@ -6,7 +6,8 @@ App SwiftUI, MVVM, organisation par feature : [ADR-010](../docs/adr/ADR-010-app-
 
 - `project.yml` (XcodeGen) est la source du projet ; `CloneInstagram.xcodeproj` est généré et **non versionné**, sauf `project.xcworkspace/xcshareddata/swiftpm/Package.resolved` (versions exactes de toutes les dépendances SPM), à committer quand une dépendance change. Toute modification de cibles, réglages, dépendances ou configurations passe par `project.yml`, puis `xcodegen generate`.
 - Dossiers synchronisés : ajouter un fichier Swift dans `CloneInstagram/` ou `CloneInstagramTests/` ne demande aucune régénération.
-- Préparation d'une machine : `ios/scripts/bootstrap.sh` (outils Homebrew, `.xcconfig` locaux, génération).
+- Préparation d'une machine : `ios/scripts/bootstrap.sh` (outils Homebrew, puis `sync.sh`). Après chaque `git pull` ou changement de branche : `ios/scripts/sync.sh`, projet fermé dans Xcode (avertit si la branche est en retard sur `main`, ajoute aux `.xcconfig` les clés apparues dans les modèles, liste les valeurs vides, lance `xcodegen generate`). Si Xcode propose de recharger un projet modifié sur le disque : « Close », jamais « Resave ».
+- Client généré tolérant (ADR-019) : un champ de réponse inconnu est ignoré ; une nouvelle valeur d'énumération dans une réponse reste cassante.
 - Cibles :
   - `CloneInstagram` : l'app, isolation `@MainActor` par défaut (Swift 6 strict).
   - `APIClient` : uniquement le code généré par `swift-openapi-generator` à partir de `CloneInstagram/Core/API/OpenAPI/openapi.yaml`, sans isolation par défaut (le code généré ne compile pas sous `@MainActor`). Aucun fichier écrit à la main dans ce dossier.
@@ -40,7 +41,7 @@ Jusqu'à une tranche de style à planifier (décisions de planification de [`P0.
 - **Clone Plus** (ADR-012) : `Core/Billing` — `PurchaseService` (seul fichier qui importe `RevenueCat`), `SubscriptionService` (`POST /v1/me/subscription/refresh`), `AppIconService`. Seul le `plan` de l'API (`Profile.planStatus`, mis à jour par `RootViewModel.updatePlan`) débloque un avantage ; le statut du SDK ne sert qu'à l'affichage. Le paywall est fourni par `App` aux Paramètres (builder), jamais importé par une autre feature. Sources SVG des icônes : `ios/design/app-icons/` (rendu PNG 1024 px, par ex. `rsvg-convert -w 1024 -h 1024`). Nouvelle icône alternative : `AppIcon-<Nom>.appiconset` (1024 px sans transparence), cas de l'enum `AppIcon`, puis `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` dans `project.yml`.
 - **Session et jeton** : `Core/Auth` (`AuthService`, SDK `Auth` de `supabase-swift`) ; `AuthenticationMiddleware` ajoute le Bearer à chaque appel ; le routeur racine est `App/RootViewModel`.
 - **Test d'un service** : vrai `Client` construit par `APIClientFactory` avec `StubTransport` (`CloneInstagramTests/Support`). **Test d'un ViewModel** : faux services injectés (`FakeAuthService`, `FakeIdentityService`).
-- **Variable de configuration** : l'ajouter aux deux modèles `*.example.xcconfig`, à `Info-Local.plist` et `Info-Demo.plist`, puis la lire dans `Core`.
+- **Variable de configuration** : l'ajouter aux deux modèles `*.example.xcconfig`, à `Info-Local.plist` et `Info-Demo.plist`, puis la lire dans `Core` ; `sync.sh` l'ajoute aux `.xcconfig` locaux existants.
 - **Entitlements** : déclarés dans `project.yml` (`entitlements.properties`) ; le fichier `.entitlements` est généré par `xcodegen generate`.
 - **Commandes** :
 

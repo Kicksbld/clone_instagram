@@ -59,3 +59,4 @@ Décision source : D18.
 - ADR-007 (curseur de pagination)
 - ADR-010 (conversion DTO → modèles dans l'app)
 - ADR-011 (client `openapi-fetch` du backoffice)
+- ADR-019 (compatibilité : entrées strictes, réponses tolérantes, ruptures détectées par la CI)

@@ -92,7 +92,7 @@ ios/scripts/bootstrap.sh
 open ios/CloneInstagram.xcodeproj
 ```
 
-Le projet Xcode est généré à partir de `ios/project.yml` et n'est pas versionné : relancer `xcodegen generate` (depuis `ios/`) après un `git pull` qui modifie `project.yml`. Au premier build, Xcode demande d'autoriser le plugin `OpenAPIGenerator` : accepter.
+Le projet Xcode est généré à partir de `ios/project.yml` et n'est pas versionné. **Après chaque `git pull` ou changement de branche**, fermer le projet dans Xcode puis lancer `ios/scripts/sync.sh` : il signale une branche en retard sur `main` (pour la démo, compiler `main` à jour), ajoute aux `.xcconfig` les clés apparues depuis (valeur à compléter), liste les valeurs vides et régénère le projet. Si Xcode demande quoi faire d'un projet modifié sur le disque : « Close », jamais « Resave ». Au premier build, Xcode demande d'autoriser le plugin `OpenAPIGenerator` : accepter.
 
 **Lancer** : Supabase et l'API doivent tourner (`supabase start`, `pnpm dev`). Dans Xcode, choisir le schéma `CloneInstagram` et un simulateur, puis ▶︎. L'écran de bienvenue s'affiche (« Commencer », « J'ai déjà un compte »). À l'inscription, le code de confirmation arrive dans Mailpit (http://127.0.0.1:54324). Les écrans sont des wireframes : le style viendra dans une tranche dédiée.
 
@@ -143,12 +143,13 @@ Au prochain `supabase start`, relancer `pnpm db:migrate`, puis `pnpm db:seed`.
 | `pnpm test` | Tests Vitest de tous les packages ; les tests d'adapters de l'API utilisent la base locale (`supabase start`, `pnpm db:migrate`) |
 | `pnpm build` | Build de production de l'API, du worker et du backoffice |
 | `pnpm contract:generate` | Valide `openapi.yaml`, régénère les types des clients et met à jour la copie de l'app iOS |
+| `pnpm contract:breaking` | Compare `openapi.yaml` à celui de `origin/main` (faire `git fetch` avant) et échoue sur une rupture de compatibilité (ADR-019) ; demande `brew install oasdiff` ; aussi lancé par la CI |
 | `pnpm db:migrate` | Applique les migrations Drizzle |
 | `pnpm db:seed` (`pnpm db:seed:demo` pour la démo, § 7) | Crée 100 profils de démo (publics, privés, un suspendu), leurs abonnements et environ 320 posts avec photos ; relançable sans doublon. La première exécution télécharge environ 540 photos d'exemple (picsum.photos, accès Internet requis, 1 à 2 minutes) et les écrit dans Storage (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) ; les suivantes n'envoient rien. Avec `SEED_VIEWER_USERNAME=<ton username>` (compte déjà créé dans l'app), relie aussi ton compte à ces profils : il suit `lea.martin`, `chloe.petit` (privé), `ines.moreau` (suspendue, absente du feed) et 30 autres comptes, `hugo.bernard`, `nathan.durand` et 20 autres le suivent, `emma.leroy` le bloque et il bloque `tom.fournier` |
 | `pnpm test:supabase` | Vérifie contre un vrai Supabase qu'aucune table n'est lisible avec la clé publique, et l'upload présigné et les URL publiques des médias (hors CI, voir § 7) |
 | `supabase status` | Affiche les clés locales de Supabase (l'API de Supabase est sur http://127.0.0.1:54321) |
 
-La CI GitHub Actions lance, à chaque push : validation du contrat, lint, typecheck, tests et build.
+La CI GitHub Actions lance, à chaque push : validation du contrat (dont l'absence de rupture de compatibilité avec `main`), lint, typecheck, tests et build.
 
 ## 7. Démo hébergée
 
@@ -238,6 +239,7 @@ Principes clés :
 | Démo : l'email contient un lien au lieu d'un code | Les modèles de `supabase/templates/` n'ont pas été copiés dans Supabase Cloud (SMTP personnel requis pour les modifier) |
 | Backoffice : « API : injoignable » | Vérifier que l'API tourne (`/health`) et que `API_URL` est renseignée dans `.env` |
 | Port 3000 ou 3001 déjà utilisé | Arrêter l'autre processus : `lsof -ti tcp:3000 \| xargs kill` |
+| App iOS en démo : « Connexion impossible » alors que l'API répond (`/health`) | L'app est compilée sur une branche en retard sur `main` : `git switch main && git pull`, puis `ios/scripts/sync.sh` et recompiler |
 | App iOS : « Connexion impossible » ou « Impossible de joindre le serveur » | Vérifier que `supabase start` et `pnpm dev` tournent ; sur iPhone, mettre l'IP du Mac dans `API_BASE_URL` et `SUPABASE_URL` de `Local.xcconfig` (même Wi-Fi) et accepter l'accès au réseau local |
 | Xcode : « Plugin must be enabled » ou build bloqué sur `OpenAPIGenerator` | Autoriser le plugin dans Xcode ; en ligne de commande, ajouter `-skipPackagePluginValidation` |
 | Storage local : bucket `uploads`, `media-public` ou `media-private` absent | `supabase seed buckets` (crée les buckets déclarés dans `supabase/config.toml`) |
