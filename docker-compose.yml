@@ -1,5 +1,7 @@
 # Redis de dev : file de jobs BullMQ uniquement (ADR-008, ADR-009).
 # Postgres, Auth et Storage viennent de la CLI Supabase (`supabase start`).
+# Nom fixe : tous les worktrees partagent le même Redis et le même volume.
+name: clone-instagram
 services:
   redis:
     image: redis:8-alpine
