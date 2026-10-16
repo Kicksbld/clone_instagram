@@ -46,6 +46,9 @@ info:
     | `admin_required` | 403 | Route d'administration (`/v1/admin/…`) appelée par un compte sans rôle `admin` (ADR-011) |
     | `invalid_status_transition` | 409 | Le statut actuel du compte ne permet pas l'action d'administration (ex. suspendre un compte banni) |
     | `cannot_moderate_self` | 422 | Un admin ne peut ni se suspendre, ni se bannir, ni se réactiver, ni se supprimer lui-même |
+    | `report_not_found` | 404 | Signalement inexistant (backoffice) |
+    | `report_already_resolved` | 409 | Le signalement n'est plus ouvert : déjà supprimé ou classé, seul ou avec les autres signalements du même contenu |
+    | `cannot_remove_user` | 422 | `remove_content` sur le signalement d'un compte : seul le classement est possible, la sanction passe par la fiche du compte |
     | `plus_required` | 403 | Avantage réservé à Clone Plus demandé sans abonnement actif (ADR-012) ; aucune route P0 ne le renvoie encore |
 
     Pagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).
@@ -1211,6 +1214,118 @@ paths:
           $ref: '#/components/responses/CannotModerateSelf'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v1/admin/reports:
+    get:
+      operationId: listAdminReports
+      tags: [admin]
+      summary: File des signalements
+      description: |
+        Signalements du plus récent au plus ancien, par pages de 20. `status` vaut `open` par défaut ; `reason` et `targetType` filtrent par motif et par type de contenu. Un admin voit tous les signalements, sans politique de visibilité.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Statut des signalements ; `open` si absent.
+          schema:
+            $ref: '#/components/schemas/AdminReportStatus'
+        - name: reason
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ReportReason'
+        - name: targetType
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ReportTargetType'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page de signalements.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReportPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/admin/reports/{id}:
+    get:
+      operationId: getAdminReport
+      tags: [admin]
+      summary: Détail d'un signalement
+      description: Signalement avec l'aperçu du contenu visé (post, commentaire ou compte), même privé ou déjà supprimé. Signalement inexistant → `404 report_not_found`.
+      parameters:
+        - $ref: '#/components/parameters/ReportId'
+      responses:
+        '200':
+          description: Le signalement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReportDetail'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/ReportNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/admin/reports/{id}/resolve:
+    post:
+      operationId: resolveAdminReport
+      tags: [admin]
+      summary: Traiter un signalement
+      description: |
+        Une décision par contenu : tous les signalements ouverts sur le même contenu prennent le même statut, dans la même transaction, et l'action est écrite dans le journal d'audit.
+        - `remove_content` : suppression du post (médias détachés, puis fichiers purgés par le worker) ou du commentaire (avec ses réponses), compteurs mis à jour ; statut `resolved_removed`. Un contenu déjà supprimé est accepté, sans autre effet. Refusé pour un compte (`422 cannot_remove_user`) : la sanction passe par `/v1/admin/users/{id}/…`.
+        - `dismiss` : classement sans effet sur le contenu ; statut `resolved_dismissed`.
+        Signalement inexistant → `404 report_not_found` ; déjà traité → `409 report_already_resolved`.
+      parameters:
+        - $ref: '#/components/parameters/ReportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveReportRequest'
+      responses:
+        '200':
+          description: Le signalement traité.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReportDetail'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/ReportNotFound'
+        '409':
+          description: Le signalement n'est plus ouvert (`report_already_resolved`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          description: Suppression demandée pour un compte (`cannot_remove_user`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     bearerAuth:
@@ -1918,6 +2033,112 @@ components:
             reportsFiled:
               $ref: '#/components/schemas/AdminReportList'
               description: Signalements émis par le compte.
+    AdminReportSummary:
+      allOf:
+        - $ref: '#/components/schemas/AdminReport'
+        - type: object
+          description: Signalement de la file du backoffice.
+          properties:
+            excerpt:
+              type: string
+              description: Début de la légende du post, du texte du commentaire, ou username du compte visé ; absent si le contenu n'existe plus.
+    AdminReportPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/AdminReportSummary'
+        nextCursor:
+          type: string
+          description: Curseur de la page suivante ; absent sur la dernière page.
+    AdminReportedPost:
+      type: object
+      description: Post signalé, vu par un admin.
+      required: [id, author, caption, media, createdAt, removed]
+      properties:
+        id:
+          type: string
+          format: uuid
+        author:
+          $ref: '#/components/schemas/PostAuthor'
+        caption:
+          $ref: '#/components/schemas/Caption'
+        media:
+          type: array
+          description: Images dans l'ordre d'affichage ; vide une fois les fichiers purgés.
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/PostMedia'
+        createdAt:
+          type: string
+          format: date-time
+        removed:
+          type: boolean
+          description: Post supprimé (par son auteur ou par modération).
+    AdminReportedComment:
+      type: object
+      description: Commentaire signalé, vu par un admin.
+      required: [id, postId, author, body, createdAt, removed]
+      properties:
+        id:
+          type: string
+          format: uuid
+        postId:
+          type: string
+          format: uuid
+        author:
+          $ref: '#/components/schemas/PostAuthor'
+        body:
+          $ref: '#/components/schemas/CommentBody'
+        createdAt:
+          type: string
+          format: date-time
+        removed:
+          type: boolean
+          description: Commentaire supprimé (par son auteur, l'auteur du post ou par modération).
+    AdminReportDetail:
+      allOf:
+        - $ref: '#/components/schemas/AdminReport'
+        - type: object
+          description: |
+            Détail d'un signalement vu par un admin. Selon `targetType`, un seul des champs `post`, `comment` ou `user` est présent ; aucun si le contenu a été purgé (compte supprimé).
+          required: [otherOpenCount]
+          properties:
+            resolvedAt:
+              type: string
+              format: date-time
+              description: Date du traitement ; absente si le signalement est ouvert.
+            resolutionNote:
+              type: string
+              description: Note de l'admin au traitement.
+            otherOpenCount:
+              type: integer
+              minimum: 0
+              description: Autres signalements ouverts sur le même contenu, traités en même temps que celui-ci.
+            post:
+              $ref: '#/components/schemas/AdminReportedPost'
+            comment:
+              $ref: '#/components/schemas/AdminReportedComment'
+            user:
+              $ref: '#/components/schemas/AdminUserSummary'
+    ResolutionAction:
+      type: string
+      description: '`remove_content` supprime le contenu signalé ; `dismiss` classe le signalement.'
+      enum: [remove_content, dismiss]
+    ResolveReportRequest:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action:
+          $ref: '#/components/schemas/ResolutionAction'
+        note:
+          type: string
+          description: Note facultative de l'admin, 500 caractères au plus ; espaces de début et de fin retirés, vide = absente.
+          maxLength: 500
   parameters:
     UserId:
       name: id
@@ -1950,6 +2171,13 @@ components:
         type: string
         format: uuid
     CommentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ReportId:
       name: id
       in: path
       required: true
@@ -2025,6 +2253,12 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     AdminForbidden:
       description: Rôle `admin` requis (`admin_required`) ou compte suspendu (`account_suspended`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    ReportNotFound:
+      description: Signalement inexistant (`report_not_found`).
       content:
         application/problem+json:
           schema:

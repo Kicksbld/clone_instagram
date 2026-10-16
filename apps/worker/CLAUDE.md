@@ -18,6 +18,8 @@ Job de référence (T3) : `src/jobs/process-image.ts` — payload validé, état
 
 Appels SaaS (T13) : seule la purge d'un compte (`src/jobs/purge-account.ts`) appelle RevenueCat et PostHog, par les adapters `fetch` de `src/saas.ts` (404 = déjà supprimé, toute autre erreur fait échouer le job, rejoué).
 
+Purge d'un contenu modéré (T15) : `src/jobs/purge-content-files.ts` efface les fichiers puis les lignes des médias détachés d'un post supprimé par modération, sans attendre `purge-orphan-media` ; rejoué sans effet.
+
 Changement de payload : ajout d'un champ optionnel uniquement ; renommer, supprimer ou changer un type impose un nouveau nom de job (ADR-015).
 
 ## Interdits

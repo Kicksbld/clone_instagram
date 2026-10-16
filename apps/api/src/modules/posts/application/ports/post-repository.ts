@@ -21,6 +21,11 @@ export interface PostRepository {
    * `null` si aucune ligne n'est touchée.
    */
   softDelete(id: string, authorId: string): Promise<string[] | null>;
+  /**
+   * Suppression logique par modération (T15), quel que soit l'auteur, seulement si le post n'est
+   * pas encore supprimé. Renvoie son auteur et ses médias, ou `null` si aucune ligne n'est touchée.
+   */
+  softDeleteByModeration(id: string): Promise<{ authorId: string; mediaIds: string[] } | null>;
   decrementPostCount(authorId: string): Promise<void>;
 }
 

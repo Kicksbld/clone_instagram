@@ -8,12 +8,14 @@ import {
   deletePurgeableMedia,
   detachMedia,
   findPurgeableMedia,
+  listDetachedPostMedia,
   markFailed,
   markProcessing,
   markReady,
   markUploaded,
 } from '../src/media.ts';
 import { media, type MediaStatus } from '../src/schema/media.ts';
+import { postMedia, posts } from '../src/schema/posts.ts';
 import { profiles } from '../src/schema/profiles.ts';
 import { connectTestDatabase } from './support/database.ts';
 
@@ -190,6 +192,33 @@ describe('purge', () => {
     expect(await deletePurgeableMedia(db, attached)).toBe(false);
     expect(await statusOf(detached)).toBeUndefined();
     expect(await statusOf(attached)).toBe('ready');
+  });
+});
+
+describe('médias détachés d’un post', () => {
+  it('liste seulement les médias détachés du post, dans l’ordre', async () => {
+    const ownerId = await givenProfile();
+    const attached = {
+      status: 'ready',
+      purpose: 'post',
+      variants,
+      attachedAt: sql`now()`,
+    } as const;
+    const first = await givenMedia(ownerId, { ...attached, detachedAt: sql`now()` });
+    const second = await givenMedia(ownerId, { ...attached, detachedAt: sql`now()` });
+    const kept = await givenMedia(ownerId, attached);
+    const postId = newId();
+    await db.insert(posts).values({ id: postId, authorId: ownerId, kind: 'post', caption: '' });
+    await db.insert(postMedia).values([
+      { postId, mediaId: second, position: 1 },
+      { postId, mediaId: first, position: 0 },
+      { postId, mediaId: kept, position: 2 },
+    ]);
+
+    const listed = await listDetachedPostMedia(db, postId);
+
+    expect(listed.map((row) => row.id)).toEqual([first, second]);
+    expect(listed[0]?.variants).toEqual(variants);
   });
 });
 

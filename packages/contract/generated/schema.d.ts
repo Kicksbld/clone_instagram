@@ -702,6 +702,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * File des signalements
+         * @description Signalements du plus récent au plus ancien, par pages de 20. `status` vaut `open` par défaut ; `reason` et `targetType` filtrent par motif et par type de contenu. Un admin voit tous les signalements, sans politique de visibilité.
+         */
+        get: operations["listAdminReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Détail d'un signalement
+         * @description Signalement avec l'aperçu du contenu visé (post, commentaire ou compte), même privé ou déjà supprimé. Signalement inexistant → `404 report_not_found`.
+         */
+        get: operations["getAdminReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reports/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Traiter un signalement
+         * @description Une décision par contenu : tous les signalements ouverts sur le même contenu prennent le même statut, dans la même transaction, et l'action est écrite dans le journal d'audit.
+         *     - `remove_content` : suppression du post (médias détachés, puis fichiers purgés par le worker) ou du commentaire (avec ses réponses), compteurs mis à jour ; statut `resolved_removed`. Un contenu déjà supprimé est accepté, sans autre effet. Refusé pour un compte (`422 cannot_remove_user`) : la sanction passe par `/v1/admin/users/{id}/…`.
+         *     - `dismiss` : classement sans effet sur le contenu ; statut `resolved_dismissed`.
+         *     Signalement inexistant → `404 report_not_found` ; déjà traité → `409 report_already_resolved`.
+         */
+        post: operations["resolveAdminReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1125,6 +1188,65 @@ export interface components {
             /** @description Signalements émis par le compte. */
             reportsFiled: components["schemas"]["AdminReportList"];
         };
+        AdminReportSummary: components["schemas"]["AdminReport"] & {
+            /** @description Début de la légende du post, du texte du commentaire, ou username du compte visé ; absent si le contenu n'existe plus. */
+            excerpt?: string;
+        };
+        AdminReportPage: {
+            items: components["schemas"]["AdminReportSummary"][];
+            /** @description Curseur de la page suivante ; absent sur la dernière page. */
+            nextCursor?: string;
+        };
+        /** @description Post signalé, vu par un admin. */
+        AdminReportedPost: {
+            /** Format: uuid */
+            id: string;
+            author: components["schemas"]["PostAuthor"];
+            caption: components["schemas"]["Caption"];
+            /** @description Images dans l'ordre d'affichage ; vide une fois les fichiers purgés. */
+            media: components["schemas"]["PostMedia"][];
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Post supprimé (par son auteur ou par modération). */
+            removed: boolean;
+        };
+        /** @description Commentaire signalé, vu par un admin. */
+        AdminReportedComment: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            postId: string;
+            author: components["schemas"]["PostAuthor"];
+            body: components["schemas"]["CommentBody"];
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Commentaire supprimé (par son auteur, l'auteur du post ou par modération). */
+            removed: boolean;
+        };
+        AdminReportDetail: components["schemas"]["AdminReport"] & {
+            /**
+             * Format: date-time
+             * @description Date du traitement ; absente si le signalement est ouvert.
+             */
+            resolvedAt?: string;
+            /** @description Note de l'admin au traitement. */
+            resolutionNote?: string;
+            /** @description Autres signalements ouverts sur le même contenu, traités en même temps que celui-ci. */
+            otherOpenCount: number;
+            post?: components["schemas"]["AdminReportedPost"];
+            comment?: components["schemas"]["AdminReportedComment"];
+            user?: components["schemas"]["AdminUserSummary"];
+        };
+        /**
+         * @description `remove_content` supprime le contenu signalé ; `dismiss` classe le signalement.
+         * @enum {string}
+         */
+        ResolutionAction: "remove_content" | "dismiss";
+        ResolveReportRequest: {
+            action: components["schemas"]["ResolutionAction"];
+            /** @description Note facultative de l'admin, 500 caractères au plus ; espaces de début et de fin retirés, vide = absente. */
+            note?: string;
+        };
     };
     responses: {
         /** @description Entrée non conforme au schéma (`validation_failed`). */
@@ -1235,6 +1357,15 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
+        /** @description Signalement inexistant (`report_not_found`). */
+        ReportNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
         /** @description Un admin ne peut pas se viser lui-même (`cannot_moderate_self`). */
         CannotModerateSelf: {
             headers: {
@@ -1272,6 +1403,7 @@ export interface components {
         MediaId: string;
         PostId: string;
         CommentId: string;
+        ReportId: string;
     };
     requestBodies: never;
     headers: never;
@@ -2517,6 +2649,113 @@ export interface operations {
                 };
             };
             422: components["responses"]["CannotModerateSelf"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAdminReports: {
+        parameters: {
+            query?: {
+                /** @description Statut des signalements ; `open` si absent. */
+                status?: components["schemas"]["AdminReportStatus"];
+                reason?: components["schemas"]["ReportReason"];
+                targetType?: components["schemas"]["ReportTargetType"];
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de signalements. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReportPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAdminReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ReportId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Le signalement. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReportDetail"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["ReportNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    resolveAdminReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ReportId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Le signalement traité. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReportDetail"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["ReportNotFound"];
+            /** @description Le signalement n'est plus ouvert (`report_already_resolved`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Suppression demandée pour un compte (`cannot_remove_user`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };

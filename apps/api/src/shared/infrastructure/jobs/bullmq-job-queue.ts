@@ -4,6 +4,8 @@ import {
   processImageJobId,
   PURGE_ACCOUNT,
   purgeAccountJobId,
+  PURGE_CONTENT_FILES,
+  purgeContentFilesJobId,
 } from '@clone/jobs';
 import { Queue } from 'bullmq';
 
@@ -35,6 +37,14 @@ export class BullMqJobQueue implements JobQueue {
     await this.maintenance.add(PURGE_ACCOUNT.name, payload, {
       ...DEFAULT_JOB_OPTIONS,
       jobId: purgeAccountJobId(profileId),
+    });
+  }
+
+  async enqueueContentFilesPurge(postId: string): Promise<void> {
+    const payload = PURGE_CONTENT_FILES.payload.parse({ postId });
+    await this.maintenance.add(PURGE_CONTENT_FILES.name, payload, {
+      ...DEFAULT_JOB_OPTIONS,
+      jobId: purgeContentFilesJobId(postId),
     });
   }
 

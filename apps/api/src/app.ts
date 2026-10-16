@@ -27,6 +27,10 @@ import {
   registerMediaRoutes,
 } from './modules/media/infrastructure/http/media-routes.ts';
 import {
+  type AdminReportsUseCases,
+  registerAdminReportsRoutes,
+} from './modules/moderation/infrastructure/http/admin-reports-routes.ts';
+import {
   type ModerationUseCases,
   registerModerationRoutes,
 } from './modules/moderation/infrastructure/http/moderation-routes.ts';
@@ -65,6 +69,8 @@ export interface AppDependencies {
   moderation: ModerationUseCases;
   /** Backoffice (ADR-011) : routes `/v1/admin/…`, rôle `admin` vérifié par chaque use case. */
   admin: AdminUsersUseCases;
+  /** Backoffice : file des signalements et leur traitement (T15). */
+  adminReports: AdminReportsUseCases;
   mediaUrls: PublicMediaUrls;
 }
 
@@ -109,6 +115,7 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
     registerBillingRoutes(v1, dependencies.billing);
     registerModerationRoutes(v1, dependencies.moderation);
     registerAdminUsersRoutes(v1, dependencies.admin, dependencies.mediaUrls);
+    registerAdminReportsRoutes(v1, dependencies.adminReports, dependencies.mediaUrls);
     done();
   });
 

@@ -36,19 +36,32 @@ export class DrizzlePostRepository implements PostRepository {
   }
 
   async softDelete(id: string, authorId: string): Promise<string[] | null> {
-    const deleted = await this.db
+    return (
+      (await this.softDeleteWhere(and(eq(posts.id, id), eq(posts.authorId, authorId))))?.mediaIds ??
+      null
+    );
+  }
+
+  softDeleteByModeration(id: string): Promise<{ authorId: string; mediaIds: string[] } | null> {
+    return this.softDeleteWhere(eq(posts.id, id));
+  }
+
+  private async softDeleteWhere(
+    where: SQL | undefined,
+  ): Promise<{ authorId: string; mediaIds: string[] } | null> {
+    const [deleted] = await this.db
       .update(posts)
       .set({ deletedAt: sql`now()`, updatedAt: sql`now()` })
-      .where(and(eq(posts.id, id), eq(posts.authorId, authorId), isNull(posts.deletedAt)))
-      .returning({ id: posts.id });
-    if (deleted.length === 0) return null;
+      .where(and(where, isNull(posts.deletedAt)))
+      .returning({ id: posts.id, authorId: posts.authorId });
+    if (!deleted) return null;
 
     const rows = await this.db
       .select({ mediaId: postMedia.mediaId })
       .from(postMedia)
-      .where(eq(postMedia.postId, id))
+      .where(eq(postMedia.postId, deleted.id))
       .orderBy(asc(postMedia.position));
-    return rows.map((row) => row.mediaId);
+    return { authorId: deleted.authorId, mediaIds: rows.map((row) => row.mediaId) };
   }
 
   async decrementPostCount(authorId: string): Promise<void> {

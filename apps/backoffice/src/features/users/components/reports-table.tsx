@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -33,7 +35,7 @@ const STATUSES: Record<AdminReport['status'], string> = {
   resolved_dismissed: 'Classé',
 };
 
-/** Signalements reçus ou émis par un compte (les 20 plus récents) ; traitement en T15. */
+/** Signalements reçus ou émis par un compte (les 20 plus récents) ; chacun ouvre son détail. */
 export function ReportsTable({
   title,
   total,
@@ -66,7 +68,14 @@ export function ReportsTable({
           <TableBody>
             {reports.map((report) => (
               <TableRow key={report.id}>
-                <TableCell>{dateFormat.format(new Date(report.createdAt))}</TableCell>
+                <TableCell>
+                  <Link
+                    href={`/reports/${report.id}`}
+                    className="underline-offset-4 hover:underline"
+                  >
+                    {dateFormat.format(new Date(report.createdAt))}
+                  </Link>
+                </TableCell>
                 <TableCell>{TARGETS[report.targetType]}</TableCell>
                 <TableCell>
                   {REASONS[report.reason]}

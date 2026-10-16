@@ -47,6 +47,13 @@ export class InMemoryPosts implements PostRepository, PostReader {
     return Promise.resolve(row.mediaIds);
   }
 
+  softDeleteByModeration(id: string): Promise<{ authorId: string; mediaIds: string[] } | null> {
+    const row = this.rows.get(id);
+    if (!row || row.deletedAt) return Promise.resolve(null);
+    this.rows.set(id, { ...row, deletedAt: new Date() });
+    return Promise.resolve({ authorId: row.authorId, mediaIds: row.mediaIds });
+  }
+
   decrementPostCount(authorId: string): Promise<void> {
     const profile = this.profiles.rows.get(authorId);
     if (profile) this.profiles.rows.set(authorId, { ...profile, postCount: profile.postCount - 1 });

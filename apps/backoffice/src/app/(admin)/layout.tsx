@@ -20,6 +20,9 @@ export default async function AdminLayout({ children }: LayoutProps<'/'>) {
             <Link href="/users" className="text-sm underline-offset-4 hover:underline">
               Utilisateurs
             </Link>
+            <Link href="/reports" className="text-sm underline-offset-4 hover:underline">
+              Signalements
+            </Link>
           </nav>
           <div className="flex items-center gap-4 text-sm">
             <ApiStatus health={health} />

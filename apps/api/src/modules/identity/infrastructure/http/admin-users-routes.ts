@@ -15,8 +15,8 @@ import type { GetUserForAdmin } from '../../application/use-cases/get-user-for-a
 import type { ListUsersForAdmin } from '../../application/use-cases/list-users-for-admin.ts';
 import type { ModerateUser } from '../../application/use-cases/moderate-user.ts';
 import type { ModeratedStatus, ModerationAction } from '../../domain/account-moderation.ts';
-import { UserNotFoundError } from '../../domain/errors.ts';
 import type { Profile } from '../../domain/profile.ts';
+import { type AdminUserSummary, toAdminUserSummary } from './admin-user-summary.ts';
 
 export interface AdminUsersUseCases {
   getAdminSession: GetAdminSession;
@@ -29,7 +29,6 @@ export interface AdminUsersUseCases {
 }
 
 type AdminSession = components['schemas']['AdminSession'];
-type AdminUserSummary = components['schemas']['AdminUserSummary'];
 type AdminUserPage = components['schemas']['AdminUserPage'];
 type AdminUserDetail = components['schemas']['AdminUserDetail'];
 type AdminReportList = components['schemas']['AdminReportList'];
@@ -50,21 +49,7 @@ export function registerAdminUsersRoutes(
   useCases: AdminUsersUseCases,
   urls: PublicMediaUrls,
 ): void {
-  const toSummary = (profile: Profile): AdminUserSummary => {
-    // Un compte supprimé n'est jamais renvoyé (les use cases le traitent comme introuvable).
-    if (profile.status === 'deleted') throw new UserNotFoundError();
-    return {
-      id: profile.id,
-      username: profile.username,
-      fullName: profile.fullName,
-      status: profile.status,
-      ...(profile.avatar && { avatar: urls.of(profile.avatar.variants) }),
-      followerCount: profile.followerCount,
-      followingCount: profile.followingCount,
-      postCount: profile.postCount,
-      createdAt: profile.createdAt.toISOString(),
-    };
-  };
+  const toSummary = (profile: Profile): AdminUserSummary => toAdminUserSummary(profile, urls);
 
   const toReportList = ({ total, items }: UserReportList): AdminReportList => ({
     total,
