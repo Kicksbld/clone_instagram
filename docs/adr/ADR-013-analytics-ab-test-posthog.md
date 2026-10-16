@@ -23,7 +23,7 @@ Décisions sources : D26, D27.
 - **App** : SDK `posthog-ios` utilisé uniquement via le protocole `AnalyticsService` (`Core/Analytics`, remplaçable par un faux dans les tests et les previews) ; noms d'événements centralisés dans `Core/Analytics` ; `identify(profileId)` dès la création du profil, avant le paywall (la variante reste la même pour l'utilisateur) ; `reset()` à la déconnexion.
 - **API** : les événements serveur sont envoyés **après** la validation de la transaction ; un échec est journalisé, jamais propagé.
 - **A/B test** : expérience PostHog sur un feature flag à plusieurs variantes, lue par le `PaywallViewModel`, qui choisit l'offre RevenueCat ou la présentation correspondante. PostHog enregistre l'exposition. Métrique principale : `purchase_completed`. Variante par défaut si PostHog est injoignable.
-- **Backoffice** : pas de duplication. Aucun endpoint `/v1/admin/analytics/*`, aucun module `analytics` côté API, aucun appel à PostHog depuis le backoffice ou le navigateur. L'entonnoir, les inscriptions, les abonnés Plus actifs et les résultats de l'A/B test se consultent directement dans l'interface PostHog. La page Analytics du backoffice se limite à un lien « Ouvrir dans PostHog ».
+- **Backoffice** : pas de duplication. Aucun endpoint `/v1/admin/analytics/*`, aucun module `analytics` côté API, aucun appel à PostHog depuis le backoffice ou le navigateur. L'entonnoir, les inscriptions, les abonnés Plus actifs et les résultats de l'A/B test se consultent directement dans l'interface PostHog. Le backoffice n'a pas de page Analytics.
 - Suppression de compte propagée à PostHog (suppression de la personne) par le job `purge-account` (ADR-008).
 - En test, `AnalyticsTracker` est remplacé par un adapter en mémoire : aucun appel à PostHog.
 

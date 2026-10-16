@@ -85,7 +85,7 @@ Règles vérifiées par le lint :
 | P0 | Connexion | Email + mot de passe ; refus si le compte n'a pas le rôle admin |
 | P0 | File de modération | Signalements ouverts, filtres (motif, type de contenu), aperçu du contenu signalé (image, vidéo, texte), actions « supprimer le contenu » ou « classer » avec note |
 | P0 | Utilisateurs | Recherche, fiche (profil, statut, compteurs, signalements reçus et émis, abonnement Plus et date d'expiration), suspendre, bannir, réactiver, supprimer |
-| P0 | Analytics | Simple lien « Ouvrir dans PostHog » : entonnoir, inscriptions, abonnés Plus actifs et résultats de l'A/B test se consultent directement dans l'interface PostHog, sans duplication dans le backoffice |
+| P0 | Analytics | Aucune page dans le backoffice : entonnoir, inscriptions, abonnés Plus actifs et résultats de l'A/B test se consultent directement dans l'interface PostHog, sans duplication dans le backoffice |
 | P1 | Contenus | Liste filtrable des posts, reels, stories, commentaires ; suppression directe |
 | P1 | Journal d'audit | Liste filtrable (admin, action, période) |
 | P1 | Tableau de bord | Compteurs : utilisateurs, posts du jour, signalements ouverts, médias en échec |
@@ -102,4 +102,4 @@ Conventions d'interface :
 | Niveau | Outil | Contenu |
 |---|---|---|
 | Logique | Vitest | Schémas Zod, formatage, construction des filtres |
-| Parcours | Playwright | Connexion admin ; refus d'un non-admin ; traitement d'un signalement ; bannissement d'un utilisateur ; affichage de la page Analytics |
+| Parcours | Playwright | Connexion admin ; refus d'un non-admin ; traitement d'un signalement ; bannissement d'un utilisateur |
