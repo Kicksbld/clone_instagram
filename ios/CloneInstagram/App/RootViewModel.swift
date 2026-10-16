@@ -161,9 +161,12 @@ final class RootViewModel {
     }
 
     /// Tirer pour rafraîchir mon profil (compteurs, photo…) ; l'erreur laisse le profil affiché.
-    func refreshProfile() async {
-        guard case .home = route, let profile = try? await identity.fetchMe() else { return }
+    /// - Returns: `true` si le profil a été rechargé.
+    @discardableResult
+    func refreshProfile() async -> Bool {
+        guard case .home = route, let profile = try? await identity.fetchMe() else { return false }
         updateProfile(profile)
+        return true
     }
 
     func signOut() async {

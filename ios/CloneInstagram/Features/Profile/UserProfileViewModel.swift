@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// Profil d'un autre utilisateur (`GET /v1/users/{username}`) : chargement, introuvable, erreur ;
-/// bouton Suivre optimiste avec retour arrière si l'API échoue (ADR-010).
+/// bouton Suivre optimiste partagé avec les autres écrans (`FollowStore`, ADR-020).
 @Observable
 final class UserProfileViewModel {
     enum State: Equatable {
@@ -14,41 +14,36 @@ final class UserProfileViewModel {
     }
 
     let username: String
-    private(set) var state: State = .loading
-    /// Follow ou unfollow en cours : le bouton ne relance pas d'appel.
-    private(set) var isUpdatingFollow = false
+    /// Profil reçu de l'API, affiché avec l'abonnement partagé par `FollowStore`.
+    private var loadState: State = .loading
     /// Échec d'un follow ou d'un unfollow, affiché en alerte ; `nil` une fois l'alerte fermée.
     var followErrorMessage: String?
 
     private let viewerId: String
     private let identity: any IdentityService
-    private let social: any SocialService
-    private let analytics: any AnalyticsService
-    private let onFollowChange: () async -> Void
+    private let follows: FollowStore
+
+    var state: State {
+        if case let .loaded(profile) = loadState {
+            .loaded(follows.displayed(profile))
+        } else {
+            loadState
+        }
+    }
 
     private var isLoaded: Bool {
-        if case .loaded = state {
+        if case .loaded = loadState {
             true
         } else {
             false
         }
     }
 
-    /// - Parameter onFollowChange: appelé après un follow ou un unfollow réussi (mes compteurs changent).
-    init(
-        username: String,
-        viewerId: String,
-        identity: any IdentityService,
-        social: any SocialService,
-        analytics: any AnalyticsService = NoopAnalyticsService(),
-        onFollowChange: @escaping () async -> Void = {}
-    ) {
+    init(username: String, viewerId: String, identity: any IdentityService, follows: FollowStore) {
         self.username = username
         self.viewerId = viewerId
         self.identity = identity
-        self.social = social
-        self.analytics = analytics
-        self.onFollowChange = onFollowChange
+        self.follows = follows
     }
 
     /// Mon propre profil ouvert depuis une liste : pas de bouton Suivre.
@@ -64,14 +59,16 @@ final class UserProfileViewModel {
     func load() async {
         // Rafraîchissement : le profil affiché reste à l'écran pendant le chargement.
         if !isLoaded {
-            state = .loading
+            loadState = .loading
         }
         do {
-            state = try await .loaded(identity.fetchUserProfile(username: username))
+            let profile = try await identity.fetchUserProfile(username: username)
+            follows.record(profile)
+            loadState = .loaded(profile)
         } catch .userNotFound, .invalidInput {
-            state = .notFound
+            loadState = .notFound
         } catch {
-            state = .failed(message: "Impossible de charger ce profil. Vérifiez votre connexion et réessayez.")
+            loadState = .failed(message: "Impossible de charger ce profil. Vérifiez votre connexion et réessayez.")
         }
     }
 
@@ -83,38 +80,22 @@ final class UserProfileViewModel {
         await setFollowing(false)
     }
 
+    /// Changé tout de suite, sans bloquer le bouton : un nouveau tap pendant l'appel est pris en compte.
     private func setFollowing(_ following: Bool) async {
-        guard case var .loaded(profile) = state, !isUpdatingFollow, profile.isFollowing != following else { return }
-        let previous = profile
-        isUpdatingFollow = true
-        defer { isUpdatingFollow = false }
-
-        profile.isFollowing = following
-        profile.followerCount = max(0, profile.followerCount + (following ? 1 : -1))
-        state = .loaded(profile)
-        do {
-            let status = if following {
-                try await social.follow(userId: profile.id)
-            } else {
-                try await social.unfollow(userId: profile.id)
-            }
-            profile.isFollowing = status.isFollowing
-            profile.followerCount = status.followerCount
-            state = .loaded(profile)
-            if following, status.isFollowing {
-                analytics.track(.userFollowed(.profile))
-            }
-            await onFollowChange()
-        } catch .userNotFound {
-            state = .notFound
-        } catch .accountPrivate {
-            state = .loaded(previous)
-            followErrorMessage = "Ce compte est privé : il ne peut pas encore être suivi."
-        } catch {
-            state = .loaded(previous)
-            followErrorMessage = following
-                ? "Impossible de suivre ce compte. Vérifiez votre connexion et réessayez."
-                : "Impossible de ne plus suivre ce compte. Vérifiez votre connexion et réessayez."
+        guard case let .loaded(profile) = state, profile.isFollowing != following else { return }
+        let outcome = await follows.setFollowing(
+            following,
+            userId: profile.id,
+            current: FollowState(profile),
+            source: .profile
+        )
+        switch outcome {
+        case nil, .confirmed?:
+            break
+        case .userGone?:
+            loadState = .notFound
+        case let .reverted(message)?:
+            followErrorMessage = message
         }
     }
 }

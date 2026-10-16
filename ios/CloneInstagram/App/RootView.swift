@@ -98,14 +98,13 @@ struct RootView: View {
                 .modifier(SocialDestinations(
                     dependencies: dependencies,
                     viewerId: profile.id,
-                    onFollowChange: viewModel.refreshProfile,
                     onPostDeleted: { deletedPostCount += 1 },
                     openComments: openComments
                 ))
             } profileTab: { openSearch in
                 MyProfileView(
-                    profile: profile,
-                    onRefresh: viewModel.refreshProfile,
+                    profile: dependencies.follows.displayed(me: profile),
+                    onRefresh: refreshProfile,
                     onFollowAccounts: openSearch,
                     posts: ProfilePostsViewModel(userId: profile.id, posts: dependencies.posts),
                     postsReloadToken: postsRevision,
@@ -146,17 +145,15 @@ struct RootView: View {
                 .modifier(SocialDestinations(
                     dependencies: dependencies,
                     viewerId: profile.id,
-                    onFollowChange: viewModel.refreshProfile,
                     onPostDeleted: { deletedPostCount += 1 },
                     openComments: openComments
                 ))
             } searchTab: {
-                SearchView(viewModel: SearchViewModel(social: dependencies.social))
+                SearchView(viewModel: SearchViewModel(social: dependencies.social, follows: dependencies.follows))
                     .modifier(SocialDestinations(
                         dependencies: dependencies,
                         viewerId: profile.id,
-                        onFollowChange: viewModel.refreshProfile,
-                        onPostDeleted: { deletedPostCount += 1 },
+                            onPostDeleted: { deletedPostCount += 1 },
                         openComments: openComments
                     ))
             } createPost: { close in
@@ -170,7 +167,7 @@ struct RootView: View {
             .task(id: profile.id) { dependencies.publishQueue.resume(for: profile.id) }
             // Compteurs rechargés aussi après un blocage (abonnements supprimés dans les deux sens).
             .onChange(of: postsRevision + dependencies.blocks.revision) {
-                Task { await viewModel.refreshProfile() }
+                Task { await refreshProfile() }
             }
             .modifier(ModerationPresenter(dependencies: dependencies))
             .sheet(item: $commentsRoute) { route in
@@ -230,11 +227,19 @@ struct RootView: View {
         OpenCommentsAction { commentsRoute = $0 }
     }
 
-    /// Les publications en attente, les likes, les compteurs de commentaires et les blocages de la session ne
-    /// sont jamais repris pour un autre compte.
+    /// Mon profil rechargé : mon compteur « suivi(e)s » compte désormais les follows confirmés.
+    private func refreshProfile() async {
+        if await viewModel.refreshProfile() {
+            dependencies.follows.myProfileReloaded()
+        }
+    }
+
+    /// Les publications en attente, les likes, les abonnements, les compteurs de commentaires et les blocages
+    /// de la session ne sont jamais repris pour un autre compte.
     private func signOut() {
         dependencies.publishQueue.discardAll()
         dependencies.likes.reset()
+        dependencies.follows.reset()
         dependencies.commentCounts.reset()
         dependencies.blocks.reset()
         Task { await viewModel.signOut() }
@@ -246,8 +251,6 @@ struct RootView: View {
 private struct SocialDestinations: ViewModifier {
     let dependencies: AppDependencies
     let viewerId: String
-    /// Après un follow ou un unfollow : mon profil (compteur « suivi(e)s ») est rechargé.
-    let onFollowChange: () async -> Void
     /// Après la suppression d'un de mes posts.
     let onPostDeleted: () -> Void
     /// Feuille des commentaires, ouverte depuis le détail d'un post.
@@ -261,9 +264,7 @@ private struct SocialDestinations: ViewModifier {
                         username: route.username,
                         viewerId: viewerId,
                         identity: dependencies.identity,
-                        social: dependencies.social,
-                        analytics: dependencies.analytics,
-                        onFollowChange: onFollowChange
+                        follows: dependencies.follows
                     ),
                     posts: dependencies.posts
                 )
@@ -296,8 +297,7 @@ private struct SocialDestinations: ViewModifier {
             userId: route.userId,
             viewerId: viewerId,
             social: dependencies.social,
-            analytics: dependencies.analytics,
-            onFollowChange: onFollowChange
+            follows: dependencies.follows
         )
     }
 }

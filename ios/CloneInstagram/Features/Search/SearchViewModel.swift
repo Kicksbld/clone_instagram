@@ -14,9 +14,19 @@ final class SearchViewModel {
     }
 
     var query = ""
-    private(set) var state: State = .idle
+    /// Résultats reçus de l'API, affichés avec l'abonnement partagé par `FollowStore` (« Suivi(e) »).
+    private var searchState: State = .idle
 
     private let social: any SocialService
+    private let follows: FollowStore
+
+    var state: State {
+        if case let .results(users) = searchState {
+            .results(users.map { follows.displayed($0) })
+        } else {
+            searchState
+        }
+    }
 
     /// Texte envoyé à l'API : sans espaces superflus ni `@` initial (même nettoyage que l'API).
     var normalizedQuery: String {
@@ -27,33 +37,35 @@ final class SearchViewModel {
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    init(social: any SocialService) {
+    init(social: any SocialService, follows: FollowStore) {
         self.social = social
+        self.follows = follows
     }
 
     func search() async {
         let text = normalizedQuery
         guard !text.isEmpty else {
-            state = .idle
+            searchState = .idle
             return
         }
         // Les résultats précédents restent affichés pendant la nouvelle recherche.
-        if case .results = state {} else {
-            state = .searching
+        if case .results = searchState {} else {
+            searchState = .searching
         }
         do {
             let users = try await social.searchUsers(String(text.prefix(64)))
             guard text == normalizedQuery, !Task.isCancelled else { return }
-            state = .results(users)
+            follows.record(users)
+            searchState = .results(users)
         } catch {
             guard text == normalizedQuery, !Task.isCancelled else { return }
-            state = .failed(message: "Impossible de lancer la recherche. Vérifiez votre connexion et réessayez.")
+            searchState = .failed(message: "Impossible de lancer la recherche. Vérifiez votre connexion et réessayez.")
         }
     }
 
     /// Comptes bloqués pendant la session : retirés des résultats affichés (ADR-006).
     func hideUsers(_ ids: Set<String>) {
-        guard case let .results(users) = state else { return }
-        state = .results(users.filter { !ids.contains($0.id) })
+        guard case let .results(users) = searchState else { return }
+        searchState = .results(users.filter { !ids.contains($0.id) })
     }
 }

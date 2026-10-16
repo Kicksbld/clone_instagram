@@ -132,7 +132,6 @@ struct UserProfileView: View {
                 Task { await viewModel.follow() }
             }
         }
-        .disabled(viewModel.isUpdatingFollow)
         .confirmationDialog(profile.username, isPresented: $isConfirmingUnfollow, titleVisibility: .visible) {
             Button("Ne plus suivre", role: .destructive) {
                 Task { await viewModel.unfollow() }

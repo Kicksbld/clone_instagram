@@ -11,6 +11,8 @@ final class FakeSocialService: SocialService {
 
     /// Réponses successives de `follow` / `unfollow` ; succès calculé quand la liste est vide.
     var followResults: [Result<FollowStatus, SocialServiceError>] = []
+    /// Appelé pendant `follow` / `unfollow`, avant la réponse (ex. l'utilisateur touche encore le bouton).
+    var duringFollow: (() async -> Void)?
     /// Réponses successives de `list` ; page vide quand la liste est vide.
     var listResults: [Result<UserPage, SocialServiceError>] = []
     /// Réponses successives de `searchUsers` ; aucun résultat quand la liste est vide.
@@ -32,14 +34,22 @@ final class FakeSocialService: SocialService {
 
     func follow(userId: String) async throws(SocialServiceError) -> FollowStatus {
         follows.append(userId)
+        await runDuringFollow()
         guard !followResults.isEmpty else { return FollowStatus(isFollowing: true, followerCount: 1) }
         return try followResults.removeFirst().get()
     }
 
     func unfollow(userId: String) async throws(SocialServiceError) -> FollowStatus {
         unfollows.append(userId)
+        await runDuringFollow()
         guard !followResults.isEmpty else { return FollowStatus(isFollowing: false, followerCount: 0) }
         return try followResults.removeFirst().get()
+    }
+
+    private func runDuringFollow() async {
+        guard let duringFollow else { return }
+        self.duringFollow = nil
+        await duringFollow()
     }
 
     func list(_ kind: FollowListKind, of userId: String, cursor: String?) async throws(SocialServiceError) -> UserPage {

@@ -8,6 +8,8 @@ struct AppDependencies {
     let social: any SocialService
     /// Comptes bloqués pendant la session, partagés par tous les écrans.
     let blocks: BlockStore
+    /// Abonnements partagés par les profils, les listes, la recherche et mon compteur « suivi(e)s ».
+    let follows: FollowStore
     let reports: any ReportService
     let posts: any PostService
     /// Likes partagés par le feed et le détail des posts.
@@ -50,6 +52,7 @@ struct AppDependencies {
             uploads: uploads,
             social: social,
             blocks: BlockStore(service: social),
+            follows: FollowStore(service: social, analytics: analytics),
             reports: APIReportService(client: client),
             posts: posts,
             likes: LikeSynchronizer(service: APIEngagementService(client: client), analytics: analytics),
@@ -85,6 +88,7 @@ extension AppDependencies {
             uploads: UnavailableUploadService(),
             social: UnavailableSocialService(),
             blocks: BlockStore(service: UnavailableSocialService()),
+            follows: FollowStore(service: UnavailableSocialService(), analytics: analytics),
             reports: UnavailableReportService(),
             posts: posts,
             likes: LikeSynchronizer(service: UnavailableEngagementService(), analytics: analytics),

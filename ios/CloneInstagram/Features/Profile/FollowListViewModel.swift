@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// Abonnés ou abonnements d'un compte (`GET /v1/users/{id}/followers|following`) : pagination par
-/// curseur, bouton Suivre optimiste sur chaque ligne (ADR-010).
+/// curseur, bouton Suivre optimiste sur chaque ligne, partagé avec les autres écrans (`FollowStore`, ADR-020).
 @Observable
 final class FollowListViewModel {
     enum State: Equatable {
@@ -15,7 +15,8 @@ final class FollowListViewModel {
 
     let kind: FollowListKind
     private(set) var state: State = .loading
-    private(set) var users: [UserSummary] = []
+    /// Comptes reçus de l'API, affichés avec l'abonnement partagé par `FollowStore`.
+    private var loadedUsers: [UserSummary] = []
     private(set) var isLoadingMore = false
     /// Échec d'une action (page suivante, follow), affiché en alerte ; `nil` une fois fermée.
     var actionErrorMessage: String?
@@ -23,10 +24,12 @@ final class FollowListViewModel {
     private let userId: String
     private let viewerId: String
     private let social: any SocialService
-    private let analytics: any AnalyticsService
-    private let onFollowChange: () async -> Void
+    private let follows: FollowStore
     private var nextCursor: String?
-    private var pendingFollows: Set<String> = []
+
+    var users: [UserSummary] {
+        loadedUsers.map { follows.displayed($0) }
+    }
 
     var hasMore: Bool {
         nextCursor != nil
@@ -37,15 +40,13 @@ final class FollowListViewModel {
         userId: String,
         viewerId: String,
         social: any SocialService,
-        analytics: any AnalyticsService = NoopAnalyticsService(),
-        onFollowChange: @escaping () async -> Void = {}
+        follows: FollowStore
     ) {
         self.kind = kind
         self.userId = userId
         self.viewerId = viewerId
         self.social = social
-        self.analytics = analytics
-        self.onFollowChange = onFollowChange
+        self.follows = follows
     }
 
     /// Pas de bouton sur moi-même, ni sur un compte privé que je ne suis pas (P1).
@@ -60,7 +61,8 @@ final class FollowListViewModel {
         }
         do {
             let page = try await social.list(kind, of: userId, cursor: nil)
-            users = page.items
+            follows.record(page.items)
+            loadedUsers = page.items
             nextCursor = page.nextCursor
             state = .loaded
         } catch .userNotFound {
@@ -79,43 +81,28 @@ final class FollowListViewModel {
         defer { isLoadingMore = false }
         do {
             let page = try await social.list(kind, of: userId, cursor: cursor)
-            let known = Set(users.map(\.id))
-            users += page.items.filter { !known.contains($0.id) }
+            let known = Set(loadedUsers.map(\.id))
+            let added = page.items.filter { !known.contains($0.id) }
+            follows.record(added)
+            loadedUsers += added
             nextCursor = page.nextCursor
         } catch {
             actionErrorMessage = "Impossible de charger la suite. Vérifiez votre connexion et réessayez."
         }
     }
 
+    /// Changé tout de suite, sans bloquer le bouton : un nouveau tap pendant l'appel est pris en compte.
     func setFollowing(_ following: Bool, for user: UserSummary) async {
-        guard canFollow(user), user.isFollowing != following, !pendingFollows.contains(user.id) else { return }
-        pendingFollows.insert(user.id)
-        defer { pendingFollows.remove(user.id) }
-
-        update(user.id) { $0.isFollowing = following }
-        do {
-            let status = if following {
-                try await social.follow(userId: user.id)
-            } else {
-                try await social.unfollow(userId: user.id)
-            }
-            update(user.id) { $0.isFollowing = status.isFollowing }
-            if following, status.isFollowing {
-                analytics.track(.userFollowed(.list))
-            }
-            await onFollowChange()
-        } catch .userNotFound {
-            users.removeAll { $0.id == user.id }
-        } catch {
-            update(user.id) { $0.isFollowing = user.isFollowing }
-            actionErrorMessage = error == .accountPrivate
-                ? "Ce compte est privé : il ne peut pas encore être suivi."
-                : "Action impossible. Vérifiez votre connexion et réessayez."
+        let user = follows.displayed(user)
+        guard canFollow(user), user.isFollowing != following else { return }
+        let outcome = await follows.setFollowing(following, userId: user.id, current: FollowState(user), source: .list)
+        switch outcome {
+        case nil, .confirmed?:
+            break
+        case .userGone?:
+            loadedUsers.removeAll { $0.id == user.id }
+        case let .reverted(message)?:
+            actionErrorMessage = message
         }
-    }
-
-    private func update(_ id: String, _ change: (inout UserSummary) -> Void) {
-        guard let index = users.firstIndex(where: { $0.id == id }) else { return }
-        change(&users[index])
     }
 }

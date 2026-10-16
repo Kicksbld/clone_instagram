@@ -30,7 +30,8 @@ struct Profile: Equatable, Identifiable {
     let isPrivate: Bool
     let status: AccountStatus
     let followerCount: Int
-    let followingCount: Int
+    /// Modifié par mes follows et unfollows, jusqu'au prochain chargement (`FollowStore`).
+    var followingCount: Int
     let postCount: Int
     /// Photo de profil ; `nil` sans photo.
     var avatar: ImageVariants?
