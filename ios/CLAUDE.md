@@ -20,6 +20,8 @@ App SwiftUI, MVVM, organisation par feature : [ADR-010](../docs/adr/ADR-010-app-
 
 Jusqu'à une tranche de style à planifier (décisions de planification de [`P0.md`](../docs/plan/P0.md)) : composants système, alignements et espacements uniquement ; aucune couleur, typographie, image ou composant personnalisé. Le parcours, les libellés et la navigation reproduisent Instagram.
 
+Exceptions validées par le lead dev (maquettes dans `ios/design/animations/`) : le logo (`DesignSystem/LogoShapes`, `AppLogo`), le splash animé « Iris » (`App/SplashView`, affiché par `RootView` au-dessus du routeur jusqu'à la fin de l'animation et du chargement) et l'animation « Éclats » du like (`DesignSystem/LikeBurst` : `LikeButton`, `DoubleTapHeart`). Couleurs de la marque : `DesignSystem/BrandColors`.
+
 ## Où mettre quoi
 
 | Fichier | Emplacement |

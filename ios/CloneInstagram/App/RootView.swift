@@ -8,6 +8,8 @@ struct RootView: View {
     @State private var deletedPostCount = 0
     /// Feuille des commentaires ouverte depuis un post (feed, détail).
     @State private var commentsRoute: CommentsRoute?
+    /// Splash animé joué une seule fois, au lancement.
+    @State private var isSplashFinished = false
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
@@ -23,6 +25,11 @@ struct RootView: View {
 
     var body: some View {
         content
+            .overlay {
+                if !isSplashFinished {
+                    SplashView(isReady: viewModel.route != .loading) { isSplashFinished = true }
+                }
+            }
             .task { await viewModel.start() }
     }
 

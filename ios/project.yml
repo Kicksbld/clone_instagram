@@ -94,7 +94,8 @@ targets:
         CURRENT_PROJECT_VERSION: '1'
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Clone
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        # Écran de lancement : fond `SplashBackground` seul (`UILaunchScreen` des Info-<Config>.plist), premier
+        # frame du splash animé (`App/SplashView`).
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         # Portrait uniquement, comme Instagram sur iPhone (choix du lead dev). Avertissement Xcode assumé :
         # « All interface orientations must be supported… » (UIRequiresFullScreen est obsolète depuis iOS 26).

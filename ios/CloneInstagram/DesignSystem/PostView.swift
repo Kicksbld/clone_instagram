@@ -21,7 +21,6 @@ struct PostView: View {
     @State private var captionHeights = CaptionHeights()
     /// Incrémenté à chaque double tap : déclenche le cœur sur la photo.
     @State private var doubleTapCount = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openComments) private var openComments
     @Environment(\.moderation) private var moderation
 
@@ -113,7 +112,7 @@ struct PostView: View {
             doubleTapCount += 1
             onDoubleTapLike()
         }
-        .overlay { doubleTapHeart }
+        .overlay { DoubleTapHeart(trigger: doubleTapCount) }
         .accessibilityAction(named: "J'aime") { onDoubleTapLike() }
         .overlay(alignment: .topTrailing) {
             if post.media.count > 1 {
@@ -186,30 +185,6 @@ struct PostView: View {
         return post.media.count > 1 ? "\(label), photo \(index + 1) sur \(post.media.count)" : label
     }
 
-    /**
-     Cœur qui grossit puis s'efface au double tap, comme Instagram ; simple fondu si « Réduire les
-     animations » est activé. Blanc avec une ombre : seule couleur lisible sur n'importe quelle photo.
-     */
-    private var doubleTapHeart: some View {
-        Image(systemName: "heart.fill")
-            .font(.system(size: 96))
-            .foregroundStyle(.white)
-            .shadow(radius: 8)
-            .phaseAnimator(HeartPhase.allCases, trigger: doubleTapCount) { heart, phase in
-                heart
-                    .scaleEffect(reduceMotion ? 1 : phase.scale)
-                    .opacity(phase.opacity)
-            } animation: { phase in
-                switch phase {
-                case .shown: .spring(duration: 0.3, bounce: 0.5)
-                case .fading: .easeOut(duration: 0.25).delay(0.5)
-                case .hidden: nil
-                }
-            }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-    }
-
     /// « 1 mention J'aime », « 1 234 mentions J'aime », comme Instagram.
     private var likeCountText: String {
         let count = post.likeCount.formatted()
@@ -246,14 +221,7 @@ struct PostView: View {
 
     private var actions: some View {
         HStack(spacing: 16) {
-            Button(
-                post.isLiked ? "Je n'aime plus" : "J'aime",
-                systemImage: post.isLiked ? "heart.fill" : "heart",
-                action: onToggleLike
-            )
-            .foregroundStyle(.primary)
-            .contentTransition(.symbolEffect(.replace))
-            .symbolEffect(.bounce, value: post.isLiked)
+            LikeButton(isLiked: post.isLiked, action: onToggleLike)
             Button("Commenter", systemImage: "bubble.right", action: showComments)
                 .foregroundStyle(.primary)
                 .disabled(openComments == nil)
@@ -284,25 +252,6 @@ struct PostView: View {
         }
         .accessibilityElement()
         .accessibilityLabel("Photo \(page + 1) sur \(post.media.count)")
-    }
-}
-
-/// Étapes du cœur du double tap : caché (au repos), affiché, effacé.
-private enum HeartPhase: CaseIterable {
-    case hidden
-    case shown
-    case fading
-
-    var scale: Double {
-        switch self {
-        case .hidden: 0.4
-        case .shown: 1
-        case .fading: 1.15
-        }
-    }
-
-    var opacity: Double {
-        self == .shown ? 1 : 0
     }
 }
 
