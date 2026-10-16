@@ -1,14 +1,22 @@
 // Worker BullMQ (ADR-008) : consomme les files de packages/jobs, sans logique métier.
 import { createDatabase } from '@clone/db';
-import { DEFAULT_JOB_OPTIONS, PROCESS_IMAGE, PURGE_ORPHAN_MEDIA, QUEUE_NAMES } from '@clone/jobs';
+import {
+  DEFAULT_JOB_OPTIONS,
+  PROCESS_IMAGE,
+  PURGE_ACCOUNT,
+  PURGE_ORPHAN_MEDIA,
+  QUEUE_NAMES,
+} from '@clone/jobs';
 import { StorageClient } from '@supabase/storage-js';
 import { Queue, Worker } from 'bullmq';
 import { pino } from 'pino';
 
 import { loadConfig } from './config.ts';
 import { processImage } from './jobs/process-image.ts';
+import { purgeAccount } from './jobs/purge-account.ts';
 import { purgeOrphanMedia } from './jobs/purge-orphan-media.ts';
 import { createProcessor } from './processor.ts';
+import { PostHogPersons, RevenueCatCustomers } from './saas.ts';
 import { SupabaseWorkerStorage } from './storage.ts';
 
 const config = loadConfig(process.env);
@@ -25,10 +33,23 @@ const storage = new SupabaseWorkerStorage(
 // `family: 0` : résolution IPv4 et IPv6 (le réseau privé Railway est en IPv6).
 const connection = { url: config.REDIS_URL, maxRetriesPerRequest: null, family: 0 };
 const dependencies = { db: database.db, storage, logger };
+const customers = new RevenueCatCustomers({
+  secretKey: config.REVENUECAT_SECRET_KEY,
+  projectId: config.REVENUECAT_PROJECT_ID,
+});
+const persons =
+  config.POSTHOG_PERSONAL_API_KEY && config.POSTHOG_PROJECT_ID
+    ? new PostHogPersons({
+        personalApiKey: config.POSTHOG_PERSONAL_API_KEY,
+        projectId: config.POSTHOG_PROJECT_ID,
+        host: config.POSTHOG_API_HOST,
+      })
+    : null;
 const processor = createProcessor(
   new Map([
     [PROCESS_IMAGE.name, processImage(dependencies)],
     [PURGE_ORPHAN_MEDIA.name, purgeOrphanMedia(dependencies)],
+    [PURGE_ACCOUNT.name, purgeAccount({ ...dependencies, customers, persons })],
   ]),
 );
 const queueNames = Object.values(QUEUE_NAMES);

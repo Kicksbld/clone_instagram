@@ -149,6 +149,22 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '500':
           $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteMe
+      tags: [identity]
+      summary: Supprimer mon compte
+      description: |
+        Suppression réelle du compte (ADR-007) : l'accès est coupé immédiatement (utilisateur Supabase Auth supprimé, toute requête portant un JWT encore valide de ce compte → `401 unauthenticated`), puis le job `purge-account` efface données, fichiers, abonnement, client RevenueCat et personne PostHog (ADR-008).
+        Possible aussi pour un compte suspendu ou banni (ADR-005). Ne résilie pas l'abonnement Apple (ADR-012). Profil inexistant ou déjà purgé → `404 profile_not_found`.
+      responses:
+        '204':
+          description: Compte supprimé ; la purge suit.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/me/avatar:
     delete:
       operationId: removeAvatar

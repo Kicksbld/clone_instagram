@@ -167,4 +167,8 @@ struct UnavailableIdentityService: IdentityService {
     func fetchUserProfile(username _: String) async throws(IdentityServiceError) -> UserProfile {
         throw .unreachable
     }
+
+    func deleteMe() async throws(IdentityServiceError) {
+        throw .unreachable
+    }
 }

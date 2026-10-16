@@ -4,7 +4,8 @@
  * renvoie 404, jamais 403.
  */
 
-export type AccountStatus = 'active' | 'suspended' | 'banned';
+/** `deleted` : supprimé par son propriétaire, en attente de purge (T13) ; jamais renvoyé par l'API. */
+export type AccountStatus = 'active' | 'suspended' | 'banned' | 'deleted';
 
 /** Propriétaire d'un profil ou d'un contenu, tel que la politique le lit. */
 export interface VisibilitySubject {

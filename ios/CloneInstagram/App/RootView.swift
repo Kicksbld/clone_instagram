@@ -115,6 +115,10 @@ struct RootView: View {
                                 social: dependencies.social,
                                 blocks: dependencies.blocks
                             ),
+                            deleteAccount: DeleteAccountViewModel(
+                                identity: dependencies.identity,
+                                onDeleted: signOut
+                            ),
                             onRefreshPlan: viewModel.refreshPlan,
                             onSignOut: signOut
                         ) {

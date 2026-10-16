@@ -16,6 +16,8 @@ Pipeline média et files : [ADR-008](../../docs/adr/ADR-008-pipeline-media-worke
 
 Job de référence (T3) : `src/jobs/process-image.ts` — payload validé, état relu, erreur définitive (`UnrecoverableError`) après passage en `failed`, `processing_error` à la dernière tentative. Fichiers : port `WorkerStorage` (`src/storage.ts`, Supabase Storage avec la clé secrète).
 
+Appels SaaS (T13) : seule la purge d'un compte (`src/jobs/purge-account.ts`) appelle RevenueCat et PostHog, par les adapters `fetch` de `src/saas.ts` (404 = déjà supprimé, toute autre erreur fait échouer le job, rejoué).
+
 Changement de payload : ajout d'un champ optionnel uniquement ; renommer, supprimer ou changer un type impose un nouveau nom de job (ADR-015).
 
 ## Interdits

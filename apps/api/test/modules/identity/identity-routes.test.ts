@@ -52,6 +52,58 @@ describe('GET /v1/me', () => {
   });
 });
 
+describe('DELETE /v1/me', () => {
+  const deleteMe = () => context.app.inject({ method: 'DELETE', url: '/v1/me', headers: auth });
+
+  it('204 sans corps, puis le même JWT est refusé partout (401)', async () => {
+    context.profiles.add({ id: ME, username: 'killian' });
+
+    const response = await deleteMe();
+
+    expect(response.statusCode).toBe(204);
+    expect(response.body).toBe('');
+    expect(context.jobs.accountPurges).toEqual(new Set([ME]));
+    for (const url of ['/v1/me', '/v1/feed']) {
+      const after = await context.app.inject({ method: 'GET', url, headers: auth });
+      expect(after.statusCode).toBe(401);
+      expect(after.json()).toMatchObject({ code: 'unauthenticated' });
+    }
+    expect((await deleteMe()).statusCode).toBe(401);
+  });
+
+  it('compte supprimé invisible pour les autres → 404', async () => {
+    context.profiles.add({ id: ME, username: 'killian' });
+    context.profiles.add({ id: OTHER, username: 'ines' });
+    await deleteMe();
+
+    const response = await context.app.inject({
+      method: 'GET',
+      url: '/v1/users/killian',
+      headers: { authorization: `Bearer ${await signTestToken(OTHER)}` },
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('Supabase Auth injoignable → 500, compte toujours actif', async () => {
+    context.profiles.add({ id: ME, username: 'killian' });
+    context.authAccounts.unavailable = true;
+
+    const response = await deleteMe();
+
+    expect(response.statusCode).toBe(500);
+    expect(response.headers['content-type']).toContain('application/problem+json');
+    expect(context.profiles.rows.get(ME)?.status).toBe('active');
+  });
+
+  it('profil absent → 404 profile_not_found', async () => {
+    const response = await deleteMe();
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ code: 'profile_not_found' });
+  });
+});
+
 describe('POST /v1/me/onboarding', () => {
   const post = (payload: object) =>
     context.app.inject({ method: 'POST', url: '/v1/me/onboarding', headers: auth, payload });

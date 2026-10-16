@@ -207,4 +207,31 @@ struct APIIdentityServiceTests {
 
         await #expect(throws: IdentityServiceError.profileNotFound) { try await service.updateSettings(isPrivate: true) }
     }
+
+    // MARK: - Suppression du compte
+
+    @Test func `DELETE /me → 204, compte supprimé`() async throws {
+        let service = try makeService(.response(status: 204, contentType: nil, body: nil))
+
+        try await service.deleteMe()
+    }
+
+    @Test(arguments: [(401, "unauthenticated"), (404, "profile_not_found")])
+    func `DELETE /me déjà fait (réponse perdue) → succès`(status: Int, code: String) async throws {
+        let service = try makeService(problem(status, code))
+
+        try await service.deleteMe()
+    }
+
+    @Test func `DELETE /me en erreur serveur → réponse inattendue`() async throws {
+        let service = try makeService(problem(500, "internal_error"))
+
+        await #expect(throws: IdentityServiceError.unexpectedResponse(statusCode: 500)) { try await service.deleteMe() }
+    }
+
+    @Test func `DELETE /me sans réseau → API injoignable`() async throws {
+        let service = try makeService(.failure)
+
+        await #expect(throws: IdentityServiceError.unreachable) { try await service.deleteMe() }
+    }
 }

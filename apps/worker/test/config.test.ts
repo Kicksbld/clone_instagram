@@ -7,11 +7,17 @@ const required = {
   DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
   SUPABASE_URL: 'http://127.0.0.1:54321',
   SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test',
+  REVENUECAT_SECRET_KEY: 'sk_test',
+  REVENUECAT_PROJECT_ID: 'proj_test',
 };
 
 describe('configuration du worker', () => {
   it('lit les variables et applique les valeurs par défaut', () => {
-    expect(loadConfig(required)).toEqual({ ...required, LOG_LEVEL: 'info' });
+    expect(loadConfig(required)).toEqual({
+      ...required,
+      POSTHOG_API_HOST: 'https://eu.posthog.com',
+      LOG_LEVEL: 'info',
+    });
   });
 
   it.each([
@@ -22,6 +28,8 @@ describe('configuration du worker', () => {
     ['DATABASE_URL qui n’est pas une URL Postgres', { DATABASE_URL: 'redis://localhost:6379' }],
     ['SUPABASE_URL absente', { SUPABASE_URL: '' }],
     ['SUPABASE_SERVICE_ROLE_KEY absente', { SUPABASE_SERVICE_ROLE_KEY: '' }],
+    ['REVENUECAT_SECRET_KEY absente', { REVENUECAT_SECRET_KEY: '' }],
+    ['REVENUECAT_PROJECT_ID absent', { REVENUECAT_PROJECT_ID: undefined }],
   ])('refuse de démarrer : %s', (_label, env) => {
     expect(() => loadConfig({ ...required, ...env })).toThrow(InvalidConfigError);
   });

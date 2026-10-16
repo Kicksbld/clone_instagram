@@ -36,6 +36,12 @@ describe('canViewProfile', () => {
     ],
     ['compte suspendu', owner({ status: 'suspended' }), relation(), false],
     ['compte banni', owner({ status: 'banned' }), relation(), false],
+    [
+      'compte supprimé',
+      owner({ status: 'deleted' }),
+      relation({ viewerFollowsOwner: true }),
+      false,
+    ],
   ])('%s', (_, subject, rel, expected) => {
     expect(canViewProfile(VIEWER, subject, rel)).toBe(expected);
   });

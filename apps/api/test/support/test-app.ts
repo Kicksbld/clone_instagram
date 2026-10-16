@@ -10,6 +10,7 @@ import { UnlikePost } from '../../src/modules/engagement/application/use-cases/u
 import { GetFeed } from '../../src/modules/feed/application/use-cases/get-feed.ts';
 import { CheckUsernameAvailability } from '../../src/modules/identity/application/use-cases/check-username-availability.ts';
 import { CompleteOnboarding } from '../../src/modules/identity/application/use-cases/complete-onboarding.ts';
+import { DeleteMe } from '../../src/modules/identity/application/use-cases/delete-me.ts';
 import { GetMe } from '../../src/modules/identity/application/use-cases/get-me.ts';
 import { GetProfile } from '../../src/modules/identity/application/use-cases/get-profile.ts';
 import { RemoveAvatar } from '../../src/modules/identity/application/use-cases/remove-avatar.ts';
@@ -35,6 +36,7 @@ import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-med
 import {
   FakeMediaStorage,
   InMemoryAnalyticsTracker,
+  InMemoryAuthAccounts,
   InMemoryJobQueue,
   InMemoryUnitOfWork,
   sequentialIds,
@@ -110,15 +112,18 @@ export function buildTestApp() {
   const subscriptions = new InMemorySubscriptions();
   const subscriptionProvider = new InMemorySubscriptionProvider();
   const analytics = new InMemoryAnalyticsTracker();
+  const authAccounts = new InMemoryAuthAccounts();
   const app = buildApp({
     logLevel: 'silent',
     dependencies: {
       tokenVerifier: testTokenVerifier,
+      accountStatuses: profiles,
       identity: {
         getMe: new GetMe(profiles),
         updateMe: new UpdateMe(profiles, avatarTransaction),
         updateSettings: new UpdateSettings(profiles),
         removeAvatar: new RemoveAvatar(avatarTransaction),
+        deleteMe: new DeleteMe(profiles, authAccounts, jobs),
         completeOnboarding: new CompleteOnboarding(profiles, clock, analytics),
         checkUsernameAvailability: new CheckUsernameAvailability(profiles),
         getProfile: new GetProfile(profiles, relationships),
@@ -197,5 +202,6 @@ export function buildTestApp() {
     subscriptionProvider,
     analytics,
     reports,
+    authAccounts,
   };
 }
