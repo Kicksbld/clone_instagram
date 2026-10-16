@@ -92,9 +92,7 @@ struct BlockedAccountsView: View {
 
     @ViewBuilder
     private func button(for user: UserSummary) -> some View {
-        if viewModel.pendingIds.contains(user.id) {
-            ProgressView()
-        } else if viewModel.isBlocked(user) {
+        if viewModel.isBlocked(user) {
             Button("Débloquer") { userToUnblock = user }
                 .buttonStyle(.bordered)
         } else {

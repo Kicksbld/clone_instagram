@@ -21,6 +21,8 @@ final class FakeSocialService: SocialService {
     var onSearch: (() -> Void)?
     /// Erreurs successives de `block` / `unblock` ; succès quand la liste est vide.
     var blockErrors: [SocialServiceError] = []
+    /// Appelé pendant `block` / `unblock`, avant la réponse (ex. l'utilisateur débloque aussitôt).
+    var duringBlock: (() async -> Void)?
     /// Réponses successives de `listBlocks` ; page vide quand la liste est vide.
     var blockListResults: [Result<UserPage, SocialServiceError>] = []
 
@@ -67,6 +69,7 @@ final class FakeSocialService: SocialService {
 
     func block(userId: String) async throws(SocialServiceError) {
         blocks.append(userId)
+        await runDuringBlock()
         if !blockErrors.isEmpty {
             throw blockErrors.removeFirst()
         }
@@ -74,9 +77,16 @@ final class FakeSocialService: SocialService {
 
     func unblock(userId: String) async throws(SocialServiceError) {
         unblocks.append(userId)
+        await runDuringBlock()
         if !blockErrors.isEmpty {
             throw blockErrors.removeFirst()
         }
+    }
+
+    private func runDuringBlock() async {
+        guard let duringBlock else { return }
+        self.duringBlock = nil
+        await duringBlock()
     }
 
     func listBlocks(cursor: String?) async throws(SocialServiceError) -> UserPage {

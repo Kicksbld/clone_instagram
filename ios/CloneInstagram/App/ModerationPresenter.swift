@@ -76,10 +76,8 @@ struct ModerationPresenter: ViewModifier {
 
     private func block(_ route: BlockRoute) {
         Task {
-            do throws(SocialServiceError) {
-                try await dependencies.blocks.block(userId: route.userId)
-            } catch {
-                errorMessage = BlockStore.message(for: error)
+            if case let .reverted(message)? = await dependencies.blocks.block(userId: route.userId) {
+                errorMessage = message
             }
         }
     }

@@ -152,12 +152,6 @@ struct ReportView: View {
             Button("Bloquer \(username)", systemImage: "hand.raised", role: .destructive) {
                 Task { await viewModel.blockAuthor() }
             }
-        case .blocking:
-            HStack {
-                Text("Blocage de \(username)…")
-                Spacer()
-                ProgressView()
-            }
         case .blocked:
             Label("Vous avez bloqué \(username)", systemImage: "checkmark")
                 .foregroundStyle(.secondary)
