@@ -18,7 +18,6 @@ struct AccountPrivacyView: View {
                     "Compte privé",
                     isOn: Binding(get: { viewModel.isPrivate }, set: { requested = $0 })
                 )
-                .disabled(viewModel.isSaving)
             } footer: {
                 Text(
                     """

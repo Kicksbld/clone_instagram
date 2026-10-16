@@ -20,6 +20,8 @@ final class FakeIdentityService: IdentityService {
     var removeAvatarError: IdentityServiceError?
     /// Erreur de `updateSettings` ; sinon le profil renvoyé reflète le paramètre demandé.
     var settingsError: IdentityServiceError?
+    /// Appelé pendant `updateSettings`, avant la réponse (ex. l'utilisateur change encore d'avis).
+    var duringSettingsUpdate: (() async -> Void)?
     /// Réponses successives de `fetchUserProfile` ; `userNotFound` quand la liste est vide.
     var userProfileResults: [Result<UserProfile, IdentityServiceError>] = []
     var deleteMeError: IdentityServiceError?
@@ -78,6 +80,10 @@ final class FakeIdentityService: IdentityService {
 
     func updateSettings(isPrivate: Bool) async throws(IdentityServiceError) -> Profile {
         settingsUpdates.append(isPrivate)
+        if let duringSettingsUpdate {
+            self.duringSettingsUpdate = nil
+            await duringSettingsUpdate()
+        }
         if let settingsError {
             throw settingsError
         }
