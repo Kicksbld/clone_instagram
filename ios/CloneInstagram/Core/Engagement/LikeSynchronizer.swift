@@ -15,16 +15,16 @@ enum LikeOutcome: Equatable {
  Likes des posts, partagés par tous les écrans (une instance pour l'app, comme Instagram) : un like donné
  dans le détail se voit aussi dans le feed. Chaque écran affiche ses posts à travers `displayed(_:)`.
 
- Mise à jour optimiste (ADR-010) : l'état change tout de suite, puis prend celui confirmé par l'API, ou y
- revient en cas d'échec. Jamais deux appels en parallèle pour un même post : un tap pendant un appel ne
- change que l'état voulu, renvoyé à la fin de l'appel s'il diffère de celui que l'API a confirmé.
+ Mise à jour optimiste sur le moteur commun `OptimisticSync` (ADR-020) : l'état change tout de suite, puis
+ prend celui confirmé par l'API, ou y revient en cas d'échec ; un tap pendant un appel ne change que l'état
+ voulu (le dernier choix gagne).
  */
 @Observable
 final class LikeSynchronizer {
     /// Dernier état connu des posts vus pendant la session : lu dans une réponse de l'API, ou optimiste.
     private var statuses: [String: LikeStatus] = [:]
-    /// État voulu, par post, pendant qu'un appel est en cours.
-    @ObservationIgnored private var desired: [String: Bool] = [:]
+    /// Like voulu par post, un seul appel en cours par post.
+    @ObservationIgnored private let sync = OptimisticSync<String, Bool>()
     @ObservationIgnored private let service: any EngagementService
     @ObservationIgnored private let analytics: any AnalyticsService
 
@@ -43,7 +43,7 @@ final class LikeSynchronizer {
 
     /// Posts reçus de l'API : leur état devient le dernier connu, sauf pendant un like en cours.
     func record(_ posts: [Post]) {
-        for post in posts where desired[post.id] == nil {
+        for post in posts where !sync.isSyncing(post.id) {
             statuses[post.id] = post.likeStatus
         }
     }
@@ -61,7 +61,7 @@ final class LikeSynchronizer {
     /// Déconnexion : rien n'est gardé pour le compte suivant.
     func reset() {
         statuses = [:]
-        desired = [:]
+        sync.reset()
     }
 
     /**
@@ -75,29 +75,31 @@ final class LikeSynchronizer {
         optimistic.setLiked(isLiked)
         statuses[post.id] = optimistic.likeStatus
 
-        let isSyncing = desired[post.id] != nil
-        desired[post.id] = isLiked
-        guard !isSyncing else { return nil }
-        defer { desired[post.id] = nil }
-
-        var current = shown.likeStatus
-        while let wanted = desired[post.id], wanted != current.isLiked {
-            do {
-                current = try await wanted ? service.like(postId: post.id) : service.unlike(postId: post.id)
-            } catch .postNotFound {
-                statuses[post.id] = nil
-                return .postGone
-            } catch {
-                statuses[post.id] = current
-                return .reverted(message: Self.message(for: error, liking: wanted))
+        let outcome = await sync.sync(
+            post.id,
+            to: isLiked,
+            confirmed: shown.likeStatus,
+            intentOf: \.isLiked
+        ) { wanted throws(EngagementServiceError) -> LikeStatus in
+            try await wanted ? service.like(postId: post.id) : service.unlike(postId: post.id)
+        }
+        switch outcome {
+        case .pending:
+            return nil
+        case let .confirmed(status):
+            statuses[post.id] = status
+            // Like confirmé par l'API (ADR-013) ; un unlike n'est pas suivi.
+            if status.isLiked, !shown.isLiked {
+                analytics.track(.postLiked(source))
             }
+            return .confirmed
+        case .failed(.postNotFound, _, _):
+            statuses[post.id] = nil
+            return .postGone
+        case let .failed(error, wanted, confirmed):
+            statuses[post.id] = confirmed
+            return .reverted(message: Self.message(for: error, liking: wanted))
         }
-        statuses[post.id] = current
-        // Like confirmé par l'API (ADR-013) ; un unlike n'est pas suivi.
-        if current.isLiked, !shown.isLiked {
-            analytics.track(.postLiked(source))
-        }
-        return .confirmed
     }
 
     /// Message compréhensible, sans détail technique (ADR-014).

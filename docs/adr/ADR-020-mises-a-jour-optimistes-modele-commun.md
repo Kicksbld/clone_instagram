@@ -1,7 +1,7 @@
 # ADR-020 — Mises à jour optimistes : modèle commun à toute l'app iOS
 
 ## Statut
-Proposé
+Accepté
 
 ## Contexte
 ADR-010 limite les mises à jour optimistes au like, à l'enregistrement et au follow. Dans l'app, beaucoup d'actions attendent encore la réponse de l'API avant de changer l'écran : l'interrupteur « Compte privé » est grisé pendant l'appel, le bouton Suivre est désactivé, un compte bloqué ne disparaît qu'une fois le blocage confirmé, un post supprimé reste affiché avec un spinner.
