@@ -42,10 +42,10 @@ Décisions sources : D29 (remplace D19), D31.
 | `REVENUECAT_SECRET_KEY`, `REVENUECAT_PROJECT_ID` | API, worker (purge) |
 | `POSTHOG_HOST`, `POSTHOG_PROJECT_API_KEY` | API (événements serveur) |
 | `POSTHOG_PERSONAL_API_KEY`, `POSTHOG_PROJECT_ID` | API (lectures admin), worker (purge) |
-| `APNS_*` (P2) | Worker |
+| `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` (contenu de la clé `.p8`), `APNS_BUNDLE_ID`, `APNS_HOST` (P2, ADR-027 ; facultatives : sans elles, les push sont ignorées) | Worker |
 
   En démo, `DATABASE_URL` pointe vers Supabase Cloud et `PUBLIC_MEDIA_BASE_URL` vers l'URL publique du Storage Supabase Cloud.
-- **Secrets** : `.env` non versionné et `.env.example` versionné (variables sans valeurs) ; variables Railway et Vercel en démo ; jamais dans le repo ni dans les Dockerfiles. `SUPABASE_SERVICE_ROLE_KEY`, la clé secrète RevenueCat et la clé personnelle PostHog ne sont présentes que dans l'API et le worker. L'app et le navigateur ne reçoivent que des clés publiques (Supabase, RevenueCat, projet PostHog) et des URL. Clés APNs et configuration Sign in with Apple hors du repo.
+- **Secrets** : `.env` non versionné et `.env.example` versionné (variables sans valeurs) ; variables Railway et Vercel en démo ; jamais dans le repo ni dans les Dockerfiles. `SUPABASE_SERVICE_ROLE_KEY`, la clé secrète RevenueCat et la clé personnelle PostHog ne sont présentes que dans l'API et le worker. L'app et le navigateur ne reçoivent que des clés publiques (Supabase, RevenueCat, projet PostHog) et des URL. Clé APNs `.p8` (P2) et configuration Sign in with Apple hors du repo.
 - **Pièges du dev local** :
   - l'iPhone ne peut pas atteindre `localhost` : pour tester sur iPhone en dev, l'API et Supabase doivent être joignables via l'IP locale du Mac, y compris `PUBLIC_MEDIA_BASE_URL` ; sinon, simulateur ou démo ;
   - iOS : `NSAllowsLocalNetworking` et `NSLocalNetworkUsageDescription` uniquement dans la configuration `Local` (ADR-010) ;
@@ -68,6 +68,7 @@ Décisions sources : D29 (remplace D19), D31.
 - Coût et limites des offres gratuites ; le projet Supabase gratuit peut être mis en pause après inactivité (à réveiller avant la démo).
 - Une migration destructrice s'applique automatiquement sur la démo dès la fusion dans `main`.
 - Connexion Railway → Supabase Cloud (directe ou pooler selon le support IPv6) à vérifier.
+- WebSocket (P1) derrière le proxy Railway et son délai d'inactivité à vérifier ; un redéploiement de l'API coupe toutes les connexions (ADR-021).
 - Les réglages des services Railway ne sont pas versionnés : le tableau du README doit être tenu à jour à chaque changement.
 - La démo n'est pas une production : une seule instance d'API, de worker et de Redis, pas de supervision.
 
@@ -78,3 +79,5 @@ Décisions sources : D29 (remplace D19), D31.
 - ADR-008 (worker avec ffmpeg)
 - ADR-010 (configurations `Local` et `Demo`)
 - ADR-014 (CI)
+- ADR-021 (WebSocket sur Railway)
+- ADR-027 (variables APNs)

@@ -10,7 +10,7 @@ Certains avantages (P1 : story 48 h, vue anonyme, recherche dans les vues) sont 
 
 Le rafraîchissement doit fonctionner aussi en dev local, sans URL publique.
 
-Décisions sources : D24, D25.
+Décisions sources : D24, D25, D28.
 
 ## Décision
 - **RevenueCat** gère l'achat dans l'app (SDK `purchases-ios` + StoreKit) : offres, achat, restauration, reçus. L'identifiant client RevenueCat est l'identifiant de profil ; aucun email n'est transmis.
@@ -19,7 +19,12 @@ Décisions sources : D24, D25.
 - `GET /v1/me` renvoie aussi `plan` (`free` | `plus`) et `plusExpiresAt`.
 - **Pas de webhooks RevenueCat.**
 - Règle unique `isPlus(user)` = `status = active` et `expires_at > now()`, dans le module `billing`. Tout avantage côté API passe par elle. Refus : `403 plus_required`. Un avantage acquis reste acquis (une story publiée à 48 h garde sa durée si l'abonnement expire ensuite).
-- **Avantages** : icône d'app personnalisée en P0 (appliquée par l'app uniquement, `setAlternateIconName`, choix dans Paramètres > Clone Plus) ; story 48 h, vue anonyme et recherche dans les vues en P1 (ADR à rédiger, D28).
+- **Avantages** : icône d'app personnalisée en P0 (appliquée par l'app uniquement, `setAlternateIconName`, choix dans Paramètres > Clone Plus) ; en P1, détaillés dans ADR-025 :
+  - **story 48 h** : `expires_at` fixé à + 48 h au lieu de + 24 h si `isPlus` à la publication (`CreateStory`) ;
+  - **vue anonyme** : `POST /v1/stories/{id}/view` `{ anonymous: true }`, aucune vue enregistrée (`ViewStory`) ;
+  - **recherche dans la liste des vues** : `GET /v1/stories/{id}/viewers?q=` (`ListStoryViewers`).
+
+  Sans abonnement actif, la vue anonyme et la recherche répondent `403 plus_required` ; la story est publiée à 24 h, sans erreur. Avantages limités à ces 4 (D28) : la mise en avant d'une story (suppose un algorithme de diffusion), les listes d'audience personnalisées, le compteur de revisionnages et les polices de bio sont écartés.
 - **Côté app** (`Core/Billing`, feature `Paywall`) :
   - `Purchases.logIn(profileId)` juste après la création du profil ; déconnexion RevenueCat à la déconnexion de l'app ;
   - paywall SwiftUI maison, fidèle au style Instagram, alimenté par les offres RevenueCat (prix localisés fournis par StoreKit) ; affiché en fin d'onboarding (bouton « Plus tard ») et depuis Paramètres > Clone Plus ;
@@ -51,3 +56,4 @@ Décisions sources : D24, D25.
 - ADR-008 (job `purge-account`)
 - ADR-010 (SDK dans l'app)
 - ADR-013 (variante A/B du paywall)
+- ADR-025 (avantages appliqués aux stories)
