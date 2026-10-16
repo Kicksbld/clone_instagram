@@ -62,7 +62,7 @@ final class PostDeletionStore {
             confirmed: false,
             intentOf: { $0 }
         ) { _ throws(PostServiceError) -> Bool in
-            do {
+            do throws(PostServiceError) {
                 try await service.deletePost(id: postId)
             } catch {
                 guard error == .postNotFound else { throw error }
