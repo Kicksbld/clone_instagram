@@ -25,6 +25,7 @@ Décisions d'architecture du projet, rédigées selon [Agent ADR Architecte.md](
 | [ADR-017](ADR-017-projet-ios-xcodegen.md) | Projet iOS généré par XcodeGen, client OpenAPI dans un module séparé | Accepté |
 | [ADR-018](ADR-018-authentification-inscription-par-code.md) | Authentification : JWT ES256 vérifiés par JWKS, inscription par code email, profil créé à l'acceptation des conditions | Proposé |
 | [ADR-019](ADR-019-compatibilite-contrat-reponses-tolerantes.md) | Compatibilité du contrat : réponses tolérantes, ruptures détectées par la CI | Proposé |
+| [ADR-020](ADR-020-mises-a-jour-optimistes-modele-commun.md) | Mises à jour optimistes : modèle commun à toute l'app iOS | Proposé |
 
 ## À rédiger avant le plan de leur phase (P1 et plus)
 
