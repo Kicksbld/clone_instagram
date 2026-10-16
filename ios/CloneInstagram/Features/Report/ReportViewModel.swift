@@ -16,9 +16,9 @@ final class ReportViewModel {
         case targetGone
     }
 
+    /// Blocage de l'auteur depuis « Merci » : optimiste, partagé par `BlockStore` (ADR-020).
     enum BlockState: Equatable {
         case idle
-        case blocking
         case blocked
     }
 
@@ -32,7 +32,6 @@ final class ReportViewModel {
     var details = ""
     /// Échec d'un envoi ou d'un blocage, affiché en alerte ; `nil` une fois fermée.
     var errorMessage: String?
-    private(set) var blockState: BlockState
 
     let route: ReportRoute
     private let service: any ReportService
@@ -42,7 +41,10 @@ final class ReportViewModel {
         self.route = route
         self.service = service
         self.blocks = blocks
-        blockState = blocks.isBlocked(route.author.userId) ? .blocked : .idle
+    }
+
+    var blockState: BlockState {
+        blocks.isBlocked(route.author.userId) ? .blocked : .idle
     }
 
     /// Titre de la liste des motifs, selon la cible.
@@ -79,14 +81,8 @@ final class ReportViewModel {
 
     /// « Bloquer @x » depuis l'écran « Merci ».
     func blockAuthor() async {
-        guard blockState == .idle else { return }
-        blockState = .blocking
-        do {
-            try await blocks.block(userId: route.author.userId)
-            blockState = .blocked
-        } catch {
-            blockState = .idle
-            errorMessage = BlockStore.message(for: error)
+        if case let .reverted(message)? = await blocks.block(userId: route.author.userId) {
+            errorMessage = message
         }
     }
 

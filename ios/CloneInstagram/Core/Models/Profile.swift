@@ -30,8 +30,10 @@ struct Profile: Equatable, Identifiable {
     let isPrivate: Bool
     let status: AccountStatus
     let followerCount: Int
-    let followingCount: Int
-    let postCount: Int
+    /// Modifié par mes follows et unfollows, jusqu'au prochain chargement (`FollowStore`).
+    var followingCount: Int
+    /// Modifié par la suppression de mes posts, jusqu'au prochain chargement (`PostDeletionStore`).
+    var postCount: Int
     /// Photo de profil ; `nil` sans photo.
     var avatar: ImageVariants?
     /// Plan Clone Plus renvoyé par l'API (`GET /v1/me`, `POST /v1/me/subscription/refresh`).
@@ -59,7 +61,8 @@ struct UserProfile: Equatable, Identifiable {
     /// Ce compte me suit (« Suivre en retour »).
     let followsMe: Bool
     /// Je peux voir ses contenus ; `false` pour un compte privé que je ne suis pas.
-    let canViewContent: Bool
+    /// Masqué tout de suite quand je ne suis plus un compte privé (`FollowStore`).
+    var canViewContent: Bool
 }
 
 /// Disponibilité d'un username (ADR-018).

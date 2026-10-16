@@ -11,15 +11,20 @@ struct FeedViewModelTests {
     private let service = FakePostService()
     private let engagement = FakeEngagementService()
     private let prefetcher = FakeImagePrefetcher()
+    private let deletions: PostDeletionStore
 
-    private func makeViewModel(onDeleted: @escaping () -> Void = {}) -> FeedViewModel {
+    init() {
+        deletions = PostDeletionStore(service: service)
+    }
+
+    private func makeViewModel() -> FeedViewModel {
         FeedViewModel(
             viewerId: Self.viewerId,
             posts: service,
             likes: LikeSynchronizer(service: engagement),
+            deletions: deletions,
             prefetcher: prefetcher,
-            now: { Self.now },
-            onDeleted: onDeleted
+            now: { Self.now }
         )
     }
 
@@ -90,7 +95,7 @@ struct FeedViewModelTests {
         #expect(viewModel.posts.map(\.id) == [post(1).id])
     }
 
-    @Test func `revenir sur l'onglet ne recharge pas ; un post supprimé ailleurs recharge`() async {
+    @Test func `revenir sur l'onglet ne recharge pas ; un blocage recharge`() async {
         service.feedResults = [page([post(1), post(2)]), page([post(2)])]
         let viewModel = makeViewModel()
 
@@ -233,19 +238,19 @@ struct FeedViewModelTests {
         #expect(!viewModel.canDelete(post(2)))
     }
 
-    @Test func `supprimer mon post : retiré du feed, profil prévenu, sans rechargement`() async {
+    @Test func `supprimer mon post : retiré tout de suite, sans attendre l'API ni recharger`() async {
         let mine = post(1, authorId: Self.viewerId)
         service.feedResults = [page([mine, post(2)])]
-        var deletions = 0
-        let viewModel = makeViewModel { deletions += 1 }
+        let viewModel = makeViewModel()
         await viewModel.appear(revision: 0)
+        var duringCall: [String]?
+        service.duringDelete = { duringCall = viewModel.posts.map(\.id) }
 
         await viewModel.delete(mine)
-        await viewModel.appear(revision: 1)
 
+        #expect(duringCall == [post(2).id])
         #expect(service.deleted == [mine.id])
         #expect(viewModel.posts.map(\.id) == [post(2).id])
-        #expect(deletions == 1)
         #expect(service.feedRequests.count == 1)
     }
 
@@ -253,30 +258,26 @@ struct FeedViewModelTests {
         let mine = post(1, authorId: Self.viewerId)
         service.feedResults = [page([mine])]
         service.deleteErrors = [.postNotFound]
-        var deletions = 0
-        let viewModel = makeViewModel { deletions += 1 }
+        let viewModel = makeViewModel()
         await viewModel.load()
 
         await viewModel.delete(mine)
 
         #expect(viewModel.posts.isEmpty)
-        #expect(deletions == 1)
+        #expect(deletions.errorMessage == nil)
     }
 
-    @Test func `échec de la suppression : post gardé, message affiché`() async {
+    @Test func `échec de la suppression : post réaffiché, message affiché`() async {
         let mine = post(1, authorId: Self.viewerId)
         service.feedResults = [page([mine])]
         service.deleteErrors = [.unreachable]
-        var deletions = 0
-        let viewModel = makeViewModel { deletions += 1 }
+        let viewModel = makeViewModel()
         await viewModel.load()
 
         await viewModel.delete(mine)
 
         #expect(viewModel.posts.map(\.id) == [mine.id])
-        #expect(viewModel.deleteErrorMessage != nil)
-        #expect(deletions == 0)
-        #expect(viewModel.deletingPostId == nil)
+        #expect(deletions.errorMessage == "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.")
     }
 
     @Test func `post d'un autre : jamais supprimé`() async {

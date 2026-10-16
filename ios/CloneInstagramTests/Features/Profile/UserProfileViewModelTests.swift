@@ -6,16 +6,14 @@ struct UserProfileViewModelTests {
     private let identity = FakeIdentityService()
     private let social = FakeSocialService()
     private let analytics = FakeAnalyticsService()
+    private let follows: FollowStore
 
-    private func makeViewModel(onFollowChange: @escaping () async -> Void = {}) -> UserProfileViewModel {
-        UserProfileViewModel(
-            username: "lea.martin",
-            viewerId: Self.viewerId,
-            identity: identity,
-            social: social,
-            analytics: analytics,
-            onFollowChange: onFollowChange
-        )
+    init() {
+        follows = FollowStore(service: social, analytics: analytics)
+    }
+
+    private func makeViewModel() -> UserProfileViewModel {
+        UserProfileViewModel(username: "lea.martin", viewerId: Self.viewerId, identity: identity, follows: follows)
     }
 
     private func loadedProfile(_ viewModel: UserProfileViewModel) -> UserProfile? {
@@ -86,20 +84,37 @@ struct UserProfileViewModelTests {
         }
     }
 
-    @Test func `suivre : mise à jour optimiste, puis compteur de l'API et rappel`() async {
+    @Test func `suivre : optimiste pendant l'appel, puis compteur de l'API`() async {
         identity.userProfileResults = [.success(.fixture())]
         social.followResults = [.success(FollowStatus(isFollowing: true, followerCount: 10))]
-        var changes = 0
-        let viewModel = makeViewModel { changes += 1 }
+        let viewModel = makeViewModel()
         await viewModel.load()
+        var duringCall: UserProfile?
+        social.duringFollow = { duringCall = loadedProfile(viewModel) }
 
         await viewModel.follow()
 
+        #expect(duringCall?.isFollowing == true)
+        #expect(duringCall?.followerCount == 5)
         #expect(social.follows == ["0199a1b2-5eed-7000-8000-000000000001"])
         #expect(loadedProfile(viewModel)?.isFollowing == true)
         #expect(loadedProfile(viewModel)?.followerCount == 10)
-        #expect(changes == 1)
+        #expect(follows.followingCountDelta == 1)
         #expect(analytics.events == [.userFollowed(.profile)])
+    }
+
+    @Test func `un tap pendant l'appel : un seul appel de rattrapage`() async {
+        identity.userProfileResults = [.success(.fixture())]
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        social.duringFollow = { await viewModel.unfollow() }
+
+        await viewModel.follow()
+
+        #expect(social.follows.count == 1)
+        #expect(social.unfollows.count == 1)
+        #expect(loadedProfile(viewModel)?.isFollowing == false)
+        #expect(follows.followingCountDelta == 0)
     }
 
     @Test(arguments: [SocialServiceError.unreachable, .accountPrivate])

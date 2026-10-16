@@ -33,7 +33,7 @@ Source : cahier des charges, `08-qualite-conventions-ia.md`.
 | iOS : ViewModels, services | Swift Testing, faux injectés, transport factice | États de chargement, erreurs, mises à jour optimistes et retour arrière, conversion des DTO |
 | iOS : UploadManager, onboarding, paywall | Swift Testing | Enchaînement des états, reprise après échec ; username pris ; offre selon la variante, achat annulé, restauration |
 | iOS : parcours | XCUITest (optionnel) | Connexion → publication → like |
-| Backoffice | Vitest ; Playwright | Schémas Zod, filtres ; connexion admin, refus d'un non-admin, traitement d'un signalement, bannissement, page Analytics |
+| Backoffice | Vitest ; Playwright | Schémas Zod, filtres ; connexion admin, refus d'un non-admin, traitement d'un signalement, bannissement |
 
 - **Cas limites obligatoires**, testés dès qu'ils s'appliquent à la tranche : utilisateur bloqué, compte privé non suivi, compte suspendu, double like, message envoyé deux fois avec le même `clientId` (P1), média d'un autre utilisateur, transition de statut invalide, curseur invalide, avantage Plus demandé sans abonnement actif, abonnement expiré, RevenueCat injoignable pendant un rafraîchissement.
 - **Definition of done** d'une tranche :

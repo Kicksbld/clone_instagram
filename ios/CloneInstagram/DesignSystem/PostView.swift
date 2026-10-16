@@ -6,7 +6,6 @@ import SwiftUI
 /// date. Partagé par les features Feed et Post ; les commentaires s'ouvrent par `openComments`.
 struct PostView: View {
     let post: Post
-    let isDeleting: Bool
     /// Menu « … » → « Supprimer » ; `nil` si le post n'est pas à moi (« Signaler » et « Bloquer » à la place).
     let onDelete: (() -> Void)?
     /// Bouton J'aime : like ou unlike.
@@ -26,14 +25,12 @@ struct PostView: View {
 
     init(
         post: Post,
-        isDeleting: Bool,
         onDelete: (() -> Void)?,
         onToggleLike: @escaping () -> Void,
         onDoubleTapLike: @escaping () -> Void,
         collapsesCaption: Bool = false
     ) {
         self.post = post
-        self.isDeleting = isDeleting
         self.onDelete = onDelete
         self.onToggleLike = onToggleLike
         self.onDoubleTapLike = onDoubleTapLike
@@ -52,9 +49,7 @@ struct PostView: View {
                 }
                 .buttonStyle(.plain)
                 Spacer()
-                if isDeleting {
-                    ProgressView()
-                } else if onDelete != nil || moderation != nil {
+                if onDelete != nil || moderation != nil {
                     Menu("Plus d'options", systemImage: "ellipsis") {
                         menuItems
                     }

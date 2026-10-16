@@ -8,10 +8,14 @@ struct AppDependencies {
     let social: any SocialService
     /// Comptes bloqués pendant la session, partagés par tous les écrans.
     let blocks: BlockStore
+    /// Abonnements partagés par les profils, les listes, la recherche et mon compteur « suivi(e)s ».
+    let follows: FollowStore
     let reports: any ReportService
     let posts: any PostService
     /// Likes partagés par le feed et le détail des posts.
     let likes: LikeSynchronizer
+    /// Suppression de mes posts, partagée par le feed, le détail et la grille de mon profil.
+    let postDeletions: PostDeletionStore
     let comments: any CommentService
     /// Nombre de commentaires des posts, partagé par le feed, le détail et la feuille de commentaires.
     let commentCounts: CommentCountStore
@@ -50,9 +54,11 @@ struct AppDependencies {
             uploads: uploads,
             social: social,
             blocks: BlockStore(service: social),
+            follows: FollowStore(service: social, analytics: analytics),
             reports: APIReportService(client: client),
             posts: posts,
             likes: LikeSynchronizer(service: APIEngagementService(client: client), analytics: analytics),
+            postDeletions: PostDeletionStore(service: posts),
             comments: APICommentService(client: client),
             commentCounts: CommentCountStore(),
             publishQueue: PublishQueue(
@@ -85,9 +91,11 @@ extension AppDependencies {
             uploads: UnavailableUploadService(),
             social: UnavailableSocialService(),
             blocks: BlockStore(service: UnavailableSocialService()),
+            follows: FollowStore(service: UnavailableSocialService(), analytics: analytics),
             reports: UnavailableReportService(),
             posts: posts,
             likes: LikeSynchronizer(service: UnavailableEngagementService(), analytics: analytics),
+            postDeletions: PostDeletionStore(service: posts),
             comments: UnavailableCommentService(),
             commentCounts: CommentCountStore(),
             publishQueue: PublishQueue(

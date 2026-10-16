@@ -37,7 +37,21 @@ struct EditProfileViewModelTests {
 
         #expect(viewModel.errorMessage == "Cette photo est trop lourde. Choisissez-en une autre.")
         #expect(viewModel.profile.avatar == nil)
+        #expect(viewModel.pendingPhoto == nil)
         #expect(updated.profiles.isEmpty)
+    }
+
+    @Test func `nouvelle photo affichée pendant l'envoi, sans attendre l'API`() async {
+        let viewModel = makeViewModel()
+        let photo = Data("photo".utf8)
+        var duringUpload: Data?
+        uploads.duringUpload = { duringUpload = viewModel.pendingPhoto }
+
+        await viewModel.changePhoto(photo)
+
+        #expect(duringUpload == photo)
+        #expect(viewModel.pendingPhoto == nil)
+        #expect(viewModel.profile.avatar == .fixture)
     }
 
     @Test func `supprimer la photo → DELETE /me/avatar`() async {
@@ -50,6 +64,22 @@ struct EditProfileViewModelTests {
         #expect(identity.removeAvatarCount == 1)
         #expect(viewModel.profile.avatar == nil)
         #expect(updated.profiles.last?.avatar == nil)
+    }
+
+    @Test func `supprimer la photo : retirée tout de suite, remise si l'API échoue`() async {
+        var profile = Profile.fixture()
+        profile.avatar = .fixture
+        let viewModel = makeViewModel(profile: profile)
+        identity.removeAvatarError = .unreachable
+        var removedDuringCall: Bool?
+        identity.duringRemoveAvatar = { removedDuringCall = viewModel.profile.avatar == nil }
+
+        await viewModel.removePhoto()
+
+        #expect(removedDuringCall == true)
+        #expect(viewModel.profile.avatar == .fixture)
+        #expect(viewModel.errorMessage != nil)
+        #expect(updated.profiles.isEmpty)
     }
 
     @Test func `supprimer sans photo → aucun appel`() async {

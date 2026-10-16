@@ -3,7 +3,8 @@ import Observation
 
 /**
  Paramètres > Comptes bloqués (`GET /v1/me/blocks`, pages de 20) : « Débloquer » sur chaque ligne ; comme
- Instagram, un compte débloqué reste affiché avec « Bloquer » jusqu'au prochain chargement.
+ Instagram, un compte débloqué reste affiché avec « Bloquer » jusqu'au prochain chargement. Blocage et
+ déblocage optimistes, partagés par `BlockStore` (ADR-020).
  */
 @Observable
 final class BlockedAccountsViewModel {
@@ -15,10 +16,6 @@ final class BlockedAccountsViewModel {
 
     private(set) var state: State = .loading
     private(set) var users: [UserSummary] = []
-    /// Comptes débloqués depuis l'ouverture de l'écran.
-    private(set) var unblockedIds: Set<String> = []
-    /// Déblocage ou blocage en cours.
-    private(set) var pendingIds: Set<String> = []
     private(set) var isLoadingMore = false
     /// Échec d'une action, affiché en alerte ; `nil` une fois fermée.
     var actionErrorMessage: String?
@@ -37,7 +34,7 @@ final class BlockedAccountsViewModel {
     }
 
     func isBlocked(_ user: UserSummary) -> Bool {
-        !unblockedIds.contains(user.id)
+        blocks.isBlocked(user.id)
     }
 
     func load() async {
@@ -46,9 +43,9 @@ final class BlockedAccountsViewModel {
         }
         do {
             let page = try await social.listBlocks(cursor: nil)
+            blocks.record(blocked: page.items)
             users = page.items
             nextCursor = page.nextCursor
-            unblockedIds = []
             state = .loaded
         } catch {
             if state != .loaded {
@@ -65,28 +62,25 @@ final class BlockedAccountsViewModel {
         do {
             let page = try await social.listBlocks(cursor: cursor)
             let known = Set(users.map(\.id))
-            users += page.items.filter { !known.contains($0.id) }
+            let added = page.items.filter { !known.contains($0.id) }
+            blocks.record(blocked: added)
+            users += added
             nextCursor = page.nextCursor
         } catch {
             actionErrorMessage = "Impossible de charger la suite. Vérifiez votre connexion et réessayez."
         }
     }
 
-    /// « Débloquer », ou « Bloquer » sur un compte débloqué depuis l'ouverture.
+    /// « Débloquer », ou « Bloquer » sur un compte débloqué depuis l'ouverture : changé tout de suite, sans
+    /// bloquer le bouton.
     func toggleBlock(_ user: UserSummary) async {
-        guard !pendingIds.contains(user.id) else { return }
-        pendingIds.insert(user.id)
-        defer { pendingIds.remove(user.id) }
-        do {
-            if isBlocked(user) {
-                try await blocks.unblock(userId: user.id)
-                unblockedIds.insert(user.id)
-            } else {
-                try await blocks.block(userId: user.id)
-                unblockedIds.remove(user.id)
-            }
-        } catch {
-            actionErrorMessage = BlockStore.message(for: error)
+        let outcome = if isBlocked(user) {
+            await blocks.unblock(userId: user.id)
+        } else {
+            await blocks.block(userId: user.id)
+        }
+        if case let .reverted(message)? = outcome {
+            actionErrorMessage = message
         }
     }
 }

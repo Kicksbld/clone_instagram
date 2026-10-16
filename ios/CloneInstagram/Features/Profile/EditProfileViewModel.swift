@@ -1,7 +1,8 @@
 import Foundation
 import Observation
 
-/// Modifier le profil (T3) : photo (nouvelle ou supprimée, appliquée tout de suite), nom, username et bio.
+/// Modifier le profil (T3) : photo (nouvelle ou supprimée, affichée tout de suite, ADR-020), nom, username et bio
+/// (validés par l'API : enregistrement attendu).
 @Observable
 final class EditProfileViewModel {
     static let fullNameMaxLength = 30
@@ -14,6 +15,8 @@ final class EditProfileViewModel {
 
     private(set) var isSaving = false
     private(set) var isUpdatingPhoto = false
+    /// Nouvelle photo affichée pendant son envoi, avant la réponse de l'API ; `nil` sinon.
+    private(set) var pendingPhoto: Data?
     private(set) var errorMessage: String?
     /// Enregistrement terminé : la vue se ferme.
     private(set) var didFinish = false
@@ -38,16 +41,24 @@ final class EditProfileViewModel {
 
     // MARK: - Photo
 
+    /// Affichée tout de suite ; l'ancienne photo revient si l'envoi échoue. Un seul envoi à la fois.
     func changePhoto(_ data: Data) async {
+        guard !isBusy else { return }
+        pendingPhoto = data
+        defer { pendingPhoto = nil }
         await updatePhoto {
             let mediaId = try await self.uploads.uploadImage(data, purpose: .avatar)
             return try await self.identity.updateMe(ProfileChanges(avatarMediaId: mediaId))
         }
     }
 
+    /// Retirée tout de suite ; remise si l'API échoue.
     func removePhoto() async {
-        guard profile.avatar != nil else { return }
-        await updatePhoto { try await self.identity.removeAvatar() }
+        guard let previous = profile.avatar, !isBusy else { return }
+        profile.avatar = nil
+        if await !updatePhoto({ try await self.identity.removeAvatar() }) {
+            profile.avatar = previous
+        }
     }
 
     func photoLoadFailed() {
@@ -103,8 +114,10 @@ final class EditProfileViewModel {
 
     // MARK: - Interne
 
-    private func updatePhoto(_ operation: @escaping () async throws -> Profile) async {
-        guard !isBusy else { return }
+    /// - Returns: `true` si l'API a confirmé la photo.
+    @discardableResult
+    private func updatePhoto(_ operation: @escaping () async throws -> Profile) async -> Bool {
+        guard !isBusy else { return false }
         isUpdatingPhoto = true
         errorMessage = nil
         defer { isUpdatingPhoto = false }
@@ -113,6 +126,7 @@ final class EditProfileViewModel {
             // Photo seulement : les champs en cours de saisie ne sont pas écrasés.
             profile.avatar = updated.avatar
             onUpdated(profile)
+            return true
         } catch let error as UploadError {
             errorMessage = UploadError.message(for: error)
         } catch let error as IdentityServiceError {
@@ -120,6 +134,7 @@ final class EditProfileViewModel {
         } catch {
             errorMessage = "Une erreur est survenue. Réessayez."
         }
+        return false
     }
 
     private func apply(_ updated: Profile) {

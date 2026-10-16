@@ -6,7 +6,7 @@ struct SearchViewModelTests {
 
     @Test func `recherche nettoyée, résultats affichés`() async {
         social.searchResults = [.success([.fixture()])]
-        let viewModel = SearchViewModel(social: social)
+        let viewModel = SearchViewModel(social: social, follows: FollowStore(service: social))
         viewModel.query = "  @hugo "
 
         await viewModel.search()
@@ -16,7 +16,7 @@ struct SearchViewModelTests {
     }
 
     @Test func `champ vide ou « @ » : aucun appel`() async {
-        let viewModel = SearchViewModel(social: social)
+        let viewModel = SearchViewModel(social: social, follows: FollowStore(service: social))
         viewModel.query = " @ "
 
         await viewModel.search()
@@ -27,7 +27,7 @@ struct SearchViewModelTests {
 
     @Test func `réponse d'une requête dépassée ignorée`() async {
         social.searchResults = [.success([.fixture()])]
-        let viewModel = SearchViewModel(social: social)
+        let viewModel = SearchViewModel(social: social, follows: FollowStore(service: social))
         viewModel.query = "hu"
         social.onSearch = { viewModel.query = "hugo" }
 
@@ -39,7 +39,7 @@ struct SearchViewModelTests {
 
     @Test func `erreur réseau : message`() async {
         social.searchResults = [.failure(.unreachable)]
-        let viewModel = SearchViewModel(social: social)
+        let viewModel = SearchViewModel(social: social, follows: FollowStore(service: social))
         viewModel.query = "hugo"
 
         await viewModel.search()
@@ -48,5 +48,18 @@ struct SearchViewModelTests {
             Issue.record("erreur attendue")
             return
         }
+    }
+
+    @Test func `compte bloqué masqué, réaffiché si le blocage échoue`() async {
+        social.searchResults = [.success([.fixture(id: "lea"), .fixture(id: "hugo")])]
+        let viewModel = SearchViewModel(social: social, follows: FollowStore(service: social))
+        viewModel.query = "a"
+        await viewModel.search()
+
+        viewModel.hideUsers(["lea"])
+        #expect(viewModel.state == .results([.fixture(id: "hugo")]))
+
+        viewModel.hideUsers([])
+        #expect(viewModel.state == .results([.fixture(id: "lea"), .fixture(id: "hugo")]))
     }
 }

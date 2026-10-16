@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// Détail d'un post (`GET /v1/posts/{id}`) ; invisible ou supprimé → « Cette publication n'est pas disponible ».
-/// L'auteur peut le supprimer (`DELETE /v1/posts/{id}`).
+/// L'auteur peut le supprimer (`DELETE /v1/posts/{id}`, optimiste et partagé par `PostDeletionStore`).
 @Observable
 final class PostDetailViewModel {
     enum State: Equatable {
@@ -13,9 +13,6 @@ final class PostDetailViewModel {
     }
 
     private(set) var state: State = .loading
-    private(set) var isDeleting = false
-    /// Échec de la suppression, affiché en alerte ; `nil` une fois fermée.
-    var deleteErrorMessage: String?
     /// Échec d'un like ou d'un unlike (état revenu en arrière), affiché en alerte ; `nil` une fois fermée.
     var likeErrorMessage: String?
 
@@ -24,8 +21,7 @@ final class PostDetailViewModel {
     private let posts: any PostService
     private let likes: LikeSynchronizer
     private let commentCounts: CommentCountStore
-    /// Après une suppression : grille et compteur de mon profil sont rechargés.
-    private let onDeleted: () -> Void
+    private let deletions: PostDeletionStore
 
     init(
         postId: String,
@@ -33,14 +29,14 @@ final class PostDetailViewModel {
         posts: any PostService,
         likes: LikeSynchronizer,
         commentCounts: CommentCountStore = CommentCountStore(),
-        onDeleted: @escaping () -> Void = {}
+        deletions: PostDeletionStore
     ) {
         self.postId = postId
         self.viewerId = viewerId
         self.posts = posts
         self.likes = likes
         self.commentCounts = commentCounts
-        self.onDeleted = onDeleted
+        self.deletions = deletions
     }
 
     /// Menu « … » : « Supprimer » seulement sur mes posts.
@@ -52,24 +48,11 @@ final class PostDetailViewModel {
         }
     }
 
-    /// Supprime le post ; `true` si l'écran peut se fermer.
-    func delete() async -> Bool {
-        guard canDelete, !isDeleting else { return false }
-        isDeleting = true
-        defer { isDeleting = false }
-        do {
-            try await posts.deletePost(id: postId)
-        } catch .postNotFound {
-            // Déjà supprimé (réponse perdue lors d'un premier essai) : le résultat attendu est atteint.
-        } catch .unreachable {
-            deleteErrorMessage = "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
-            return false
-        } catch {
-            deleteErrorMessage = "La publication n'a pas pu être supprimée. Réessayez."
-            return false
-        }
-        onDeleted()
-        return true
+    /// Supprime le post : l'écran se ferme sans attendre l'API ; un échec réaffiche le post ailleurs, avec un
+    /// message (`PostDeletionStore`).
+    func delete() async {
+        guard canDelete else { return }
+        await deletions.delete(postId: postId)
     }
 
     /// Le post avec son dernier état de like et son nombre de commentaires, partagés avec les autres écrans.

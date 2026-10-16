@@ -4,7 +4,7 @@
 Proposé
 
 ## Contexte
-Le backoffice P0 couvre la connexion admin, la file de modération, la gestion des utilisateurs (dont suspension, bannissement, suppression) et la page Analytics.
+Le backoffice P0 couvre la connexion admin, la file de modération, la gestion des utilisateurs (dont suspension, bannissement, suppression). Il n'a pas de page Analytics (ADR-013).
 
 Il manipule des actions sensibles, et toute la logique métier vit déjà dans l'API (ADR-004, ADR-005). Le dupliquer en accédant directement à la base créerait un second backend.
 
@@ -17,7 +17,7 @@ Décision source : D17.
 
 ```
 apps/backoffice/src/
-├── app/                   # routes uniquement : (auth)/login, (admin)/users, reports, analytics…
+├── app/                   # routes uniquement : (auth)/login, (admin)/users, reports…
 ├── features/<feature>/
 │   ├── components/        # présentation, sans logique métier ni requête
 │   ├── data/              # queries.ts (lectures), actions.ts (Server Actions)

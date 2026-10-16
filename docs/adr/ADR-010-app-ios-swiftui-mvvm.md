@@ -27,7 +27,7 @@ Décisions sources : D1, D2, D3, D4, D30.
 
 - Un ViewModel **seulement pour les écrans qui ont un état ou une logique réels** (feed, publication, profil, onboarding, paywall) ; une vue statique n'en a pas.
 - Services **injectés par protocole** (environnement SwiftUI ou initialiseur), remplaçables par des faux dans les tests et les previews. Les modèles de l'app ne sont pas les types générés.
-- **Mises à jour optimistes** pour like, save, follow : l'état change immédiatement et revient en arrière si l'API échoue.
+- **Mises à jour optimistes** : l'état change immédiatement et revient en arrière si l'API échoue ; actions concernées et modèle commun : ADR-020.
 - **Erreurs** : message compréhensible, jamais de crash, possibilité de réessayer.
 - **Une seule cible Xcode**, dossiers synchronisés de Xcode (l'ajout de fichiers ne modifie pas le `.pbxproj`) :
 

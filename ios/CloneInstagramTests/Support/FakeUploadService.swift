@@ -5,10 +5,13 @@ import Foundation
 final class FakeUploadService: UploadService {
     var mediaId = "0199a1b2-0000-7000-9000-000000000001"
     var error: UploadError?
+    /// Appelé pendant l'envoi, avant la réponse (ex. l'écran affiché pendant l'envoi).
+    var duringUpload: (() -> Void)?
     private(set) var uploads: [(data: Data, purpose: MediaPurpose)] = []
 
     func uploadImage(_ data: Data, purpose: MediaPurpose) async throws(UploadError) -> String {
         uploads.append((data, purpose))
+        duringUpload?()
         if let error {
             throw error
         }

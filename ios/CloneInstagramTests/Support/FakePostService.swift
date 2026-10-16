@@ -18,6 +18,8 @@ final class FakePostService: PostService {
     var feedResults: [Result<PostPage, PostServiceError>] = []
     /// Erreurs successives de `deletePost` ; succès quand la liste est vide.
     var deleteErrors: [PostServiceError] = []
+    /// Appelé pendant `deletePost`, avant la réponse (ex. l'écran affiché pendant l'appel).
+    var duringDelete: (() async -> Void)?
 
     private(set) var created: [(caption: String, mediaIds: [String])] = []
     private(set) var listRequests: [ListRequest] = []
@@ -50,6 +52,10 @@ final class FakePostService: PostService {
 
     func deletePost(id: String) async throws(PostServiceError) {
         deleted.append(id)
+        if let duringDelete {
+            self.duringDelete = nil
+            await duringDelete()
+        }
         if !deleteErrors.isEmpty {
             throw deleteErrors.removeFirst()
         }

@@ -23,7 +23,28 @@ struct AccountPrivacyViewModelTests {
 
         #expect(viewModel.isPrivate)
         #expect(viewModel.errorMessage != nil)
-        #expect(!viewModel.isSaving)
+    }
+
+    @Test func `interrupteur changé pendant l'appel, sans attendre l'API`() async {
+        let viewModel = AccountPrivacyViewModel(isPrivate: false, identity: identity)
+        var duringCall: Bool?
+        identity.duringSettingsUpdate = { duringCall = viewModel.isPrivate }
+
+        await viewModel.setPrivate(true)
+
+        #expect(duringCall == true)
+    }
+
+    @Test func `changement pendant l'appel : le dernier choix gagne`() async {
+        var updated: [Bool] = []
+        let viewModel = AccountPrivacyViewModel(isPrivate: false, identity: identity) { updated.append($0.isPrivate) }
+        identity.duringSettingsUpdate = { await viewModel.setPrivate(false) }
+
+        await viewModel.setPrivate(true)
+
+        #expect(identity.settingsUpdates == [true, false])
+        #expect(!viewModel.isPrivate)
+        #expect(updated == [false])
     }
 
     @Test func `même valeur → aucun appel`() async {

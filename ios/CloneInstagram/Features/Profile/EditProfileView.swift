@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 
 /// « Modifier le profil » (wireframe, T3) : photo, nom, nom d'utilisateur, bio.
 struct EditProfileView: View {
@@ -7,6 +8,8 @@ struct EditProfileView: View {
     @State private var isPhotoMenuPresented = false
     @State private var isPickerPresented = false
     @State private var selection: PhotosPickerItem?
+    /// Vignette de la photo en cours d'envoi (`pendingPhoto`), décodée une seule fois.
+    @State private var pendingThumbnail: UIImage?
     @Environment(\.dismiss) private var dismiss
 
     init(viewModel: EditProfileViewModel) {
@@ -17,7 +20,7 @@ struct EditProfileView: View {
         Form {
             Section {
                 VStack(spacing: 12) {
-                    AvatarView(avatar: viewModel.profile.avatar, size: 96)
+                    avatar
                         .overlay {
                             if viewModel.isUpdatingPhoto {
                                 ProgressView()
@@ -67,6 +70,9 @@ struct EditProfileView: View {
             }
         }
         .photosPicker(isPresented: $isPickerPresented, selection: $selection, matching: .images)
+        .onChange(of: viewModel.pendingPhoto) { _, data in
+            pendingThumbnail = data.flatMap { UIImage(data: $0)?.preparingThumbnail(of: CGSize(width: 288, height: 288)) }
+        }
         .onChange(of: selection) { _, item in
             guard let item else { return }
             selection = nil
@@ -82,6 +88,21 @@ struct EditProfileView: View {
             if finished {
                 dismiss()
             }
+        }
+    }
+
+    /// Nouvelle photo affichée dès son choix, pendant l'envoi (ADR-020) ; sinon la photo de l'API.
+    @ViewBuilder
+    private var avatar: some View {
+        if let pendingThumbnail {
+            Image(uiImage: pendingThumbnail)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 96, height: 96)
+                .clipShape(Circle())
+                .accessibilityLabel("Nouvelle photo de profil")
+        } else {
+            AvatarView(avatar: viewModel.profile.avatar, size: 96)
         }
     }
 }
