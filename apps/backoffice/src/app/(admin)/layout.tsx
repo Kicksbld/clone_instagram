@@ -5,6 +5,9 @@ import { signOut } from '@/features/auth/data/actions';
 import { ApiStatus } from '@/features/health/components/api-status';
 import { getApiHealth } from '@/features/health/data/queries';
 
+// Pages d'administration rendues à chaque requête (session, état de l'API) : jamais prérendues au build.
+export const dynamic = 'force-dynamic';
+
 export default async function AdminLayout({ children }: LayoutProps<'/'>) {
   const health = await getApiHealth();
 
