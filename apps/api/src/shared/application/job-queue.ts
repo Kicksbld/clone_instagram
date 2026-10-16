@@ -7,4 +7,6 @@ export interface JobQueue {
   enqueueImageProcessing(mediaId: string): Promise<void>;
   /** Purge d'un compte supprimé (T13) ; sans effet si cette purge est déjà en file. */
   enqueueAccountPurge(profileId: string): Promise<void>;
+  /** Purge des fichiers d'un post supprimé par modération (T15) ; sans effet si elle est déjà en file. */
+  enqueueContentFilesPurge(postId: string): Promise<void>;
 }

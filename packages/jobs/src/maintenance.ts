@@ -29,3 +29,21 @@ export type PurgeAccountPayload = z.infer<typeof PURGE_ACCOUNT.payload>;
 export function purgeAccountJobId(profileId: string): string {
   return `${PURGE_ACCOUNT.name}-${profileId}`;
 }
+
+/**
+ * `purge-content-files` (file `maintenance`, T15) : à la demande, après la suppression d'un post par
+ * modération. Efface tout de suite les fichiers et les lignes de ses médias détachés, sans attendre
+ * `purge-orphan-media` (ADR-008). Idempotent : sans média restant, le job n'a aucun effet.
+ */
+export const PURGE_CONTENT_FILES = {
+  queue: QUEUE_NAMES.maintenance,
+  name: 'purge-content-files',
+  payload: z.object({ postId: z.uuid() }),
+} as const;
+
+export type PurgeContentFilesPayload = z.infer<typeof PURGE_CONTENT_FILES.payload>;
+
+/** Identifiant BullMQ d'une purge : les fichiers d'un post ne sont jamais purgés deux fois en parallèle. */
+export function purgeContentFilesJobId(postId: string): string {
+  return `${PURGE_CONTENT_FILES.name}-${postId}`;
+}

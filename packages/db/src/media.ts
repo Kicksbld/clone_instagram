@@ -10,6 +10,7 @@ import {
   type MediaRow,
   type MediaStatus,
 } from './schema/media.ts';
+import { postMedia } from './schema/posts.ts';
 
 /**
  * Machine à états et rattachement des médias (ADR-008), partagés par l'API et le worker.
@@ -155,4 +156,17 @@ export function listOwnerMediaFiles(db: Executor, ownerId: string): Promise<Owne
     .select({ originalPath: media.originalPath, variants: media.variants })
     .from(media)
     .where(eq(media.ownerId, ownerId));
+}
+
+/**
+ * Médias détachés d'un post supprimé par modération (`purge-content-files`, T15), à effacer sans
+ * attendre `purge-orphan-media`. Vide une fois la purge faite (job rejoué sans effet).
+ */
+export function listDetachedPostMedia(db: Executor, postId: string): Promise<PurgeableMedia[]> {
+  return db
+    .select({ id: media.id, originalPath: media.originalPath, variants: media.variants })
+    .from(postMedia)
+    .innerJoin(media, eq(media.id, postMedia.mediaId))
+    .where(and(eq(postMedia.postId, postId), isNotNull(media.detachedAt)))
+    .orderBy(asc(postMedia.position));
 }

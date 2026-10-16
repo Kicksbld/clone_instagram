@@ -5,8 +5,10 @@ import {
   PROCESS_IMAGE,
   processImageJobId,
   PURGE_ACCOUNT,
+  PURGE_CONTENT_FILES,
   PURGE_ORPHAN_MEDIA,
   purgeAccountJobId,
+  purgeContentFilesJobId,
   QUEUE_NAMES,
 } from '../src/index.ts';
 
@@ -61,5 +63,20 @@ describe('purge-account', () => {
   it('dérive un identifiant de job stable du profil, dans la file maintenance', () => {
     expect(purgeAccountJobId(profileId)).toBe(`purge-account-${profileId}`);
     expect(PURGE_ACCOUNT.queue).toBe('maintenance');
+  });
+});
+
+describe('purge-content-files', () => {
+  const postId = '01890a5d-ac96-774b-bcce-b302099a8057';
+
+  it('accepte un payload { postId } et rien d’autre', () => {
+    expect(PURGE_CONTENT_FILES.payload.parse({ postId })).toEqual({ postId });
+    expect(PURGE_CONTENT_FILES.payload.safeParse({}).success).toBe(false);
+    expect(PURGE_CONTENT_FILES.payload.safeParse({ postId: 'pas-un-uuid' }).success).toBe(false);
+  });
+
+  it('dérive un identifiant de job stable du post, dans la file maintenance', () => {
+    expect(purgeContentFilesJobId(postId)).toBe(`purge-content-files-${postId}`);
+    expect(PURGE_CONTENT_FILES.queue).toBe('maintenance');
   });
 });

@@ -45,6 +45,13 @@ import { RequestUpload } from './modules/media/application/use-cases/request-upl
 import { DrizzleMediaRepository } from './modules/media/infrastructure/persistence/drizzle-media-repository.ts';
 import { SupabaseMediaStorage } from './modules/media/infrastructure/storage/supabase-media-storage.ts';
 import { CreateReport } from './modules/moderation/application/use-cases/create-report.ts';
+import { GetReportForAdmin } from './modules/moderation/application/use-cases/get-report-for-admin.ts';
+import { ListReportsForAdmin } from './modules/moderation/application/use-cases/list-reports-for-admin.ts';
+import { ResolveReport } from './modules/moderation/application/use-cases/resolve-report.ts';
+import {
+  DrizzleAdminReportReader,
+  DrizzleReportResolutionRepository,
+} from './modules/moderation/infrastructure/persistence/drizzle-admin-reports.ts';
 import {
   DrizzleReportRepository,
   DrizzleReportTargetReader,
@@ -163,6 +170,15 @@ const adminTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   profiles: new DrizzleProfileRepository(tx),
   audit: new DrizzleAdminAuditLog(tx),
 }));
+// Traitement d'un signalement : contenu, compteurs, signalements et audit dans une transaction (T15).
+const resolveReportTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  reports: new DrizzleReportResolutionRepository(tx),
+  posts: new DrizzlePostRepository(tx),
+  media: new DrizzleMediaRepository(tx),
+  comments: new DrizzleCommentRepository(tx),
+  audit: new DrizzleAdminAuditLog(tx),
+}));
+const adminReports = new DrizzleAdminReportReader(database.db);
 const getPlan = new GetPlan(subscriptions, systemClock);
 const storage = new SupabaseMediaStorage(
   new StorageClient(new URL('/storage/v1', config.SUPABASE_URL).toString(), {
@@ -259,6 +275,11 @@ const app = buildApp({
       moderateUser: new ModerateUser(adminRoles, adminTransaction),
       deleteUser: new DeleteUserAsAdmin(adminRoles, profiles, authAccounts, adminTransaction, jobs),
       getPlan,
+    },
+    adminReports: {
+      listReports: new ListReportsForAdmin(adminRoles, adminReports),
+      getReport: new GetReportForAdmin(adminRoles, adminReports, profiles),
+      resolveReport: new ResolveReport(adminRoles, resolveReportTransaction, jobs),
     },
     mediaUrls: publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL),
   },

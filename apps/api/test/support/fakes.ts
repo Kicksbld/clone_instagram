@@ -21,6 +21,7 @@ import type { MediaStorage } from '../../src/modules/media/application/ports/med
 export class InMemoryJobQueue implements JobQueue {
   readonly imageProcessing = new Set<string>();
   readonly accountPurges = new Set<string>();
+  readonly contentFilesPurges = new Set<string>();
 
   enqueueImageProcessing(mediaId: string): Promise<void> {
     this.imageProcessing.add(mediaId);
@@ -29,6 +30,11 @@ export class InMemoryJobQueue implements JobQueue {
 
   enqueueAccountPurge(profileId: string): Promise<void> {
     this.accountPurges.add(profileId);
+    return Promise.resolve();
+  }
+
+  enqueueContentFilesPurge(postId: string): Promise<void> {
+    this.contentFilesPurges.add(postId);
     return Promise.resolve();
   }
 }

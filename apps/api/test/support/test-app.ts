@@ -25,6 +25,9 @@ import { CompleteUpload } from '../../src/modules/media/application/use-cases/co
 import { GetMedia } from '../../src/modules/media/application/use-cases/get-media.ts';
 import { RequestUpload } from '../../src/modules/media/application/use-cases/request-upload.ts';
 import { CreateReport } from '../../src/modules/moderation/application/use-cases/create-report.ts';
+import { GetReportForAdmin } from '../../src/modules/moderation/application/use-cases/get-report-for-admin.ts';
+import { ListReportsForAdmin } from '../../src/modules/moderation/application/use-cases/list-reports-for-admin.ts';
+import { ResolveReport } from '../../src/modules/moderation/application/use-cases/resolve-report.ts';
 import { CreatePost } from '../../src/modules/posts/application/use-cases/create-post.ts';
 import { DeletePost } from '../../src/modules/posts/application/use-cases/delete-post.ts';
 import { GetPost } from '../../src/modules/posts/application/use-cases/get-post.ts';
@@ -49,6 +52,7 @@ import {
   InMemoryUserReports,
   sequentialIds,
 } from './fakes.ts';
+import { InMemoryAdminReports } from './in-memory-admin-reports.ts';
 import { InMemorySubscriptionProvider, InMemorySubscriptions } from './in-memory-billing.ts';
 import { InMemoryComments } from './in-memory-comments.ts';
 import { InMemoryFeedReader } from './in-memory-feed.ts';
@@ -126,6 +130,14 @@ export function buildTestApp() {
   const userReports = new InMemoryUserReports();
   const adminTransaction = new InMemoryUnitOfWork({ profiles, audit: auditLog });
   const getPlan = new GetPlan(subscriptions, clock);
+  const adminReports = new InMemoryAdminReports(reports, profiles, posts, comments, TEST_NOW);
+  const resolveReportTransaction = new InMemoryUnitOfWork({
+    reports: adminReports,
+    posts,
+    media,
+    comments,
+    audit: auditLog,
+  });
   const app = buildApp({
     logLevel: 'silent',
     dependencies: {
@@ -214,6 +226,11 @@ export function buildTestApp() {
         ),
         getPlan,
       },
+      adminReports: {
+        listReports: new ListReportsForAdmin(adminRoles, adminReports),
+        getReport: new GetReportForAdmin(adminRoles, adminReports, profiles),
+        resolveReport: new ResolveReport(adminRoles, resolveReportTransaction, jobs),
+      },
       mediaUrls: publicMediaUrls(TEST_MEDIA_BASE_URL),
     },
   });
@@ -229,6 +246,7 @@ export function buildTestApp() {
     subscriptionProvider,
     analytics,
     reports,
+    adminReports,
     authAccounts,
     adminRoles,
     auditLog,

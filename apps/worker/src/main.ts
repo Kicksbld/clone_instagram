@@ -4,6 +4,7 @@ import {
   DEFAULT_JOB_OPTIONS,
   PROCESS_IMAGE,
   PURGE_ACCOUNT,
+  PURGE_CONTENT_FILES,
   PURGE_ORPHAN_MEDIA,
   QUEUE_NAMES,
 } from '@clone/jobs';
@@ -14,6 +15,7 @@ import { pino } from 'pino';
 import { loadConfig } from './config.ts';
 import { processImage } from './jobs/process-image.ts';
 import { purgeAccount } from './jobs/purge-account.ts';
+import { purgeContentFiles } from './jobs/purge-content-files.ts';
 import { purgeOrphanMedia } from './jobs/purge-orphan-media.ts';
 import { createProcessor } from './processor.ts';
 import { PostHogPersons, RevenueCatCustomers } from './saas.ts';
@@ -50,6 +52,7 @@ const processor = createProcessor(
     [PROCESS_IMAGE.name, processImage(dependencies)],
     [PURGE_ORPHAN_MEDIA.name, purgeOrphanMedia(dependencies)],
     [PURGE_ACCOUNT.name, purgeAccount({ ...dependencies, customers, persons })],
+    [PURGE_CONTENT_FILES.name, purgeContentFiles(dependencies)],
   ]),
 );
 const queueNames = Object.values(QUEUE_NAMES);

@@ -1,8 +1,11 @@
 export {
   PURGE_ACCOUNT,
+  PURGE_CONTENT_FILES,
   PURGE_ORPHAN_MEDIA,
   purgeAccountJobId,
+  purgeContentFilesJobId,
   type PurgeAccountPayload,
+  type PurgeContentFilesPayload,
 } from './maintenance.ts';
 export {
   PROCESS_IMAGE,

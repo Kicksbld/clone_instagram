@@ -3,7 +3,7 @@
   "info": {
     "title": "Clone Instagram API",
     "version": "0.1.0",
-    "description": "Contrat unique des échanges entre l'API, l'app iOS et le backoffice (ADR-003).\n\n- Routes métier préfixées par `/v1` ; `GET /health` est hors version.\n- JSON UTF-8, identifiants UUID v7, dates ISO 8601 UTC.\n- Authentification : `Authorization: Bearer <JWT Supabase>` sur toutes les routes sauf `GET /health`.\n- Erreurs : Problem Details (RFC 9457), `Content-Type: application/problem+json`, avec un `code` stable.\n\nCodes d'erreur transverses :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |\n| `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |\n| `account_suspended` | 403 | Compte suspendu ou banni (ADR-005) : toute route `/v1` est refusée, sauf `GET /v1/me` (statut du compte) et `DELETE /v1/me` |\n| `route_not_found` | 404 | Route inexistante |\n| `rate_limited` | 429 | Trop de requêtes (ADR-005) : 120 par minute et par utilisateur sur toute route `/v1`, limite plus basse sur certaines routes (documentée sur la route) ; en-tête `Retry-After` en secondes |\n| `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |\n\nCodes d'erreur métier :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `profile_not_found` | 404 | L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé) |\n| `username_taken` | 409 | Username déjà utilisé par un autre profil |\n| `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |\n| `age_requirement_not_met` | 422 | Moins de 13 ans à la date du jour (UTC) |\n| `media_not_found` | 404 | Média inexistant ou appartenant à un autre utilisateur |\n| `media_invalid_transition` | 409 | Le statut du média ne permet pas l'opération (ex. `complete` sur un média déjà traité) |\n| `media_not_ready` | 409 | Le média n'est pas encore `ready` |\n| `media_already_attached` | 409 | Le média est déjà utilisé, ou l'a été (un média ne sert qu'une fois) |\n| `media_purpose_mismatch` | 422 | Le `purpose` du média ne correspond pas à l'usage demandé |\n| `user_not_found` | 404 | Profil inexistant ou invisible pour l'appelant (blocage dans un sens ou dans l'autre, compte non actif : ADR-006) ; liste d'abonnés d'un compte privé non suivi |\n| `account_private` | 403 | Suivre un compte privé (demandes d'abonnement en P1) |\n| `cannot_follow_self` | 422 | Se suivre ou ne plus se suivre soi-même |\n| `invalid_cursor` | 400 | Curseur de pagination mal formé |\n| `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |\n| `comment_not_found` | 404 | Commentaire inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; commentaire parent d'un autre post ; suppression par quelqu'un qui n'est ni l'auteur du commentaire ni celui du post |\n| `reply_to_reply` | 422 | Réponse à une réponse (un seul niveau de réponse) |\n| `cannot_block_self` | 422 | Se bloquer ou se débloquer soi-même |\n| `cannot_report_self` | 422 | Se signaler soi-même ou signaler son propre post ou commentaire |\n| `admin_required` | 403 | Route d'administration (`/v1/admin/…`) appelée par un compte sans rôle `admin` (ADR-011) |\n| `invalid_status_transition` | 409 | Le statut actuel du compte ne permet pas l'action d'administration (ex. suspendre un compte banni) |\n| `cannot_moderate_self` | 422 | Un admin ne peut ni se suspendre, ni se bannir, ni se réactiver, ni se supprimer lui-même |\n| `plus_required` | 403 | Avantage réservé à Clone Plus demandé sans abonnement actif (ADR-012) ; aucune route P0 ne le renvoie encore |\n\nPagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).\n"
+    "description": "Contrat unique des échanges entre l'API, l'app iOS et le backoffice (ADR-003).\n\n- Routes métier préfixées par `/v1` ; `GET /health` est hors version.\n- JSON UTF-8, identifiants UUID v7, dates ISO 8601 UTC.\n- Authentification : `Authorization: Bearer <JWT Supabase>` sur toutes les routes sauf `GET /health`.\n- Erreurs : Problem Details (RFC 9457), `Content-Type: application/problem+json`, avec un `code` stable.\n\nCodes d'erreur transverses :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |\n| `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |\n| `account_suspended` | 403 | Compte suspendu ou banni (ADR-005) : toute route `/v1` est refusée, sauf `GET /v1/me` (statut du compte) et `DELETE /v1/me` |\n| `route_not_found` | 404 | Route inexistante |\n| `rate_limited` | 429 | Trop de requêtes (ADR-005) : 120 par minute et par utilisateur sur toute route `/v1`, limite plus basse sur certaines routes (documentée sur la route) ; en-tête `Retry-After` en secondes |\n| `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |\n\nCodes d'erreur métier :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `profile_not_found` | 404 | L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé) |\n| `username_taken` | 409 | Username déjà utilisé par un autre profil |\n| `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |\n| `age_requirement_not_met` | 422 | Moins de 13 ans à la date du jour (UTC) |\n| `media_not_found` | 404 | Média inexistant ou appartenant à un autre utilisateur |\n| `media_invalid_transition` | 409 | Le statut du média ne permet pas l'opération (ex. `complete` sur un média déjà traité) |\n| `media_not_ready` | 409 | Le média n'est pas encore `ready` |\n| `media_already_attached` | 409 | Le média est déjà utilisé, ou l'a été (un média ne sert qu'une fois) |\n| `media_purpose_mismatch` | 422 | Le `purpose` du média ne correspond pas à l'usage demandé |\n| `user_not_found` | 404 | Profil inexistant ou invisible pour l'appelant (blocage dans un sens ou dans l'autre, compte non actif : ADR-006) ; liste d'abonnés d'un compte privé non suivi |\n| `account_private` | 403 | Suivre un compte privé (demandes d'abonnement en P1) |\n| `cannot_follow_self` | 422 | Se suivre ou ne plus se suivre soi-même |\n| `invalid_cursor` | 400 | Curseur de pagination mal formé |\n| `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |\n| `comment_not_found` | 404 | Commentaire inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; commentaire parent d'un autre post ; suppression par quelqu'un qui n'est ni l'auteur du commentaire ni celui du post |\n| `reply_to_reply` | 422 | Réponse à une réponse (un seul niveau de réponse) |\n| `cannot_block_self` | 422 | Se bloquer ou se débloquer soi-même |\n| `cannot_report_self` | 422 | Se signaler soi-même ou signaler son propre post ou commentaire |\n| `admin_required` | 403 | Route d'administration (`/v1/admin/…`) appelée par un compte sans rôle `admin` (ADR-011) |\n| `invalid_status_transition` | 409 | Le statut actuel du compte ne permet pas l'action d'administration (ex. suspendre un compte banni) |\n| `cannot_moderate_self` | 422 | Un admin ne peut ni se suspendre, ni se bannir, ni se réactiver, ni se supprimer lui-même |\n| `report_not_found` | 404 | Signalement inexistant (backoffice) |\n| `report_already_resolved` | 409 | Le signalement n'est plus ouvert : déjà supprimé ou classé, seul ou avec les autres signalements du même contenu |\n| `cannot_remove_user` | 422 | `remove_content` sur le signalement d'un compte : seul le classement est possible, la sanction passe par la fiche du compte |\n| `plus_required` | 403 | Avantage réservé à Clone Plus demandé sans abonnement actif (ADR-012) ; aucune route P0 ne le renvoie encore |\n\nPagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).\n"
   },
   "servers": [
     {
@@ -14521,6 +14521,2063 @@
           }
         }
       }
+    },
+    "/v1/admin/reports": {
+      "get": {
+        "operationId": "listAdminReports",
+        "tags": [
+          "admin"
+        ],
+        "summary": "File des signalements",
+        "description": "Signalements du plus récent au plus ancien, par pages de 20. `status` vaut `open` par défaut ; `reason` et `targetType` filtrent par motif et par type de contenu. Un admin voit tous les signalements, sans politique de visibilité.\n",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Statut des signalements ; `open` si absent.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "resolved_removed",
+                "resolved_dismissed"
+              ]
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Motif du signalement.",
+              "enum": [
+                "spam",
+                "nudity",
+                "harassment",
+                "violence",
+                "hate",
+                "other"
+              ]
+            }
+          },
+          {
+            "name": "targetType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Type de contenu signalé (stories et messages en P1).",
+              "enum": [
+                "post",
+                "comment",
+                "user"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Valeur de `nextCursor` de la page précédente ; opaque.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Une page de signalements.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "maxItems": 20,
+                      "items": {
+                        "allOf": [
+                          {
+                            "type": "object",
+                            "description": "Signalement vu par un admin.",
+                            "required": [
+                              "id",
+                              "targetType",
+                              "targetId",
+                              "reason",
+                              "status",
+                              "reporter",
+                              "createdAt"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "targetType": {
+                                "type": "string",
+                                "description": "Type de contenu signalé (stories et messages en P1).",
+                                "enum": [
+                                  "post",
+                                  "comment",
+                                  "user"
+                                ]
+                              },
+                              "targetId": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "reason": {
+                                "type": "string",
+                                "description": "Motif du signalement.",
+                                "enum": [
+                                  "spam",
+                                  "nudity",
+                                  "harassment",
+                                  "violence",
+                                  "hate",
+                                  "other"
+                                ]
+                              },
+                              "details": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "open",
+                                  "resolved_removed",
+                                  "resolved_dismissed"
+                                ]
+                              },
+                              "reporter": {
+                                "type": "object",
+                                "description": "Auteur d'un post.",
+                                "required": [
+                                  "id",
+                                  "username"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  "username": {
+                                    "type": "string",
+                                    "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                    "minLength": 1,
+                                    "maxLength": 30,
+                                    "pattern": "^[a-z0-9._]{1,30}$",
+                                    "examples": [
+                                      "killian.b"
+                                    ]
+                                  },
+                                  "avatar": {
+                                    "description": "Photo de profil ; absente si aucune photo.",
+                                    "type": "object",
+                                    "required": [
+                                      "thumb",
+                                      "medium",
+                                      "large"
+                                    ],
+                                    "properties": {
+                                      "thumb": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "150 px de large."
+                                      },
+                                      "medium": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "640 px de large."
+                                      },
+                                      "large": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "1080 px de large."
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "description": "Signalement de la file du backoffice.",
+                            "properties": {
+                              "excerpt": {
+                                "type": "string",
+                                "description": "Début de la légende du post, du texte du commentaire, ou username du compte visé ; absent si le contenu n'existe plus."
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Curseur de la page suivante ; absent sur la dernière page."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`) ou curseur invalide (`invalid_cursor`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rôle `admin` requis (`admin_required`) ou compte suspendu (`account_suspended`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/reports/{id}": {
+      "get": {
+        "operationId": "getAdminReport",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Détail d'un signalement",
+        "description": "Signalement avec l'aperçu du contenu visé (post, commentaire ou compte), même privé ou déjà supprimé. Signalement inexistant → `404 report_not_found`.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Le signalement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "description": "Signalement vu par un admin.",
+                      "required": [
+                        "id",
+                        "targetType",
+                        "targetId",
+                        "reason",
+                        "status",
+                        "reporter",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "targetType": {
+                          "type": "string",
+                          "description": "Type de contenu signalé (stories et messages en P1).",
+                          "enum": [
+                            "post",
+                            "comment",
+                            "user"
+                          ]
+                        },
+                        "targetId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "reason": {
+                          "type": "string",
+                          "description": "Motif du signalement.",
+                          "enum": [
+                            "spam",
+                            "nudity",
+                            "harassment",
+                            "violence",
+                            "hate",
+                            "other"
+                          ]
+                        },
+                        "details": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "resolved_removed",
+                            "resolved_dismissed"
+                          ]
+                        },
+                        "reporter": {
+                          "type": "object",
+                          "description": "Auteur d'un post.",
+                          "required": [
+                            "id",
+                            "username"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "username": {
+                              "type": "string",
+                              "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                              "minLength": 1,
+                              "maxLength": 30,
+                              "pattern": "^[a-z0-9._]{1,30}$",
+                              "examples": [
+                                "killian.b"
+                              ]
+                            },
+                            "avatar": {
+                              "description": "Photo de profil ; absente si aucune photo.",
+                              "type": "object",
+                              "required": [
+                                "thumb",
+                                "medium",
+                                "large"
+                              ],
+                              "properties": {
+                                "thumb": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "150 px de large."
+                                },
+                                "medium": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "640 px de large."
+                                },
+                                "large": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "1080 px de large."
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "description": "Détail d'un signalement vu par un admin. Selon `targetType`, un seul des champs `post`, `comment` ou `user` est présent ; aucun si le contenu a été purgé (compte supprimé).\n",
+                      "required": [
+                        "otherOpenCount"
+                      ],
+                      "properties": {
+                        "resolvedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "Date du traitement ; absente si le signalement est ouvert."
+                        },
+                        "resolutionNote": {
+                          "type": "string",
+                          "description": "Note de l'admin au traitement."
+                        },
+                        "otherOpenCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Autres signalements ouverts sur le même contenu, traités en même temps que celui-ci."
+                        },
+                        "post": {
+                          "type": "object",
+                          "description": "Post signalé, vu par un admin.",
+                          "required": [
+                            "id",
+                            "author",
+                            "caption",
+                            "media",
+                            "createdAt",
+                            "removed"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "author": {
+                              "type": "object",
+                              "description": "Auteur d'un post.",
+                              "required": [
+                                "id",
+                                "username"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "avatar": {
+                                  "description": "Photo de profil ; absente si aucune photo.",
+                                  "type": "object",
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "caption": {
+                              "type": "string",
+                              "description": "Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.",
+                              "maxLength": 2200
+                            },
+                            "media": {
+                              "type": "array",
+                              "description": "Images dans l'ordre d'affichage ; vide une fois les fichiers purgés.",
+                              "maxItems": 10,
+                              "items": {
+                                "type": "object",
+                                "description": "Une image d'un post ; `width` et `height` (en pixels) donnent son ratio d'affichage.",
+                                "required": [
+                                  "variants",
+                                  "width",
+                                  "height"
+                                ],
+                                "properties": {
+                                  "variants": {
+                                    "type": "object",
+                                    "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                                    "required": [
+                                      "thumb",
+                                      "medium",
+                                      "large"
+                                    ],
+                                    "properties": {
+                                      "thumb": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "150 px de large."
+                                      },
+                                      "medium": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "640 px de large."
+                                      },
+                                      "large": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "1080 px de large."
+                                      }
+                                    }
+                                  },
+                                  "width": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "height": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  }
+                                }
+                              }
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "removed": {
+                              "type": "boolean",
+                              "description": "Post supprimé (par son auteur ou par modération)."
+                            }
+                          }
+                        },
+                        "comment": {
+                          "type": "object",
+                          "description": "Commentaire signalé, vu par un admin.",
+                          "required": [
+                            "id",
+                            "postId",
+                            "author",
+                            "body",
+                            "createdAt",
+                            "removed"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "postId": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "author": {
+                              "type": "object",
+                              "description": "Auteur d'un post.",
+                              "required": [
+                                "id",
+                                "username"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "avatar": {
+                                  "description": "Photo de profil ; absente si aucune photo.",
+                                  "type": "object",
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "body": {
+                              "type": "string",
+                              "description": "Texte du commentaire, 2 200 caractères au plus, avec au moins un caractère visible ; espaces de début et de fin retirés.",
+                              "minLength": 1,
+                              "maxLength": 2200,
+                              "pattern": "\\S"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "removed": {
+                              "type": "boolean",
+                              "description": "Commentaire supprimé (par son auteur, l'auteur du post ou par modération)."
+                            }
+                          }
+                        },
+                        "user": {
+                          "type": "object",
+                          "description": "Compte vu par un admin.",
+                          "required": [
+                            "id",
+                            "username",
+                            "fullName",
+                            "status",
+                            "followerCount",
+                            "followingCount",
+                            "postCount",
+                            "createdAt"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "username": {
+                              "type": "string",
+                              "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                              "minLength": 1,
+                              "maxLength": 30,
+                              "pattern": "^[a-z0-9._]{1,30}$",
+                              "examples": [
+                                "killian.b"
+                              ]
+                            },
+                            "fullName": {
+                              "type": "string",
+                              "description": "Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.",
+                              "minLength": 1,
+                              "maxLength": 30,
+                              "pattern": "\\S",
+                              "examples": [
+                                "Killian Boularand"
+                              ]
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "active",
+                                "suspended",
+                                "banned"
+                              ]
+                            },
+                            "avatar": {
+                              "description": "Photo de profil ; absente si aucune photo.",
+                              "type": "object",
+                              "required": [
+                                "thumb",
+                                "medium",
+                                "large"
+                              ],
+                              "properties": {
+                                "thumb": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "150 px de large."
+                                },
+                                "medium": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "640 px de large."
+                                },
+                                "large": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "1080 px de large."
+                                }
+                              }
+                            },
+                            "followerCount": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "followingCount": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "postCount": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rôle `admin` requis (`admin_required`) ou compte suspendu (`account_suspended`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signalement inexistant (`report_not_found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/reports/{id}/resolve": {
+      "post": {
+        "operationId": "resolveAdminReport",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Traiter un signalement",
+        "description": "Une décision par contenu : tous les signalements ouverts sur le même contenu prennent le même statut, dans la même transaction, et l'action est écrite dans le journal d'audit.\n- `remove_content` : suppression du post (médias détachés, puis fichiers purgés par le worker) ou du commentaire (avec ses réponses), compteurs mis à jour ; statut `resolved_removed`. Un contenu déjà supprimé est accepté, sans autre effet. Refusé pour un compte (`422 cannot_remove_user`) : la sanction passe par `/v1/admin/users/{id}/…`.\n- `dismiss` : classement sans effet sur le contenu ; statut `resolved_dismissed`.\nSignalement inexistant → `404 report_not_found` ; déjà traité → `409 report_already_resolved`.\n",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "description": "`remove_content` supprime le contenu signalé ; `dismiss` classe le signalement.",
+                    "enum": [
+                      "remove_content",
+                      "dismiss"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "description": "Note facultative de l'admin, 500 caractères au plus ; espaces de début et de fin retirés, vide = absente.",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Le signalement traité.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "description": "Signalement vu par un admin.",
+                      "required": [
+                        "id",
+                        "targetType",
+                        "targetId",
+                        "reason",
+                        "status",
+                        "reporter",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "targetType": {
+                          "type": "string",
+                          "description": "Type de contenu signalé (stories et messages en P1).",
+                          "enum": [
+                            "post",
+                            "comment",
+                            "user"
+                          ]
+                        },
+                        "targetId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "reason": {
+                          "type": "string",
+                          "description": "Motif du signalement.",
+                          "enum": [
+                            "spam",
+                            "nudity",
+                            "harassment",
+                            "violence",
+                            "hate",
+                            "other"
+                          ]
+                        },
+                        "details": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "resolved_removed",
+                            "resolved_dismissed"
+                          ]
+                        },
+                        "reporter": {
+                          "type": "object",
+                          "description": "Auteur d'un post.",
+                          "required": [
+                            "id",
+                            "username"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "username": {
+                              "type": "string",
+                              "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                              "minLength": 1,
+                              "maxLength": 30,
+                              "pattern": "^[a-z0-9._]{1,30}$",
+                              "examples": [
+                                "killian.b"
+                              ]
+                            },
+                            "avatar": {
+                              "description": "Photo de profil ; absente si aucune photo.",
+                              "type": "object",
+                              "required": [
+                                "thumb",
+                                "medium",
+                                "large"
+                              ],
+                              "properties": {
+                                "thumb": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "150 px de large."
+                                },
+                                "medium": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "640 px de large."
+                                },
+                                "large": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "1080 px de large."
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "description": "Détail d'un signalement vu par un admin. Selon `targetType`, un seul des champs `post`, `comment` ou `user` est présent ; aucun si le contenu a été purgé (compte supprimé).\n",
+                      "required": [
+                        "otherOpenCount"
+                      ],
+                      "properties": {
+                        "resolvedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "Date du traitement ; absente si le signalement est ouvert."
+                        },
+                        "resolutionNote": {
+                          "type": "string",
+                          "description": "Note de l'admin au traitement."
+                        },
+                        "otherOpenCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Autres signalements ouverts sur le même contenu, traités en même temps que celui-ci."
+                        },
+                        "post": {
+                          "type": "object",
+                          "description": "Post signalé, vu par un admin.",
+                          "required": [
+                            "id",
+                            "author",
+                            "caption",
+                            "media",
+                            "createdAt",
+                            "removed"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "author": {
+                              "type": "object",
+                              "description": "Auteur d'un post.",
+                              "required": [
+                                "id",
+                                "username"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "avatar": {
+                                  "description": "Photo de profil ; absente si aucune photo.",
+                                  "type": "object",
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "caption": {
+                              "type": "string",
+                              "description": "Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.",
+                              "maxLength": 2200
+                            },
+                            "media": {
+                              "type": "array",
+                              "description": "Images dans l'ordre d'affichage ; vide une fois les fichiers purgés.",
+                              "maxItems": 10,
+                              "items": {
+                                "type": "object",
+                                "description": "Une image d'un post ; `width` et `height` (en pixels) donnent son ratio d'affichage.",
+                                "required": [
+                                  "variants",
+                                  "width",
+                                  "height"
+                                ],
+                                "properties": {
+                                  "variants": {
+                                    "type": "object",
+                                    "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                                    "required": [
+                                      "thumb",
+                                      "medium",
+                                      "large"
+                                    ],
+                                    "properties": {
+                                      "thumb": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "150 px de large."
+                                      },
+                                      "medium": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "640 px de large."
+                                      },
+                                      "large": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "1080 px de large."
+                                      }
+                                    }
+                                  },
+                                  "width": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "height": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  }
+                                }
+                              }
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "removed": {
+                              "type": "boolean",
+                              "description": "Post supprimé (par son auteur ou par modération)."
+                            }
+                          }
+                        },
+                        "comment": {
+                          "type": "object",
+                          "description": "Commentaire signalé, vu par un admin.",
+                          "required": [
+                            "id",
+                            "postId",
+                            "author",
+                            "body",
+                            "createdAt",
+                            "removed"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "postId": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "author": {
+                              "type": "object",
+                              "description": "Auteur d'un post.",
+                              "required": [
+                                "id",
+                                "username"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "avatar": {
+                                  "description": "Photo de profil ; absente si aucune photo.",
+                                  "type": "object",
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "body": {
+                              "type": "string",
+                              "description": "Texte du commentaire, 2 200 caractères au plus, avec au moins un caractère visible ; espaces de début et de fin retirés.",
+                              "minLength": 1,
+                              "maxLength": 2200,
+                              "pattern": "\\S"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "removed": {
+                              "type": "boolean",
+                              "description": "Commentaire supprimé (par son auteur, l'auteur du post ou par modération)."
+                            }
+                          }
+                        },
+                        "user": {
+                          "type": "object",
+                          "description": "Compte vu par un admin.",
+                          "required": [
+                            "id",
+                            "username",
+                            "fullName",
+                            "status",
+                            "followerCount",
+                            "followingCount",
+                            "postCount",
+                            "createdAt"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "username": {
+                              "type": "string",
+                              "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                              "minLength": 1,
+                              "maxLength": 30,
+                              "pattern": "^[a-z0-9._]{1,30}$",
+                              "examples": [
+                                "killian.b"
+                              ]
+                            },
+                            "fullName": {
+                              "type": "string",
+                              "description": "Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.",
+                              "minLength": 1,
+                              "maxLength": 30,
+                              "pattern": "\\S",
+                              "examples": [
+                                "Killian Boularand"
+                              ]
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "active",
+                                "suspended",
+                                "banned"
+                              ]
+                            },
+                            "avatar": {
+                              "description": "Photo de profil ; absente si aucune photo.",
+                              "type": "object",
+                              "required": [
+                                "thumb",
+                                "medium",
+                                "large"
+                              ],
+                              "properties": {
+                                "thumb": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "150 px de large."
+                                },
+                                "medium": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "640 px de large."
+                                },
+                                "large": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "1080 px de large."
+                                }
+                              }
+                            },
+                            "followerCount": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "followingCount": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "postCount": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rôle `admin` requis (`admin_required`) ou compte suspendu (`account_suspended`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Signalement inexistant (`report_not_found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Le signalement n'est plus ouvert (`report_already_resolved`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Suppression demandée pour un compte (`cannot_remove_user`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -17179,6 +19236,960 @@
             }
           }
         ]
+      },
+      "AdminReportSummary": {
+        "allOf": [
+          {
+            "type": "object",
+            "description": "Signalement vu par un admin.",
+            "required": [
+              "id",
+              "targetType",
+              "targetId",
+              "reason",
+              "status",
+              "reporter",
+              "createdAt"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "targetType": {
+                "type": "string",
+                "description": "Type de contenu signalé (stories et messages en P1).",
+                "enum": [
+                  "post",
+                  "comment",
+                  "user"
+                ]
+              },
+              "targetId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "reason": {
+                "type": "string",
+                "description": "Motif du signalement.",
+                "enum": [
+                  "spam",
+                  "nudity",
+                  "harassment",
+                  "violence",
+                  "hate",
+                  "other"
+                ]
+              },
+              "details": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "resolved_removed",
+                  "resolved_dismissed"
+                ]
+              },
+              "reporter": {
+                "type": "object",
+                "description": "Auteur d'un post.",
+                "required": [
+                  "id",
+                  "username"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "username": {
+                    "type": "string",
+                    "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                    "minLength": 1,
+                    "maxLength": 30,
+                    "pattern": "^[a-z0-9._]{1,30}$",
+                    "examples": [
+                      "killian.b"
+                    ]
+                  },
+                  "avatar": {
+                    "description": "Photo de profil ; absente si aucune photo.",
+                    "type": "object",
+                    "required": [
+                      "thumb",
+                      "medium",
+                      "large"
+                    ],
+                    "properties": {
+                      "thumb": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "150 px de large."
+                      },
+                      "medium": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "640 px de large."
+                      },
+                      "large": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "1080 px de large."
+                      }
+                    }
+                  }
+                }
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Signalement de la file du backoffice.",
+            "properties": {
+              "excerpt": {
+                "type": "string",
+                "description": "Début de la légende du post, du texte du commentaire, ou username du compte visé ; absent si le contenu n'existe plus."
+              }
+            }
+          }
+        ]
+      },
+      "AdminReportPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "allOf": [
+                {
+                  "type": "object",
+                  "description": "Signalement vu par un admin.",
+                  "required": [
+                    "id",
+                    "targetType",
+                    "targetId",
+                    "reason",
+                    "status",
+                    "reporter",
+                    "createdAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "targetType": {
+                      "type": "string",
+                      "description": "Type de contenu signalé (stories et messages en P1).",
+                      "enum": [
+                        "post",
+                        "comment",
+                        "user"
+                      ]
+                    },
+                    "targetId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "Motif du signalement.",
+                      "enum": [
+                        "spam",
+                        "nudity",
+                        "harassment",
+                        "violence",
+                        "hate",
+                        "other"
+                      ]
+                    },
+                    "details": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "resolved_removed",
+                        "resolved_dismissed"
+                      ]
+                    },
+                    "reporter": {
+                      "type": "object",
+                      "description": "Auteur d'un post.",
+                      "required": [
+                        "id",
+                        "username"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "username": {
+                          "type": "string",
+                          "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                          "minLength": 1,
+                          "maxLength": 30,
+                          "pattern": "^[a-z0-9._]{1,30}$",
+                          "examples": [
+                            "killian.b"
+                          ]
+                        },
+                        "avatar": {
+                          "description": "Photo de profil ; absente si aucune photo.",
+                          "type": "object",
+                          "required": [
+                            "thumb",
+                            "medium",
+                            "large"
+                          ],
+                          "properties": {
+                            "thumb": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "150 px de large."
+                            },
+                            "medium": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "640 px de large."
+                            },
+                            "large": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "1080 px de large."
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "description": "Signalement de la file du backoffice.",
+                  "properties": {
+                    "excerpt": {
+                      "type": "string",
+                      "description": "Début de la légende du post, du texte du commentaire, ou username du compte visé ; absent si le contenu n'existe plus."
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "Curseur de la page suivante ; absent sur la dernière page."
+          }
+        }
+      },
+      "AdminReportedPost": {
+        "type": "object",
+        "description": "Post signalé, vu par un admin.",
+        "required": [
+          "id",
+          "author",
+          "caption",
+          "media",
+          "createdAt",
+          "removed"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "author": {
+            "type": "object",
+            "description": "Auteur d'un post.",
+            "required": [
+              "id",
+              "username"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "username": {
+                "type": "string",
+                "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                "minLength": 1,
+                "maxLength": 30,
+                "pattern": "^[a-z0-9._]{1,30}$",
+                "examples": [
+                  "killian.b"
+                ]
+              },
+              "avatar": {
+                "description": "Photo de profil ; absente si aucune photo.",
+                "type": "object",
+                "required": [
+                  "thumb",
+                  "medium",
+                  "large"
+                ],
+                "properties": {
+                  "thumb": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "150 px de large."
+                  },
+                  "medium": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "640 px de large."
+                  },
+                  "large": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "1080 px de large."
+                  }
+                }
+              }
+            }
+          },
+          "caption": {
+            "type": "string",
+            "description": "Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.",
+            "maxLength": 2200
+          },
+          "media": {
+            "type": "array",
+            "description": "Images dans l'ordre d'affichage ; vide une fois les fichiers purgés.",
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "description": "Une image d'un post ; `width` et `height` (en pixels) donnent son ratio d'affichage.",
+              "required": [
+                "variants",
+                "width",
+                "height"
+              ],
+              "properties": {
+                "variants": {
+                  "type": "object",
+                  "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                  "required": [
+                    "thumb",
+                    "medium",
+                    "large"
+                  ],
+                  "properties": {
+                    "thumb": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "150 px de large."
+                    },
+                    "medium": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "640 px de large."
+                    },
+                    "large": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "1080 px de large."
+                    }
+                  }
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "removed": {
+            "type": "boolean",
+            "description": "Post supprimé (par son auteur ou par modération)."
+          }
+        }
+      },
+      "AdminReportedComment": {
+        "type": "object",
+        "description": "Commentaire signalé, vu par un admin.",
+        "required": [
+          "id",
+          "postId",
+          "author",
+          "body",
+          "createdAt",
+          "removed"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "postId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "author": {
+            "type": "object",
+            "description": "Auteur d'un post.",
+            "required": [
+              "id",
+              "username"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "username": {
+                "type": "string",
+                "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                "minLength": 1,
+                "maxLength": 30,
+                "pattern": "^[a-z0-9._]{1,30}$",
+                "examples": [
+                  "killian.b"
+                ]
+              },
+              "avatar": {
+                "description": "Photo de profil ; absente si aucune photo.",
+                "type": "object",
+                "required": [
+                  "thumb",
+                  "medium",
+                  "large"
+                ],
+                "properties": {
+                  "thumb": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "150 px de large."
+                  },
+                  "medium": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "640 px de large."
+                  },
+                  "large": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "1080 px de large."
+                  }
+                }
+              }
+            }
+          },
+          "body": {
+            "type": "string",
+            "description": "Texte du commentaire, 2 200 caractères au plus, avec au moins un caractère visible ; espaces de début et de fin retirés.",
+            "minLength": 1,
+            "maxLength": 2200,
+            "pattern": "\\S"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "removed": {
+            "type": "boolean",
+            "description": "Commentaire supprimé (par son auteur, l'auteur du post ou par modération)."
+          }
+        }
+      },
+      "AdminReportDetail": {
+        "allOf": [
+          {
+            "type": "object",
+            "description": "Signalement vu par un admin.",
+            "required": [
+              "id",
+              "targetType",
+              "targetId",
+              "reason",
+              "status",
+              "reporter",
+              "createdAt"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "targetType": {
+                "type": "string",
+                "description": "Type de contenu signalé (stories et messages en P1).",
+                "enum": [
+                  "post",
+                  "comment",
+                  "user"
+                ]
+              },
+              "targetId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "reason": {
+                "type": "string",
+                "description": "Motif du signalement.",
+                "enum": [
+                  "spam",
+                  "nudity",
+                  "harassment",
+                  "violence",
+                  "hate",
+                  "other"
+                ]
+              },
+              "details": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "resolved_removed",
+                  "resolved_dismissed"
+                ]
+              },
+              "reporter": {
+                "type": "object",
+                "description": "Auteur d'un post.",
+                "required": [
+                  "id",
+                  "username"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "username": {
+                    "type": "string",
+                    "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                    "minLength": 1,
+                    "maxLength": 30,
+                    "pattern": "^[a-z0-9._]{1,30}$",
+                    "examples": [
+                      "killian.b"
+                    ]
+                  },
+                  "avatar": {
+                    "description": "Photo de profil ; absente si aucune photo.",
+                    "type": "object",
+                    "required": [
+                      "thumb",
+                      "medium",
+                      "large"
+                    ],
+                    "properties": {
+                      "thumb": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "150 px de large."
+                      },
+                      "medium": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "640 px de large."
+                      },
+                      "large": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "1080 px de large."
+                      }
+                    }
+                  }
+                }
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Détail d'un signalement vu par un admin. Selon `targetType`, un seul des champs `post`, `comment` ou `user` est présent ; aucun si le contenu a été purgé (compte supprimé).\n",
+            "required": [
+              "otherOpenCount"
+            ],
+            "properties": {
+              "resolvedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Date du traitement ; absente si le signalement est ouvert."
+              },
+              "resolutionNote": {
+                "type": "string",
+                "description": "Note de l'admin au traitement."
+              },
+              "otherOpenCount": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Autres signalements ouverts sur le même contenu, traités en même temps que celui-ci."
+              },
+              "post": {
+                "type": "object",
+                "description": "Post signalé, vu par un admin.",
+                "required": [
+                  "id",
+                  "author",
+                  "caption",
+                  "media",
+                  "createdAt",
+                  "removed"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "author": {
+                    "type": "object",
+                    "description": "Auteur d'un post.",
+                    "required": [
+                      "id",
+                      "username"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "username": {
+                        "type": "string",
+                        "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                        "minLength": 1,
+                        "maxLength": 30,
+                        "pattern": "^[a-z0-9._]{1,30}$",
+                        "examples": [
+                          "killian.b"
+                        ]
+                      },
+                      "avatar": {
+                        "description": "Photo de profil ; absente si aucune photo.",
+                        "type": "object",
+                        "required": [
+                          "thumb",
+                          "medium",
+                          "large"
+                        ],
+                        "properties": {
+                          "thumb": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "150 px de large."
+                          },
+                          "medium": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "640 px de large."
+                          },
+                          "large": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "1080 px de large."
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "caption": {
+                    "type": "string",
+                    "description": "Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.",
+                    "maxLength": 2200
+                  },
+                  "media": {
+                    "type": "array",
+                    "description": "Images dans l'ordre d'affichage ; vide une fois les fichiers purgés.",
+                    "maxItems": 10,
+                    "items": {
+                      "type": "object",
+                      "description": "Une image d'un post ; `width` et `height` (en pixels) donnent son ratio d'affichage.",
+                      "required": [
+                        "variants",
+                        "width",
+                        "height"
+                      ],
+                      "properties": {
+                        "variants": {
+                          "type": "object",
+                          "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                          "required": [
+                            "thumb",
+                            "medium",
+                            "large"
+                          ],
+                          "properties": {
+                            "thumb": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "150 px de large."
+                            },
+                            "medium": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "640 px de large."
+                            },
+                            "large": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "1080 px de large."
+                            }
+                          }
+                        },
+                        "width": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      }
+                    }
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "removed": {
+                    "type": "boolean",
+                    "description": "Post supprimé (par son auteur ou par modération)."
+                  }
+                }
+              },
+              "comment": {
+                "type": "object",
+                "description": "Commentaire signalé, vu par un admin.",
+                "required": [
+                  "id",
+                  "postId",
+                  "author",
+                  "body",
+                  "createdAt",
+                  "removed"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "postId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "author": {
+                    "type": "object",
+                    "description": "Auteur d'un post.",
+                    "required": [
+                      "id",
+                      "username"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "username": {
+                        "type": "string",
+                        "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                        "minLength": 1,
+                        "maxLength": 30,
+                        "pattern": "^[a-z0-9._]{1,30}$",
+                        "examples": [
+                          "killian.b"
+                        ]
+                      },
+                      "avatar": {
+                        "description": "Photo de profil ; absente si aucune photo.",
+                        "type": "object",
+                        "required": [
+                          "thumb",
+                          "medium",
+                          "large"
+                        ],
+                        "properties": {
+                          "thumb": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "150 px de large."
+                          },
+                          "medium": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "640 px de large."
+                          },
+                          "large": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "1080 px de large."
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "Texte du commentaire, 2 200 caractères au plus, avec au moins un caractère visible ; espaces de début et de fin retirés.",
+                    "minLength": 1,
+                    "maxLength": 2200,
+                    "pattern": "\\S"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "removed": {
+                    "type": "boolean",
+                    "description": "Commentaire supprimé (par son auteur, l'auteur du post ou par modération)."
+                  }
+                }
+              },
+              "user": {
+                "type": "object",
+                "description": "Compte vu par un admin.",
+                "required": [
+                  "id",
+                  "username",
+                  "fullName",
+                  "status",
+                  "followerCount",
+                  "followingCount",
+                  "postCount",
+                  "createdAt"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "username": {
+                    "type": "string",
+                    "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                    "minLength": 1,
+                    "maxLength": 30,
+                    "pattern": "^[a-z0-9._]{1,30}$",
+                    "examples": [
+                      "killian.b"
+                    ]
+                  },
+                  "fullName": {
+                    "type": "string",
+                    "description": "Nom affiché, 1 à 30 caractères, au moins un caractère autre qu'un espace.",
+                    "minLength": 1,
+                    "maxLength": 30,
+                    "pattern": "\\S",
+                    "examples": [
+                      "Killian Boularand"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "suspended",
+                      "banned"
+                    ]
+                  },
+                  "avatar": {
+                    "description": "Photo de profil ; absente si aucune photo.",
+                    "type": "object",
+                    "required": [
+                      "thumb",
+                      "medium",
+                      "large"
+                    ],
+                    "properties": {
+                      "thumb": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "150 px de large."
+                      },
+                      "medium": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "640 px de large."
+                      },
+                      "large": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "1080 px de large."
+                      }
+                    }
+                  },
+                  "followerCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "followingCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "postCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ResolutionAction": {
+        "type": "string",
+        "description": "`remove_content` supprime le contenu signalé ; `dismiss` classe le signalement.",
+        "enum": [
+          "remove_content",
+          "dismiss"
+        ]
+      },
+      "ResolveReportRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "`remove_content` supprime le contenu signalé ; `dismiss` classe le signalement.",
+            "enum": [
+              "remove_content",
+              "dismiss"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "description": "Note facultative de l'admin, 500 caractères au plus ; espaces de début et de fin retirés, vide = absente.",
+            "maxLength": 500
+          }
+        }
       }
     },
     "parameters": {
@@ -17221,6 +20232,15 @@
         }
       },
       "CommentId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "ReportId": {
         "name": "id",
         "in": "path",
         "required": true,
@@ -17827,6 +20847,60 @@
       },
       "AdminForbidden": {
         "description": "Rôle `admin` requis (`admin_required`) ou compte suspendu (`account_suspended`).",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "type": "object",
+              "description": "Erreur au format Problem Details (RFC 9457).",
+              "required": [
+                "type",
+                "title",
+                "status",
+                "detail",
+                "code"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "format": "uri-reference",
+                  "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                  "examples": [
+                    "about:blank"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Résumé lisible du statut HTTP.",
+                  "examples": [
+                    "Not Found"
+                  ]
+                },
+                "status": {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 599,
+                  "examples": [
+                    404
+                  ]
+                },
+                "detail": {
+                  "type": "string",
+                  "description": "Explication lisible de cette occurrence."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                  "examples": [
+                    "route_not_found"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "ReportNotFound": {
+        "description": "Signalement inexistant (`report_not_found`).",
         "content": {
           "application/problem+json": {
             "schema": {

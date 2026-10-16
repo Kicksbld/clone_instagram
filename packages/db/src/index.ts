@@ -8,6 +8,7 @@ export {
   detachMedia,
   findMediaById,
   findPurgeableMedia,
+  listDetachedPostMedia,
   listOwnerMediaFiles,
   markFailed,
   markProcessing,
