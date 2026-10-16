@@ -30,6 +30,8 @@ Architecture hexagonale par module : [ADR-005](../../docs/adr/ADR-005-backend-fa
 - **Écriture qui supprime des relations** : `BlockUser` (`modules/social`) — blocage, abonnements dans les deux sens et compteurs dans un seul `UnitOfWork` ; idempotent (déjà bloqué → sans effet).
 - **Use case de référence** : `LikePost` (`modules/engagement`, ADR-005) — autorisation et visibilité dans le use case, `UnitOfWork` si plusieurs tables, compteur modifié seulement si une ligne change.
 - **Événement analytics** (ADR-013) : ajouter le cas à l'union fermée `AnalyticsEvent` (`shared/application/analytics-tracker.ts`, propriétés techniques uniquement), injecter `AnalyticsTracker` dans le use case et appeler `track` **après** la transaction ; en test, `InMemoryAnalyticsTracker` (`test/support/fakes.ts`).
+- **Route d'administration** (backoffice, ADR-011) : sous `/v1/admin/…`, dans le module propriétaire des données ; le use case commence par `requireAdmin(roles, adminId)` (`shared/application/admin-roles.ts`, `403 admin_required`) et écrit chaque modification dans `AdminAuditLog` **dans la même transaction** (`UnitOfWork`). Référence : `ModerateUser` (`modules/identity`).
+- **Compte suspendu ou banni** : refusé par `requireAuthentication` (`403 account_suspended`) ; une route ouverte à ce compte déclare `config: { allowSuspendedAccount: true }` (seulement `GET` et `DELETE /v1/me`).
 - **Variable d'environnement** : l'ajouter au schéma de `shared/infrastructure/config.ts` et à `.env.example`.
 
 ## Interdits

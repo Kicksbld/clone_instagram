@@ -16,6 +16,7 @@ info:
     |---|---|---|
     | `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |
     | `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |
+    | `account_suspended` | 403 | Compte suspendu ou banni (ADR-005) : toute route `/v1` est refusée, sauf `GET /v1/me` (statut du compte) et `DELETE /v1/me` |
     | `route_not_found` | 404 | Route inexistante |
     | `rate_limited` | 429 | Trop de requêtes (ADR-005) : 120 par minute et par utilisateur sur toute route `/v1`, limite plus basse sur certaines routes (documentée sur la route) ; en-tête `Retry-After` en secondes |
     | `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |
@@ -42,6 +43,9 @@ info:
     | `reply_to_reply` | 422 | Réponse à une réponse (un seul niveau de réponse) |
     | `cannot_block_self` | 422 | Se bloquer ou se débloquer soi-même |
     | `cannot_report_self` | 422 | Se signaler soi-même ou signaler son propre post ou commentaire |
+    | `admin_required` | 403 | Route d'administration (`/v1/admin/…`) appelée par un compte sans rôle `admin` (ADR-011) |
+    | `invalid_status_transition` | 409 | Le statut actuel du compte ne permet pas l'action d'administration (ex. suspendre un compte banni) |
+    | `cannot_moderate_self` | 422 | Un admin ne peut ni se suspendre, ni se bannir, ni se réactiver, ni se supprimer lui-même |
     | `plus_required` | 403 | Avantage réservé à Clone Plus demandé sans abonnement actif (ADR-012) ; aucune route P0 ne le renvoie encore |
 
     Pagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).
@@ -71,6 +75,8 @@ tags:
     description: Abonnement Clone Plus, vérifié par l'API auprès de RevenueCat (ADR-012)
   - name: moderation
     description: Signalements de contenus et de comptes
+  - name: admin
+    description: Administration depuis le backoffice (ADR-011) ; rôle `admin` requis, chaque action écrite dans le journal d'audit
 paths:
   /health:
     get:
@@ -93,7 +99,7 @@ paths:
       operationId: getMe
       tags: [identity]
       summary: Mon profil
-      description: Profil de l'utilisateur authentifié, dont sa date de naissance et le statut du compte. `404 profile_not_found` tant que l'onboarding n'est pas terminé.
+      description: Profil de l'utilisateur authentifié, dont sa date de naissance et le statut du compte. `404 profile_not_found` tant que l'onboarding n'est pas terminé. Répond aussi pour un compte suspendu ou banni (l'app affiche alors l'écran « Compte suspendu », ADR-005).
       responses:
         '200':
           description: Mon profil.
@@ -971,6 +977,240 @@ paths:
           $ref: '#/components/responses/MediaNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v1/admin/me:
+    get:
+      operationId: getAdminSession
+      tags: [admin]
+      summary: Ma session d'administration
+      description: Vérifie que l'utilisateur authentifié a le rôle `admin` (connexion au backoffice, puis chaque page et chaque action). Un admin n'a pas besoin de profil.
+      responses:
+        '200':
+          description: L'appelant est admin.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSession'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: Rechercher des utilisateurs
+      description: |
+        Comptes du plus récent au plus ancien, par pages de 20 (comptes supprimés exclus). `q` filtre par correspondance partielle sur le username ou le nom, insensible à la casse (sans espaces superflus ni `@` initial) ; `status` filtre par statut.
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Username ou nom, partiel ; 1 à 30 caractères après suppression des espaces et du `@` initial.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/AccountStatus'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page de comptes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/admin/users/{id}:
+    get:
+      operationId: getAdminUser
+      tags: [admin]
+      summary: Fiche d'un utilisateur
+      description: Profil, statut, compteurs, abonnement Clone Plus, et les 20 signalements reçus (compte, ses posts, ses commentaires) et émis les plus récents, avec leur total. Compte inexistant ou supprimé → `404 user_not_found`.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: La fiche.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetail'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteAdminUser
+      tags: [admin]
+      summary: Supprimer un compte
+      description: |
+        Même suppression que `DELETE /v1/me` : utilisateur Supabase Auth supprimé (accès coupé), profil supprimé, puis purge des données et fichiers. Motif obligatoire, écrit dans le journal d'audit.
+        Compte inexistant ou déjà supprimé → `404 user_not_found` ; Supabase Auth injoignable → `500`, compte intact.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminActionRequest'
+      responses:
+        '204':
+          description: Compte supprimé ; la purge suit.
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '422':
+          $ref: '#/components/responses/CannotModerateSelf'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/admin/users/{id}/suspend:
+    post:
+      operationId: suspendAdminUser
+      tags: [admin]
+      summary: Suspendre un compte
+      description: |
+        Compte `active` → `suspended` : toute route lui est refusée sauf `GET /v1/me` et `DELETE /v1/me` (`403 account_suspended`) ; son profil et ses contenus deviennent invisibles (ADR-006).
+        Motif obligatoire, écrit dans le journal d'audit. Autre statut → `409 invalid_status_transition` ; compte inexistant ou supprimé → `404 user_not_found`.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminActionRequest'
+      responses:
+        '200':
+          description: Compte avec son nouveau statut.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserSummary'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '409':
+          description: Le statut actuel ne permet pas cette action (`invalid_status_transition`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          $ref: '#/components/responses/CannotModerateSelf'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/admin/users/{id}/ban:
+    post:
+      operationId: banAdminUser
+      tags: [admin]
+      summary: Bannir un compte
+      description: |
+        Compte `active` ou `suspended` → `banned`. Mêmes effets qu'une suspension (ADR-005).
+        Motif obligatoire, écrit dans le journal d'audit. Autre statut → `409 invalid_status_transition` ; compte inexistant ou supprimé → `404 user_not_found`.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminActionRequest'
+      responses:
+        '200':
+          description: Compte avec son nouveau statut.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserSummary'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '409':
+          description: Le statut actuel ne permet pas cette action (`invalid_status_transition`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          $ref: '#/components/responses/CannotModerateSelf'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/admin/users/{id}/reactivate:
+    post:
+      operationId: reactivateAdminUser
+      tags: [admin]
+      summary: Réactiver un compte
+      description: |
+        Compte `suspended` ou `banned` → `active` : accès et visibilité rétablis.
+        Motif obligatoire, écrit dans le journal d'audit. Autre statut → `409 invalid_status_transition` ; compte inexistant ou supprimé → `404 user_not_found`.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminActionRequest'
+      responses:
+        '200':
+          description: Compte avec son nouveau statut.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserSummary'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '409':
+          description: Le statut actuel ne permet pas cette action (`invalid_status_transition`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          $ref: '#/components/responses/CannotModerateSelf'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     bearerAuth:
@@ -1550,6 +1790,134 @@ components:
         id:
           type: string
           format: uuid
+    AdminSession:
+      type: object
+      description: Utilisateur authentifié qui a le rôle `admin`.
+      required: [id, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identifiant Supabase Auth.
+        role:
+          type: string
+          enum: [admin]
+    AdminActionRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: Motif de l'action, 500 caractères au plus, avec au moins un caractère visible ; espaces de début et de fin retirés.
+          minLength: 1
+          maxLength: 500
+          pattern: '\S'
+    AdminUserSummary:
+      type: object
+      description: Compte vu par un admin.
+      required:
+        [id, username, fullName, status, followerCount, followingCount, postCount, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          $ref: '#/components/schemas/Username'
+        fullName:
+          $ref: '#/components/schemas/FullName'
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        avatar:
+          $ref: '#/components/schemas/ImageVariants'
+          description: Photo de profil ; absente si aucune photo.
+        followerCount:
+          type: integer
+          minimum: 0
+        followingCount:
+          type: integer
+          minimum: 0
+        postCount:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+    AdminUserPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/AdminUserSummary'
+        nextCursor:
+          type: string
+          description: Curseur de la page suivante ; absent sur la dernière page.
+    AdminReportStatus:
+      type: string
+      enum: [open, resolved_removed, resolved_dismissed]
+    AdminReport:
+      type: object
+      description: Signalement vu par un admin.
+      required: [id, targetType, targetId, reason, status, reporter, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        targetType:
+          $ref: '#/components/schemas/ReportTargetType'
+        targetId:
+          type: string
+          format: uuid
+        reason:
+          $ref: '#/components/schemas/ReportReason'
+        details:
+          type: string
+        status:
+          $ref: '#/components/schemas/AdminReportStatus'
+        reporter:
+          $ref: '#/components/schemas/PostAuthor'
+        createdAt:
+          type: string
+          format: date-time
+    AdminReportList:
+      type: object
+      required: [total, items]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        items:
+          type: array
+          description: Les 20 plus récents.
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/AdminReport'
+    AdminUserDetail:
+      allOf:
+        - $ref: '#/components/schemas/AdminUserSummary'
+        - type: object
+          description: Fiche d'un compte vue par un admin.
+          required: [bio, isPrivate, plan, reportsReceived, reportsFiled]
+          properties:
+            bio:
+              $ref: '#/components/schemas/Bio'
+            isPrivate:
+              type: boolean
+            plan:
+              $ref: '#/components/schemas/Plan'
+            plusExpiresAt:
+              type: string
+              format: date-time
+              description: Fin de la période payée de Clone Plus ; absente si le plan est `free`.
+            reportsReceived:
+              $ref: '#/components/schemas/AdminReportList'
+              description: Signalements visant le compte, ses posts ou ses commentaires.
+            reportsFiled:
+              $ref: '#/components/schemas/AdminReportList'
+              description: Signalements émis par le compte.
   parameters:
     UserId:
       name: id
@@ -1651,6 +2019,18 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     CommentNotFound:
       description: Commentaire inexistant, supprimé ou invisible pour l'appelant (`comment_not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    AdminForbidden:
+      description: Rôle `admin` requis (`admin_required`) ou compte suspendu (`account_suspended`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    CannotModerateSelf:
+      description: Un admin ne peut pas se viser lui-même (`cannot_moderate_self`).
       content:
         application/problem+json:
           schema:

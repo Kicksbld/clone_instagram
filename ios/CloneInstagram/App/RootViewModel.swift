@@ -1,8 +1,9 @@
 import Foundation
 import Observation
 
-/// Routeur racine (ADR-010) : non connecté → bienvenue ; session sans profil → onboarding ; sinon accueil.
-/// Fin de l'onboarding → paywall Clone Plus (ADR-012) → accueil.
+/// Routeur racine (ADR-010) : non connecté → bienvenue ; session sans profil → onboarding ; compte suspendu
+/// ou banni → « Compte suspendu » (ADR-005) ; sinon accueil. Fin de l'onboarding → paywall Clone Plus
+/// (ADR-012) → accueil.
 @Observable
 final class RootViewModel {
     enum Route: Equatable {
@@ -14,6 +15,8 @@ final class RootViewModel {
         /// Paywall de fin d'onboarding (« Plus tard » mène à l'accueil).
         case paywall(Profile)
         case home(Profile)
+        /// Compte suspendu ou banni : seuls la déconnexion et la suppression du compte restent possibles.
+        case suspended(Profile)
         case failed(message: String)
     }
 
@@ -50,6 +53,10 @@ final class RootViewModel {
         }
         do {
             let profile = try await identity.fetchMe()
+            guard profile.status == .active else {
+                route = .suspended(profile)
+                return
+            }
             route = .home(profile)
             // Reconnexion, nouvel appareil : événements rattachés au profil (ADR-013).
             analytics.identify(profileId: profile.id)
@@ -63,6 +70,27 @@ final class RootViewModel {
             route = .welcome
         } catch {
             route = .failed(message: "Impossible de charger votre compte. Vérifiez votre connexion et réessayez.")
+        }
+    }
+
+    /// Refus `403 account_suspended` reçu pendant la session : statut relu par `GET /v1/me`, qui reste
+    /// ouvert au compte suspendu. Sans effet hors de l'accueil et du paywall.
+    func accountSuspended() async {
+        switch route {
+        case .home, .paywall:
+            await start()
+        default:
+            break
+        }
+    }
+
+    /// Retour au premier plan sur l'écran « Compte suspendu » : un compte réactivé retrouve l'accueil.
+    func recheckSuspension() async {
+        guard case .suspended = route, let profile = try? await identity.fetchMe() else { return }
+        if profile.status == .active {
+            await start()
+        } else {
+            route = .suspended(profile)
         }
     }
 

@@ -99,3 +99,40 @@ describe('authentification des routes /v1 (JWT Supabase ES256)', () => {
     expect(response.statusCode).toBe(401);
   });
 });
+
+describe('compte suspendu ou banni (ADR-005)', () => {
+  const request = async (method: 'GET' | 'DELETE', url: string) =>
+    context.app.inject({
+      method,
+      url,
+      headers: { authorization: `Bearer ${await signTestToken(ME)}` },
+    });
+
+  it.each(['suspended', 'banned'] as const)(
+    '%s → 403 account_suspended sur toute route, sauf GET et DELETE /v1/me',
+    async (status) => {
+      context.profiles.add({ id: ME, username: 'killian', status });
+
+      for (const url of ['/v1/feed', '/v1/users/killian', '/v1/me/blocks', '/v1/admin/me']) {
+        const response = await request('GET', url);
+        expect(response.statusCode, url).toBe(403);
+        expect(response.headers['content-type']).toContain('application/problem+json');
+        expect(response.json()).toMatchObject({ status: 403, code: 'account_suspended' });
+      }
+
+      const me = await request('GET', '/v1/me');
+      expect(me.statusCode).toBe(200);
+      expect(me.json()).toMatchObject({ status });
+
+      expect((await request('DELETE', '/v1/me')).statusCode).toBe(204);
+    },
+  );
+
+  it('compte réactivé → accès rétabli', async () => {
+    context.profiles.add({ id: ME, username: 'killian', status: 'suspended' });
+    expect((await request('GET', '/v1/feed')).statusCode).toBe(403);
+
+    context.profiles.add({ id: ME, username: 'killian', status: 'active' });
+    expect((await request('GET', '/v1/feed')).statusCode).toBe(200);
+  });
+});

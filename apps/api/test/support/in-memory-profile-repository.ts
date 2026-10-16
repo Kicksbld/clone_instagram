@@ -1,4 +1,8 @@
 import type {
+  AdminUserQuery,
+  AdminUserReader,
+} from '../../src/modules/identity/application/ports/admin-user-reader.ts';
+import type {
   NewProfile,
   ProfileChanges,
   ProfileRepository,
@@ -9,6 +13,7 @@ import {
 } from '../../src/modules/identity/domain/errors.ts';
 import type { Profile } from '../../src/modules/identity/domain/profile.ts';
 import type { AccountStatusReader } from '../../src/shared/application/account-status-reader.ts';
+import type { Page } from '../../src/shared/domain/pagination.ts';
 import type { AccountStatus } from '../../src/shared/domain/visibility.ts';
 import type { InMemoryMediaRepository } from './in-memory-media-repository.ts';
 
@@ -16,7 +21,9 @@ import type { InMemoryMediaRepository } from './in-memory-media-repository.ts';
  * Adapter en mémoire (ADR-005) : mêmes contraintes d'unicité que la table `profiles` ; la photo de
  * profil est lue dans `media`, comme la jointure de l'adapter Drizzle.
  */
-export class InMemoryProfileRepository implements ProfileRepository, AccountStatusReader {
+export class InMemoryProfileRepository
+  implements ProfileRepository, AccountStatusReader, AdminUserReader
+{
   readonly rows = new Map<string, Profile>();
   media: InMemoryMediaRepository | null = null;
 
@@ -82,6 +89,42 @@ export class InMemoryProfileRepository implements ProfileRepository, AccountStat
     const current = this.rows.get(id);
     if (current) this.rows.set(id, { ...current, status: 'deleted' });
     return Promise.resolve();
+  }
+
+  transitionStatus(
+    id: string,
+    from: readonly AccountStatus[],
+    to: AccountStatus,
+  ): Promise<boolean> {
+    const current = this.rows.get(id);
+    if (!current || !from.includes(current.status)) return Promise.resolve(false);
+    this.rows.set(id, { ...current, status: to });
+    return Promise.resolve(true);
+  }
+
+  /** Même tri et même curseur que l'adapter Drizzle : `(created_at, id)` décroissant. */
+  list({ search, status, after, limit }: AdminUserQuery): Promise<Page<Profile>> {
+    const matches = [...this.rows.values()]
+      .filter((p) => (status === null ? p.status !== 'deleted' : p.status === status))
+      .filter(
+        (p) =>
+          search === null ||
+          p.username.includes(search) ||
+          p.fullName.toLowerCase().includes(search),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : -1))
+      .filter(
+        (p) =>
+          !after ||
+          p.createdAt.getTime() < after.createdAt.getTime() ||
+          (p.createdAt.getTime() === after.createdAt.getTime() && p.id < after.id),
+      );
+    const items = matches.slice(0, limit);
+    const last = items.at(-1);
+    return Promise.resolve({
+      items,
+      next: matches.length > limit && last ? { createdAt: last.createdAt, id: last.id } : null,
+    });
   }
 
   statusOf(userId: string): Promise<AccountStatus | null> {

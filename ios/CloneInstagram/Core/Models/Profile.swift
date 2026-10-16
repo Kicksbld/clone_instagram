@@ -1,6 +1,6 @@
 import Foundation
 
-/// Statut du compte (ADR-005) ; `suspended` et `banned` sont gérés en T14.
+/// Statut du compte (ADR-005) : suspendu ou banni, l'app n'affiche que l'écran « Compte suspendu ».
 enum AccountStatus: Equatable {
     case active
     case suspended

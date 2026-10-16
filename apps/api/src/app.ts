@@ -15,6 +15,10 @@ import {
   registerFeedRoutes,
 } from './modules/feed/infrastructure/http/feed-routes.ts';
 import {
+  type AdminUsersUseCases,
+  registerAdminUsersRoutes,
+} from './modules/identity/infrastructure/http/admin-users-routes.ts';
+import {
   type IdentityUseCases,
   registerIdentityRoutes,
 } from './modules/identity/infrastructure/http/identity-routes.ts';
@@ -59,6 +63,8 @@ export interface AppDependencies {
   engagement: EngagementUseCases;
   billing: BillingUseCases;
   moderation: ModerationUseCases;
+  /** Backoffice (ADR-011) : routes `/v1/admin/…`, rôle `admin` vérifié par chaque use case. */
+  admin: AdminUsersUseCases;
   mediaUrls: PublicMediaUrls;
 }
 
@@ -102,6 +108,7 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
     registerEngagementRoutes(v1, dependencies.engagement, dependencies.mediaUrls);
     registerBillingRoutes(v1, dependencies.billing);
     registerModerationRoutes(v1, dependencies.moderation);
+    registerAdminUsersRoutes(v1, dependencies.admin, dependencies.mediaUrls);
     done();
   });
 

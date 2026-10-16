@@ -1,4 +1,11 @@
-import { media, profiles, type Executor, type ImageVariantPaths, type ProfileRow } from '@clone/db';
+import {
+  media,
+  profiles,
+  transitionProfileStatus,
+  type Executor,
+  type ImageVariantPaths,
+  type ProfileRow,
+} from '@clone/db';
 import { and, eq, inArray, ne, sql, type SQL } from 'drizzle-orm';
 
 import type {
@@ -7,13 +14,13 @@ import type {
   ProfileRepository,
 } from '../../application/ports/profile-repository.ts';
 import { ProfileAlreadyExistsError, UsernameTakenError } from '../../domain/errors.ts';
-import type { Avatar, Profile } from '../../domain/profile.ts';
+import type { AccountStatus, Avatar, Profile } from '../../domain/profile.ts';
 
 function toAvatar(mediaId: string | null, variants: ImageVariantPaths | null): Avatar | null {
   return mediaId && variants ? { mediaId, variants } : null;
 }
 
-function toProfile(row: ProfileRow, avatarVariants: ImageVariantPaths | null): Profile {
+export function toProfile(row: ProfileRow, avatarVariants: ImageVariantPaths | null): Profile {
   return {
     id: row.id,
     username: row.username,
@@ -102,6 +109,14 @@ export class DrizzleProfileRepository implements ProfileRepository {
       .update(profiles)
       .set({ status: 'deleted', updatedAt: sql`now()` })
       .where(eq(profiles.id, id));
+  }
+
+  transitionStatus(
+    id: string,
+    from: readonly AccountStatus[],
+    to: AccountStatus,
+  ): Promise<boolean> {
+    return transitionProfileStatus(this.db, id, from, to);
   }
 
   async findTakenUsernames(
