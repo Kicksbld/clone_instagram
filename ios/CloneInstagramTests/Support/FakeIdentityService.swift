@@ -18,6 +18,8 @@ final class FakeIdentityService: IdentityService {
     var onboardingResults: [Result<Profile, IdentityServiceError>] = []
     var updateError: IdentityServiceError?
     var removeAvatarError: IdentityServiceError?
+    /// Appelé pendant `removeAvatar`, avant la réponse.
+    var duringRemoveAvatar: (() -> Void)?
     /// Erreur de `updateSettings` ; sinon le profil renvoyé reflète le paramètre demandé.
     var settingsError: IdentityServiceError?
     /// Appelé pendant `updateSettings`, avant la réponse (ex. l'utilisateur change encore d'avis).
@@ -72,6 +74,7 @@ final class FakeIdentityService: IdentityService {
 
     func removeAvatar() async throws(IdentityServiceError) -> Profile {
         removeAvatarCount += 1
+        duringRemoveAvatar?()
         if let removeAvatarError {
             throw removeAvatarError
         }
