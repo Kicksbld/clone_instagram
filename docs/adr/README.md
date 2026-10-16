@@ -26,13 +26,11 @@ Décisions d'architecture du projet, rédigées selon [Agent ADR Architecte.md](
 | [ADR-018](ADR-018-authentification-inscription-par-code.md) | Authentification : JWT ES256 vérifiés par JWKS, inscription par code email, profil créé à l'acceptation des conditions | Proposé |
 | [ADR-019](ADR-019-compatibilite-contrat-reponses-tolerantes.md) | Compatibilité du contrat : réponses tolérantes, ruptures détectées par la CI | Proposé |
 | [ADR-020](ADR-020-mises-a-jour-optimistes-modele-commun.md) | Mises à jour optimistes : modèle commun à toute l'app iOS | Accepté |
-
-## À rédiger avant le plan de leur phase (P1 et plus)
-
-À partir du cahier des charges, avec tout le contenu dont les tranches auront besoin.
-
-- Messagerie : envoi REST, réception WebSocket (D16)
-- Vidéo en HLS via ffmpeg (D10)
-- Stories archivées, jamais supprimées (D14)
-- Notification de fin de traitement média par QueueEvents (D21)
-- Avantages Clone Plus limités à 4 (D28)
+| [ADR-021](ADR-021-temps-reel-websocket.md) | Temps réel : un WebSocket qui notifie, jamais source de vérité | Proposé |
+| [ADR-022](ADR-022-fin-traitement-media-queueevents.md) | Fin de traitement d'un média notifiée par les QueueEvents BullMQ | Proposé |
+| [ADR-023](ADR-023-messagerie-envoi-rest-reception-websocket.md) | Messagerie : envoi par REST idempotent, réception par WebSocket, rattrapage par REST | Proposé |
+| [ADR-024](ADR-024-video-hls-ffmpeg.md) | Vidéo des reels : transcodage HLS par ffmpeg dans le worker | Proposé |
+| [ADR-025](ADR-025-contenus-ephemeres-stories-archivees.md) | Contenus éphémères : stories archivées, jamais supprimées ; stories à la une et notes | Proposé |
+| [ADR-026](ADR-026-notifications-in-app-port-transverse.md) | Notifications in-app : port transverse écrit dans la transaction de l'action | Proposé |
+| [ADR-027](ADR-027-notifications-push-apns.md) | Notifications push : APNs en direct depuis le worker, déclenchées par l'API | Proposé |
+| [ADR-028](ADR-028-feed-republications-date-activite.md) | Feed avec republications : union des posts et des republications, triée par date d'activité | Proposé |

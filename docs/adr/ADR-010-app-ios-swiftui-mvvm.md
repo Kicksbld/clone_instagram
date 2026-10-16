@@ -37,8 +37,11 @@ ios/CloneInstagram/
 ├── Core/
 │   ├── API/        # client généré, configuration, middleware d'authentification
 │   ├── Auth/       # session, Sign in with Apple
-│   ├── Realtime/   # WebSocket (P1)
-│   ├── Media/      # UploadManager (ADR-008), images, lecteurs vidéo
+│   ├── Realtime/   # RealtimeClient, WebSocket (P1, ADR-021)
+│   ├── Messaging/  # conversations et messages partagés (P1, ADR-023)
+│   ├── Activity/   # pastille et notifications in-app (P1, ADR-026)
+│   ├── Notifications/ # push APNs, autorisation, appui → Router (P2, ADR-027)
+│   ├── Media/      # UploadManager (ADR-008), images, pool d'AVPlayer (ADR-024)
 │   ├── Navigation/ # Router, deep links
 │   ├── Billing/    # SubscriptionService (ADR-012)
 │   ├── Analytics/  # AnalyticsService, noms d'événements (ADR-013)
@@ -53,7 +56,7 @@ ios/CloneInstagram/
 - **Images** : Nuke (cache mémoire et disque, prefetching, décodage hors du thread principal), **jamais `AsyncImage`**. Toujours la variante adaptée à la taille d'affichage (`thumb` pour les grilles, `large` pour le feed ; ADR-008). Feed en `LazyVStack` ou `List` avec préchargement des images suivantes.
 - **Dépendances** : `supabase-swift` (module `Auth` seulement), `AuthenticationServices`, Nuke, `purchases-ios`, `posthog-ios`, `swift-openapi-generator`. Capture : `PhotosPicker` pour les posts. Toute nouvelle dépendance est une décision à faire valider (`Décision non documentée — ADR recommandé`).
 - **Configurations** `Local` (API et Supabase sur l'IP du Mac) et `Demo` (API Railway et Supabase Cloud, HTTPS), chacune avec son `.xcconfig` (non versionné, modèle versionné) : URL de l'API, URL Supabase, clé publique Supabase, clé publique RevenueCat, clé projet et hôte PostHog. `NSAllowsLocalNetworking` et `NSLocalNetworkUsageDescription` uniquement en `Local`.
-- **Info.plist et capabilities** : `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription` (`NSMicrophoneUsageDescription` avec les reels) ; Sign in with Apple ; In-App Purchase (ADR-012) ; Push Notifications en P2.
+- **Info.plist et capabilities** : `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription` (`NSMicrophoneUsageDescription` avec les reels) ; Sign in with Apple ; In-App Purchase (ADR-012) ; Push Notifications en P2 (ADR-027).
 - Le client OpenAPI est régénéré au build par le plugin `swift-openapi-generator`, à partir d'une copie de `packages/contract/openapi.yaml` (ADR-003).
 - **Accessibilité** : Dynamic Type, libellés VoiceOver sur les boutons icônes (like, commentaire, partage, enregistrer), contrastes vérifiés sur les surfaces Liquid Glass.
 - Qualité : SwiftLint, SwiftFormat, Swift Testing (+ XCUITest optionnel), lancés en local (ADR-014).
@@ -84,3 +87,6 @@ ios/CloneInstagram/
 - ADR-012 (SDK RevenueCat)
 - ADR-013 (SDK PostHog, `AnalyticsService`)
 - ADR-014 (tests iOS)
+- ADR-021 (`Core/Realtime`)
+- ADR-024 (lecture HLS, pool d'`AVPlayer`)
+- ADR-027 (push)

@@ -121,7 +121,7 @@ Règles :
 
 Pourquoi une seule table pour posts et reels : likes, commentaires, enregistrements, mentions, collaborations et republications s'appliquent aux deux de façon identique. Deux tables doubleraient toutes les tables d'engagement.
 
-**`post_collaborators`** (P2) : `post_id`, `user_id`, `status` (`pending` | `accepted` | `declined`), `created_at`. Le post apparaît sur le profil du collaborateur après acceptation. Limite proposée : 3 collaborateurs.
+**`post_collaborators`** (P2) : `post_id`, `user_id`, `status` (`pending` | `accepted` | `declined`), `created_at`. Le post apparaît sur le profil du collaborateur après acceptation. Limite : 5 collaborateurs par post, comme Instagram.
 
 **`reposts`** (P2) : `user_id`, `post_id`, `created_at`, clé primaire composite. Visible dans l'onglet « Republications » du profil et dans le feed des abonnés.
 
@@ -133,7 +133,7 @@ Pourquoi une seule table pour posts et reels : likes, commentaires, enregistreme
 - **`comments`** : `id`, `post_id`, `author_id`, `parent_id` (nullable, **un seul niveau** : une réponse ne peut pas avoir de réponse), `body` (≤ 2 200 caractères), `like_count`, `reply_count`, `created_at`, `deleted_at`.
 - **`comment_likes`** (`user_id`, `comment_id`, `created_at`).
 - **`saves`** (`user_id`, `post_id`, `created_at`) — privé, visible du seul propriétaire.
-- **`mentions`** : `id`, `mentioned_user_id`, `author_id`, `post_id` | `comment_id` | `story_id` (exactement un non nul, via `CHECK`), `created_at`. Les mentions sont extraites du texte (`@username`) par le use case de création ; un utilisateur invisible pour l'auteur (blocage) n'est pas mentionné.
+- **`mentions`** : `id`, `mentioned_user_id`, `author_id`, `post_id` | `comment_id` | `story_id` (exactement un non nul, via `CHECK`), `created_at`. Les mentions sont extraites du texte (`@username`) par le use case de création des posts et des commentaires ; une story, sans texte, les reçoit par un champ dédié (`mentionedUserIds`, 20 au plus, ADR-025) ; un utilisateur invisible pour l'auteur (blocage) n'est pas mentionné.
 
 ### 4.7 Stories et stories à la une
 

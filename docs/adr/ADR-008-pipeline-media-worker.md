@@ -10,14 +10,14 @@ Ces traitements prennent de quelques centaines de millisecondes à plusieurs min
 
 L'upload depuis l'iPhone doit survivre à la mise en arrière-plan de l'app.
 
-Décisions sources : D8, D9, D11.
+Décisions sources : D8, D9, D11 ; vidéo (D10, D43) et notification de fin de traitement (D21) détaillées dans ADR-024 et ADR-022.
 
 ## Décision
 - **Upload direct vers Storage** :
   1. l'app demande une intention d'upload : `POST /v1/media/uploads` `{ kind, purpose, mimeType, sizeBytes }` → `{ mediaId, uploadUrl, expiresAt }` ; le média est créé en `pending_upload` ;
   2. elle envoie le fichier directement à l'URL présignée ;
   3. elle confirme : `POST /v1/media/{id}/complete` ; le média passe en `uploaded` et l'API enfile le job de traitement ;
-  4. elle suit le statut par `GET /v1/media/{id}` (statut et variantes) jusqu'à `ready` ou `failed`. À partir de la P1, un événement WebSocket évite ce polling (ADR à rédiger, D21).
+  4. elle suit le statut par `GET /v1/media/{id}` (statut et variantes) jusqu'à `ready` ou `failed`. À partir de la P1, l'événement WebSocket `media.ready` ou `media.failed` évite ce polling ; `GET /v1/media/{id}` devient le repli (ADR-022).
 
   L'API ne transporte jamais le fichier.
 - **Traitement par un worker séparé** (`apps/worker`) consommant une file **BullMQ**. Tout traitement de plus de quelques centaines de millisecondes passe par un job.
@@ -29,9 +29,9 @@ Décisions sources : D8, D9, D11.
 | Type | Entrée acceptée | Sortie (`variants`) |
 |---|---|---|
 | Image | JPEG / PNG, ≤ 20 Mo | WebP `thumb` 150 px, `medium` 640 px, `large` 1080 px, **EXIF supprimé** |
-| Vidéo (reel, P1) | MP4 H.264 préparé par l'app, ≤ 60 s, ≤ 200 Mo | playlist HLS maître, miniature, durée (ADR à rédiger, D10) |
+| Vidéo (reel, P1) | MP4 H.264 préparé par l'app, ≤ 60 s, ≤ 200 Mo | HLS 360p + 720p, playlist maître, miniature WebP, durée (ADR-024) |
 
-- **Worker sans logique métier** : il revalide le fichier réel (type détecté, dimensions ; durée via `ffprobe` pour la vidéo) — les déclarations du client ne font pas foi — génère les variantes, puis change le statut (motif dans `failure_reason` en cas d'échec). Jobs idempotents (un job rejoué ne produit pas de doublon), 3 tentatives avec délai croissant, concurrence de 1 pour la vidéo.
+- **Worker sans logique métier** : il revalide le fichier réel (type détecté, dimensions ; durée via `ffprobe` pour la vidéo) — les déclarations du client ne font pas foi — génère les variantes, puis change le statut (motif dans `failure_reason` en cas d'échec). Jobs idempotents (un job rejoué ne produit pas de doublon), 3 tentatives avec délai croissant, concurrence de 1 pour la vidéo (file `media-video`, ADR-024).
 - **Rattachement** : un média ne peut être attaché qu'une fois, par son propriétaire, seulement s'il est `ready` et que son `purpose` correspond. **Un post n'est créé que lorsque tous ses médias sont `ready`.**
   - La table `media` porte elle-même son usage : `attached_at` (date où un contenu l'utilise : photo de profil, post…) et `detached_at` (date où il ne l'est plus : photo de profil remplacée ou retirée, contenu supprimé). Aucune requête n'a besoin de parcourir les tables qui référencent un média pour savoir s'il est utilisé.
   - Le rattachement passe par une seule fonction partagée de `packages/db`, écrite comme les transitions : `UPDATE media SET attached_at = now() WHERE id = $1 AND owner_id = $2 AND status = 'ready' AND purpose = $3 AND attached_at IS NULL`. Zéro ligne touchée : l'API relit le média pour renvoyer le bon refus : `404 media_not_found` (inexistant ou d'un autre utilisateur), `409 media_not_ready`, `409 media_already_attached`, `422 media_purpose_mismatch`. Le détachement passe aussi par une fonction partagée (`SET detached_at = now() WHERE id = $1 AND attached_at IS NOT NULL AND detached_at IS NULL`), dans la même transaction que l'écriture qui retire l'usage.
@@ -40,13 +40,13 @@ Décisions sources : D8, D9, D11.
   - l'app retire les métadonnées (dont le GPS) en préparant l'image : la position ne quitte pas le téléphone ;
   - le worker les retire quand même des variantes, car les déclarations du client ne font pas foi ;
   - l'original est supprimé du bucket `uploads` par le worker dès que le média passe en `ready` ; en cas d'échec (`failed`), il est conservé pour la relance (P2) jusqu'à la purge.
-- **Buckets** : `uploads` (privé, originaux), `media-public` (public, chemins UUID non devinables : variantes des posts, reels, stories, avatars), `media-private` (privé, URL signées de courte durée délivrées par l'API après contrôle d'accès : images de messages, instants). L'app lit les variantes directement depuis Storage.
+- **Buckets** : `uploads` (privé, originaux), `media-public` (public, chemins UUID non devinables : variantes des posts, reels, stories, avatars), `media-private` (privé, URL signées de courte durée délivrées par l'API après contrôle d'accès : images de messages, instants ; durée et accès : ADR-023). L'app lit les variantes directement depuis Storage.
 - **Jobs** :
 
 | File | Job | Rôle |
 |---|---|---|
 | `media` | `process-image` | Type réel, fichiers invalides refusés, variantes WebP sans EXIF |
-| `media` | `process-video` (P1) | `ffprobe`, HLS, miniature |
+| `media-video` | `process-video` (P1) | `ffprobe`, HLS, miniature ; file séparée, concurrence de 1 (ADR-024) |
 | `maintenance` | `purge-orphan-media` (toutes les heures) | Fichiers et ligne des médias jamais attachés après 24 h (`attached_at IS NULL`, uploads abandonnés compris) et des médias détachés (`detached_at IS NOT NULL`, ex. photo de profil remplacée ou retirée) |
 | `maintenance` | `purge-account` (à la demande) | Données et fichiers d'un compte supprimé ; client RevenueCat (ADR-012) et personne PostHog (ADR-013), appels idempotents |
 | `maintenance` | `purge-content-files` | Fichiers d'un contenu supprimé par modération |
@@ -84,3 +84,6 @@ Décisions sources : D8, D9, D11.
 - ADR-009 (worker sur Railway, image avec ffmpeg)
 - ADR-010 (`UploadManager` dans `Core/Media`)
 - ADR-015 (contrat des jobs)
+- ADR-022 (notification de fin de traitement par QueueEvents)
+- ADR-023 (images de messages, URL signées)
+- ADR-024 (vidéo HLS)
