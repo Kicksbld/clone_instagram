@@ -76,7 +76,7 @@ Projet réalisé dans le cadre d'un cours. Objectif pédagogique double :
 - Connexion admin.
 - File de modération : consulter un signalement, supprimer le contenu ou classer le signalement.
 - Gestion des utilisateurs : recherche, fiche (dont statut d'abonnement), suspension, bannissement, suppression.
-- **Analytics** : pas de page dans le backoffice ; entonnoir onboarding → paywall → achat, résultats de l'A/B test et abonnés Plus actifs consultés directement dans PostHog.
+- **Analytics** : pas de page dans le backoffice ; entonnoir onboarding → paywall → achat, résultats de l'A/B test consultés directement dans PostHog, abonnés Plus actifs dans RevenueCat.
 
 
 

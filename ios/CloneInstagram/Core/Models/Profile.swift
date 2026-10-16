@@ -61,7 +61,8 @@ struct UserProfile: Equatable, Identifiable {
     /// Ce compte me suit (« Suivre en retour »).
     let followsMe: Bool
     /// Je peux voir ses contenus ; `false` pour un compte privé que je ne suis pas.
-    let canViewContent: Bool
+    /// Masqué tout de suite quand je ne suis plus un compte privé (`FollowStore`).
+    var canViewContent: Bool
 }
 
 /// Disponibilité d'un username (ADR-018).

@@ -214,7 +214,7 @@ sequenceDiagram
 - Nommage des événements : `objet_action` en `snake_case`, au passé. Propriétés sans donnée personnelle.
 - `distinct_id` = identifiant de profil, fixé par `identify` dès la création du profil (avant le paywall, pour que la variante reste la même pour l'utilisateur).
 - **A/B test** : expérience PostHog sur un feature flag à plusieurs variantes. L'app lit la variante et choisit l'offre RevenueCat ou la présentation du paywall correspondante. PostHog enregistre automatiquement l'exposition. Métrique principale : `purchase_completed`.
-- **Backoffice** : pas de duplication. L'entonnoir, les inscriptions, les abonnés Plus actifs et les résultats de l'A/B test se consultent directement dans l'interface PostHog ; le backoffice n'a pas de page Analytics.
+- **Backoffice** : pas de duplication. L'entonnoir, les inscriptions et les résultats de l'A/B test se consultent directement dans l'interface PostHog, les abonnés Plus actifs dans RevenueCat ; le backoffice n'a pas de page Analytics.
 - L'envoi d'un événement serveur ne bloque jamais une requête : un échec PostHog est journalisé et ignoré.
 
 ## 4. Contrat partagé

@@ -82,8 +82,8 @@ struct UserProfileView: View {
                     .padding([.horizontal, .top])
                     if profile.canViewContent {
                         ProfilePostsGrid(viewModel: ProfilePostsViewModel(userId: profile.id, posts: posts))
-                            // Nouvelle grille si l'abonnement change (contenus visibles ou non).
-                            .id(profile.isFollowing)
+                            // Nouvelle grille seulement si la visibilité des contenus change (pas à chaque tap Suivre).
+                            .id(profile.canViewContent)
                     } else {
                         ContentUnavailableView(
                             "Ce compte est privé",

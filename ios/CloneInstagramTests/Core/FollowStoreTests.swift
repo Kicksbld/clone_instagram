@@ -83,6 +83,19 @@ struct FollowStoreTests {
         #expect(follows.displayed(profile) == profile)
     }
 
+    @Test func `ne plus suivre un compte privé : contenus masqués tout de suite, rétablis si l'API échoue`() async {
+        let followed = UserProfile.fixture(isPrivate: true, isFollowing: true)
+        follows.record(followed)
+        social.followResults = [.failure(.unreachable)]
+        var visibleDuringCall: Bool?
+        social.duringFollow = { visibleDuringCall = follows.displayed(followed).canViewContent }
+
+        _ = await follows.setFollowing(false, userId: followed.id, current: FollowState(followed), source: .profile)
+
+        #expect(visibleDuringCall == false)
+        #expect(follows.displayed(followed).canViewContent)
+    }
+
     @Test func `profil reçu pendant un follow en cours : l'état voulu est gardé`() async {
         social.duringFollow = { follows.record(profile) }
 

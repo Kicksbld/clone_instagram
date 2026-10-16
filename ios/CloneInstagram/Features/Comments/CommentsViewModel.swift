@@ -49,7 +49,10 @@ final class CommentsViewModel {
     static let maxBodyLength = 2200
 
     private(set) var state: State = .loading
-    private(set) var threads: [CommentThread] = []
+    /// Fils chargés, y compris ceux des comptes bloqués pendant la session (masqués à l'affichage).
+    private var loadedThreads: [CommentThread] = []
+    /// Comptes bloqués pendant la session : masqués à l'affichage, réaffichés si le blocage échoue (ADR-020).
+    private var hiddenAuthorIds: Set<String> = []
     private(set) var isLoadingMore = false
     /// Commentaire en cours de saisie.
     var draft = ""
@@ -91,6 +94,18 @@ final class CommentsViewModel {
         state == .loaded && !trimmedDraft.isEmpty && trimmedDraft.count <= Self.maxBodyLength
     }
 
+    /// Fils affichés, sans les commentaires ni les réponses des comptes bloqués.
+    var threads: [CommentThread] {
+        guard !hiddenAuthorIds.isEmpty else { return loadedThreads }
+        return loadedThreads
+            .filter { !hiddenAuthorIds.contains($0.comment.author.id) }
+            .map { thread in
+                var thread = thread
+                thread.replies.removeAll { hiddenAuthorIds.contains($0.author.id) }
+                return thread
+            }
+    }
+
     var hasMore: Bool {
         nextCursor != nil
     }
@@ -101,7 +116,7 @@ final class CommentsViewModel {
         state = .loading
         do {
             let page = try await service.listComments(postId: postId, cursor: nil)
-            threads = page.items.map { CommentThread(comment: $0) }
+            loadedThreads = page.items.map { CommentThread(comment: $0) }
             nextCursor = page.nextCursor
             state = .loaded
         } catch {
@@ -121,8 +136,8 @@ final class CommentsViewModel {
         defer { isLoadingMore = false }
         do {
             let page = try await service.listComments(postId: postId, cursor: cursor)
-            let known = Set(threads.map(\.id))
-            threads += page.items.filter { !known.contains($0.id) }.map { CommentThread(comment: $0) }
+            let known = Set(loadedThreads.map(\.id))
+            loadedThreads += page.items.filter { !known.contains($0.id) }.map { CommentThread(comment: $0) }
             nextCursor = page.nextCursor
         } catch .postNotFound {
             state = .postGone
@@ -133,27 +148,27 @@ final class CommentsViewModel {
 
     /// « Afficher les N réponses » : déplie le fil, puis charge la page suivante de réponses si besoin.
     func showReplies(of threadId: String) async {
-        guard let index = index(of: threadId), !threads[index].isLoadingReplies else { return }
-        threads[index].isExpanded = true
-        let thread = threads[index]
+        guard let index = index(of: threadId), !loadedThreads[index].isLoadingReplies else { return }
+        loadedThreads[index].isExpanded = true
+        let thread = loadedThreads[index]
         guard !thread.hasLoadedReplies || thread.repliesCursor != nil else { return }
-        threads[index].isLoadingReplies = true
+        loadedThreads[index].isLoadingReplies = true
         do {
             let page = try await service.listReplies(
                 commentId: threadId,
                 cursor: thread.hasLoadedReplies ? thread.repliesCursor : nil
             )
             guard let index = self.index(of: threadId) else { return }
-            let known = Set(threads[index].replies.map(\.id))
-            threads[index].replies += page.items.filter { !known.contains($0.id) }
-            threads[index].hasLoadedReplies = true
-            threads[index].repliesCursor = page.nextCursor
-            threads[index].isLoadingReplies = false
+            let known = Set(loadedThreads[index].replies.map(\.id))
+            loadedThreads[index].replies += page.items.filter { !known.contains($0.id) }
+            loadedThreads[index].hasLoadedReplies = true
+            loadedThreads[index].repliesCursor = page.nextCursor
+            loadedThreads[index].isLoadingReplies = false
         } catch {
             guard let index = self.index(of: threadId) else { return }
-            threads[index].isLoadingReplies = false
+            loadedThreads[index].isLoadingReplies = false
             if error == .commentNotFound {
-                threads.remove(at: index)
+                loadedThreads.remove(at: index)
             } else {
                 errorMessage = "Impossible de charger les réponses. Réessayez."
             }
@@ -163,7 +178,7 @@ final class CommentsViewModel {
     /// « Masquer les réponses ».
     func hideReplies(of threadId: String) {
         guard let index = index(of: threadId) else { return }
-        threads[index].isExpanded = false
+        loadedThreads[index].isExpanded = false
     }
 
     // MARK: - Publication
@@ -212,7 +227,7 @@ final class CommentsViewModel {
                 return
             case .commentNotFound:
                 // Le commentaire auquel je réponds a disparu (supprimé, ou auteur devenu invisible).
-                threads.removeAll { $0.id == target?.parentId }
+                loadedThreads.removeAll { $0.id == target?.parentId }
                 errorMessage = "Ce commentaire n'est plus disponible."
             default:
                 errorMessage = Self.message(sending: error)
@@ -232,7 +247,7 @@ final class CommentsViewModel {
     /// remis en cas d'échec ; un commentaire supprime ses réponses.
     func delete(_ comment: Comment) async {
         guard comment.canDelete, !comment.isPending else { return }
-        let snapshot = threads
+        let snapshot = loadedThreads
         let removed = comment.parentId == nil ? 1 + comment.replyCount : 1
         remove(comment)
         adjustCount(by: -removed)
@@ -241,7 +256,7 @@ final class CommentsViewModel {
         } catch .commentNotFound {
             // Déjà supprimé (réponse perdue, ou supprimé par l'auteur du post) : le résultat attendu est atteint.
         } catch {
-            threads = snapshot
+            loadedThreads = snapshot
             adjustCount(by: removed)
             errorMessage = error == .unreachable
                 ? "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
@@ -256,45 +271,43 @@ final class CommentsViewModel {
         comment.author.id != viewer.id && !comment.isPending
     }
 
-    /// Comptes bloqués pendant la session : leurs commentaires et réponses disparaissent (ADR-006).
+    /// Comptes bloqués pendant la session : leurs commentaires et réponses disparaissent (ADR-006), et
+    /// réapparaissent si le blocage échoue (`BlockStore`).
     func hideComments(by authorIds: Set<String>) {
-        threads.removeAll { authorIds.contains($0.comment.author.id) }
-        for index in threads.indices {
-            threads[index].replies.removeAll { authorIds.contains($0.author.id) }
-        }
+        hiddenAuthorIds = authorIds
     }
 
     private func index(of threadId: String) -> Int? {
-        threads.firstIndex { $0.id == threadId }
+        loadedThreads.firstIndex { $0.id == threadId }
     }
 
     /// Nouveau commentaire en tête de liste ; nouvelle réponse en tête de son fil, déplié.
     private func insert(_ comment: Comment) {
         if let parentId = comment.parentId, let index = index(of: parentId) {
-            threads[index].replies.insert(comment, at: 0)
-            threads[index].comment.replyCount += 1
-            threads[index].isExpanded = true
+            loadedThreads[index].replies.insert(comment, at: 0)
+            loadedThreads[index].comment.replyCount += 1
+            loadedThreads[index].isExpanded = true
         } else {
-            threads.insert(CommentThread(comment: comment), at: 0)
+            loadedThreads.insert(CommentThread(comment: comment), at: 0)
         }
     }
 
     private func replace(_ pendingId: String, with comment: Comment) {
         if let parentId = comment.parentId, let index = index(of: parentId) {
-            guard let position = threads[index].replies.firstIndex(where: { $0.id == pendingId }) else { return }
-            threads[index].replies[position] = comment
+            guard let position = loadedThreads[index].replies.firstIndex(where: { $0.id == pendingId }) else { return }
+            loadedThreads[index].replies[position] = comment
         } else if let index = index(of: pendingId) {
-            threads[index].comment = comment
+            loadedThreads[index].comment = comment
         }
     }
 
     private func remove(_ comment: Comment) {
         if let parentId = comment.parentId, let index = index(of: parentId) {
-            guard threads[index].replies.contains(where: { $0.id == comment.id }) else { return }
-            threads[index].replies.removeAll { $0.id == comment.id }
-            threads[index].comment.replyCount = max(0, threads[index].comment.replyCount - 1)
+            guard loadedThreads[index].replies.contains(where: { $0.id == comment.id }) else { return }
+            loadedThreads[index].replies.removeAll { $0.id == comment.id }
+            loadedThreads[index].comment.replyCount = max(0, loadedThreads[index].comment.replyCount - 1)
         } else {
-            threads.removeAll { $0.id == comment.id }
+            loadedThreads.removeAll { $0.id == comment.id }
         }
     }
 

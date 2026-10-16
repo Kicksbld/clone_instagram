@@ -218,6 +218,20 @@ struct CommentsViewModelTests {
         #expect(viewModel.threads.first?.replies.isEmpty == true)
     }
 
+    @Test func `blocage en échec → commentaires et réponses réaffichés`() async {
+        service.listResults = [page(.fixture(id: "c2", username: "ines"), .fixture(id: "c1", replyCount: 1))]
+        service.repliesResults = [page(.fixture(id: "r1", parentId: "c1", username: "ines"))]
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        await viewModel.showReplies(of: "c1")
+        viewModel.hideComments(by: ["author-ines"])
+
+        viewModel.hideComments(by: [])
+
+        #expect(viewModel.threads.map(\.id) == ["c2", "c1"])
+        #expect(viewModel.threads.last?.replies.map(\.id) == ["r1"])
+    }
+
     @Test func `signaler et bloquer seulement sur les commentaires des autres`() {
         let viewModel = makeViewModel()
         let mine = CloneInstagram.Comment(

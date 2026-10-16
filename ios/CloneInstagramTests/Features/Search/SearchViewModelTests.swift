@@ -49,4 +49,17 @@ struct SearchViewModelTests {
             return
         }
     }
+
+    @Test func `compte bloqué masqué, réaffiché si le blocage échoue`() async {
+        social.searchResults = [.success([.fixture(id: "lea"), .fixture(id: "hugo")])]
+        let viewModel = SearchViewModel(social: social, follows: FollowStore(service: social))
+        viewModel.query = "a"
+        await viewModel.search()
+
+        viewModel.hideUsers(["lea"])
+        #expect(viewModel.state == .results([.fixture(id: "hugo")]))
+
+        viewModel.hideUsers([])
+        #expect(viewModel.state == .results([.fixture(id: "lea"), .fixture(id: "hugo")]))
+    }
 }

@@ -17,12 +17,14 @@ final class SearchViewModel {
     /// Résultats reçus de l'API, affichés avec l'abonnement partagé par `FollowStore` (« Suivi(e) »).
     private var searchState: State = .idle
 
+    /// Comptes bloqués pendant la session : masqués à l'affichage, réaffichés si le blocage échoue (ADR-020).
+    private var hiddenUserIds: Set<String> = []
     private let social: any SocialService
     private let follows: FollowStore
 
     var state: State {
         if case let .results(users) = searchState {
-            .results(users.map { follows.displayed($0) })
+            .results(users.filter { !hiddenUserIds.contains($0.id) }.map { follows.displayed($0) })
         } else {
             searchState
         }
@@ -63,9 +65,9 @@ final class SearchViewModel {
         }
     }
 
-    /// Comptes bloqués pendant la session : retirés des résultats affichés (ADR-006).
+    /// Comptes bloqués pendant la session : retirés des résultats affichés (ADR-006), réaffichés si le
+    /// blocage échoue (`BlockStore`).
     func hideUsers(_ ids: Set<String>) {
-        guard case let .results(users) = searchState else { return }
-        searchState = .results(users.filter { !ids.contains($0.id) })
+        hiddenUserIds = ids
     }
 }

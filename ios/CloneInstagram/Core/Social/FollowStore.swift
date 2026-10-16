@@ -71,6 +71,10 @@ final class FollowStore {
             profile.followerCount = max(0, profile.followerCount + (state.isFollowing ? 1 : -1))
         }
         profile.isFollowing = state.isFollowing
+        // Compte privé que je ne suis plus : ses contenus disparaissent sans attendre l'API.
+        if profile.isPrivate, !state.isFollowing {
+            profile.canViewContent = false
+        }
         return profile
     }
 

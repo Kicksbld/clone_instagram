@@ -169,22 +169,7 @@ struct RootView: View {
                 Task { await refreshProfile() }
             }
             .modifier(ModerationPresenter(dependencies: dependencies))
-            // Suppression d'un post refusée : le post est réaffiché, l'écran qui l'a demandée peut être fermé.
-            .alert(
-                "Suppression impossible",
-                isPresented: Binding(
-                    get: { dependencies.postDeletions.errorMessage != nil },
-                    set: {
-                        if !$0 {
-                            dependencies.postDeletions.errorMessage = nil
-                        }
-                    }
-                )
-            ) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(dependencies.postDeletions.errorMessage ?? "")
-            }
+            .modifier(PostDeletionAlert(deletions: dependencies.postDeletions))
             .sheet(item: $commentsRoute) { route in
                 CommentsView(
                     viewModel: CommentsViewModel(
@@ -195,6 +180,7 @@ struct RootView: View {
                     )
                 )
                 .modifier(ModerationPresenter(dependencies: dependencies))
+                .modifier(PostDeletionAlert(deletions: dependencies.postDeletions))
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
