@@ -5,7 +5,7 @@ import SwiftUI
  Toutes partagent le même repère : le carré du logo, cadre compris (unités SVG 92 à 420, centre en 256),
  centré dans le rectangle reçu. Le centre du logo est aussi celui de l'objectif.
  */
-private struct LogoSpace {
+private nonisolated struct LogoSpace {
     let rect: CGRect
 
     var unit: CGFloat {
@@ -22,7 +22,7 @@ private struct LogoSpace {
 }
 
 /// Cadre blanc du logo (carré arrondi tracé de 30 unités), à remplir.
-struct LogoFrame: Shape {
+nonisolated struct LogoFrame: Shape {
     func path(in rect: CGRect) -> Path {
         let space = LogoSpace(rect: rect)
         let side = 288 * space.unit
@@ -33,7 +33,7 @@ struct LogoFrame: Shape {
 }
 
 /// Moitié pleine de l'objectif : la gauche dans le logo, la droite seulement pendant le splash.
-struct LogoLensHalf: Shape {
+nonisolated struct LogoLensHalf: Shape {
     enum Side {
         case leading
         case trailing
@@ -59,7 +59,7 @@ struct LogoLensHalf: Shape {
 }
 
 /// Moitié droite de l'objectif, en contour, tracée de haut en bas jusqu'à `progress` (splash), à remplir.
-struct LogoLensArc: Shape {
+nonisolated struct LogoLensArc: Shape {
     var progress: CGFloat = 1
 
     var animatableData: CGFloat {
@@ -85,7 +85,7 @@ struct LogoLensArc: Shape {
 }
 
 /// Point du flash, en haut à droite du cadre.
-struct LogoFlash: Shape {
+nonisolated struct LogoFlash: Shape {
     func path(in rect: CGRect) -> Path {
         let space = LogoSpace(rect: rect)
         let radius = 18 * space.unit

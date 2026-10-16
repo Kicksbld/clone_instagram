@@ -8,8 +8,6 @@ struct RootView: View {
     @State private var deletedPostCount = 0
     /// Feuille des commentaires ouverte depuis un post (feed, détail).
     @State private var commentsRoute: CommentsRoute?
-    /// Feuille des commentaires ouverte depuis un post (feed, détail).
-    @State private var commentsRoute: CommentsRoute?
     /// Splash animé joué une seule fois, au lancement.
     @State private var isSplashFinished = false
     @Environment(\.scenePhase) private var scenePhase
