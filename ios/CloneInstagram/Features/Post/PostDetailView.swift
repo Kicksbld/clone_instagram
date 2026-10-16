@@ -24,31 +24,14 @@ struct PostDetailView: View {
                 }
             }
             .alert("Supprimer la publication ?", isPresented: $isConfirmingDelete) {
+                // Suppression optimiste : l'écran se ferme tout de suite, un échec s'affiche depuis `App`.
                 Button("Supprimer", role: .destructive) {
-                    Task {
-                        if await viewModel.delete() {
-                            dismiss()
-                        }
-                    }
+                    Task { await viewModel.delete() }
+                    dismiss()
                 }
                 Button("Annuler", role: .cancel) {}
             } message: {
                 Text("Cette publication sera définitivement supprimée.")
-            }
-            .alert(
-                "Suppression impossible",
-                isPresented: Binding(
-                    get: { viewModel.deleteErrorMessage != nil },
-                    set: {
-                        if !$0 {
-                            viewModel.deleteErrorMessage = nil
-                        }
-                    }
-                )
-            ) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(viewModel.deleteErrorMessage ?? "")
             }
             .alert(
                 "Action impossible",
@@ -76,7 +59,6 @@ struct PostDetailView: View {
             ScrollView {
                 PostView(
                     post: viewModel.displayed(post),
-                    isDeleting: viewModel.isDeleting,
                     onDelete: viewModel.canDelete ? { isConfirmingDelete = true } : nil,
                     onToggleLike: { Task { await viewModel.toggleLike() } },
                     onDoubleTapLike: { Task { await viewModel.likeFromDoubleTap() } }

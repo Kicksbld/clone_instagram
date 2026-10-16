@@ -32,7 +32,8 @@ struct Profile: Equatable, Identifiable {
     let followerCount: Int
     /// Modifié par mes follows et unfollows, jusqu'au prochain chargement (`FollowStore`).
     var followingCount: Int
-    let postCount: Int
+    /// Modifié par la suppression de mes posts, jusqu'au prochain chargement (`PostDeletionStore`).
+    var postCount: Int
     /// Photo de profil ; `nil` sans photo.
     var avatar: ImageVariants?
     /// Plan Clone Plus renvoyé par l'API (`GET /v1/me`, `POST /v1/me/subscription/refresh`).

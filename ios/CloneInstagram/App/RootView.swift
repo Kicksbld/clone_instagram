@@ -4,8 +4,6 @@ import SwiftUI
 struct RootView: View {
     let dependencies: AppDependencies
     @State private var viewModel: RootViewModel
-    /// Incrémenté à chaque post supprimé : grille et compteurs de mon profil se rechargent.
-    @State private var deletedPostCount = 0
     /// Feuille des commentaires ouverte depuis un post (feed, détail).
     @State private var commentsRoute: CommentsRoute?
     /// Splash animé joué une seule fois, au lancement.
@@ -87,10 +85,10 @@ struct RootView: View {
                         posts: dependencies.posts,
                         likes: dependencies.likes,
                         commentCounts: dependencies.commentCounts,
-                        prefetcher: dependencies.imagePrefetcher,
-                        onDeleted: { deletedPostCount += 1 }
+                        deletions: dependencies.postDeletions,
+                        prefetcher: dependencies.imagePrefetcher
                     ),
-                    revision: deletedPostCount + dependencies.blocks.revision,
+                    revision: dependencies.blocks.revision,
                     publishedCount: dependencies.publishQueue.publishedCount,
                     onSearch: openSearch
                 )
@@ -98,15 +96,18 @@ struct RootView: View {
                 .modifier(SocialDestinations(
                     dependencies: dependencies,
                     viewerId: profile.id,
-                    onPostDeleted: { deletedPostCount += 1 },
                     openComments: openComments
                 ))
             } profileTab: { openSearch in
                 MyProfileView(
-                    profile: dependencies.follows.displayed(me: profile),
+                    profile: dependencies.postDeletions.displayed(me: dependencies.follows.displayed(me: profile)),
                     onRefresh: refreshProfile,
                     onFollowAccounts: openSearch,
-                    posts: ProfilePostsViewModel(userId: profile.id, posts: dependencies.posts),
+                    posts: ProfilePostsViewModel(
+                        userId: profile.id,
+                        posts: dependencies.posts,
+                        deletions: dependencies.postDeletions
+                    ),
                     postsReloadToken: postsRevision,
                     editProfile: {
                         EditProfileView(
@@ -145,7 +146,6 @@ struct RootView: View {
                 .modifier(SocialDestinations(
                     dependencies: dependencies,
                     viewerId: profile.id,
-                    onPostDeleted: { deletedPostCount += 1 },
                     openComments: openComments
                 ))
             } searchTab: {
@@ -153,7 +153,6 @@ struct RootView: View {
                     .modifier(SocialDestinations(
                         dependencies: dependencies,
                         viewerId: profile.id,
-                            onPostDeleted: { deletedPostCount += 1 },
                         openComments: openComments
                     ))
             } createPost: { close in
@@ -163,13 +162,29 @@ struct RootView: View {
                 )
             }
             // Reprise des publications interrompues (fermeture de l'app) ; compteurs rechargés après chaque
-            // post publié ou supprimé.
+            // post publié (un post supprimé disparaît tout de suite : `PostDeletionStore`).
             .task(id: profile.id) { dependencies.publishQueue.resume(for: profile.id) }
             // Compteurs rechargés aussi après un blocage (abonnements supprimés dans les deux sens).
             .onChange(of: postsRevision + dependencies.blocks.revision) {
                 Task { await refreshProfile() }
             }
             .modifier(ModerationPresenter(dependencies: dependencies))
+            // Suppression d'un post refusée : le post est réaffiché, l'écran qui l'a demandée peut être fermé.
+            .alert(
+                "Suppression impossible",
+                isPresented: Binding(
+                    get: { dependencies.postDeletions.errorMessage != nil },
+                    set: {
+                        if !$0 {
+                            dependencies.postDeletions.errorMessage = nil
+                        }
+                    }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(dependencies.postDeletions.errorMessage ?? "")
+            }
             .sheet(item: $commentsRoute) { route in
                 CommentsView(
                     viewModel: CommentsViewModel(
@@ -217,9 +232,9 @@ struct RootView: View {
         )
     }
 
-    /// Change à chaque post publié ou supprimé.
+    /// Change à chaque post publié.
     private var postsRevision: Int {
-        dependencies.publishQueue.publishedCount + deletedPostCount
+        dependencies.publishQueue.publishedCount
     }
 
     /// Ouvre la feuille des commentaires d'un post.
@@ -227,18 +242,20 @@ struct RootView: View {
         OpenCommentsAction { commentsRoute = $0 }
     }
 
-    /// Mon profil rechargé : mon compteur « suivi(e)s » compte désormais les follows confirmés.
+    /// Mon profil rechargé : ses compteurs comptent désormais les follows et suppressions confirmés.
     private func refreshProfile() async {
         if await viewModel.refreshProfile() {
             dependencies.follows.myProfileReloaded()
+            dependencies.postDeletions.myProfileReloaded()
         }
     }
 
-    /// Les publications en attente, les likes, les abonnements, les compteurs de commentaires et les blocages
-    /// de la session ne sont jamais repris pour un autre compte.
+    /// Les publications en attente, les likes, les suppressions, les abonnements, les compteurs de commentaires
+    /// et les blocages de la session ne sont jamais repris pour un autre compte.
     private func signOut() {
         dependencies.publishQueue.discardAll()
         dependencies.likes.reset()
+        dependencies.postDeletions.reset()
         dependencies.follows.reset()
         dependencies.commentCounts.reset()
         dependencies.blocks.reset()
@@ -251,8 +268,6 @@ struct RootView: View {
 private struct SocialDestinations: ViewModifier {
     let dependencies: AppDependencies
     let viewerId: String
-    /// Après la suppression d'un de mes posts.
-    let onPostDeleted: () -> Void
     /// Feuille des commentaires, ouverte depuis le détail d'un post.
     let openComments: OpenCommentsAction
 
@@ -277,7 +292,7 @@ private struct SocialDestinations: ViewModifier {
                         posts: dependencies.posts,
                         likes: dependencies.likes,
                         commentCounts: dependencies.commentCounts,
-                        onDeleted: onPostDeleted
+                        deletions: dependencies.postDeletions
                     )
                 )
                 .environment(\.openComments, openComments)

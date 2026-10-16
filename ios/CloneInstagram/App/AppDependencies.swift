@@ -14,6 +14,8 @@ struct AppDependencies {
     let posts: any PostService
     /// Likes partagés par le feed et le détail des posts.
     let likes: LikeSynchronizer
+    /// Suppression de mes posts, partagée par le feed, le détail et la grille de mon profil.
+    let postDeletions: PostDeletionStore
     let comments: any CommentService
     /// Nombre de commentaires des posts, partagé par le feed, le détail et la feuille de commentaires.
     let commentCounts: CommentCountStore
@@ -56,6 +58,7 @@ struct AppDependencies {
             reports: APIReportService(client: client),
             posts: posts,
             likes: LikeSynchronizer(service: APIEngagementService(client: client), analytics: analytics),
+            postDeletions: PostDeletionStore(service: posts),
             comments: APICommentService(client: client),
             commentCounts: CommentCountStore(),
             publishQueue: PublishQueue(
@@ -92,6 +95,7 @@ extension AppDependencies {
             reports: UnavailableReportService(),
             posts: posts,
             likes: LikeSynchronizer(service: UnavailableEngagementService(), analytics: analytics),
+            postDeletions: PostDeletionStore(service: posts),
             comments: UnavailableCommentService(),
             commentCounts: CommentCountStore(),
             publishQueue: PublishQueue(

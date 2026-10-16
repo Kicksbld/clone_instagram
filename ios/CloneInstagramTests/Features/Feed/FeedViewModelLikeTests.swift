@@ -18,6 +18,7 @@ struct FeedViewModelLikeTests {
             viewerId: "0199a1b2-5eed-7000-8000-000000000001",
             posts: service,
             likes: likes,
+            deletions: PostDeletionStore(service: service),
             prefetcher: FakeImagePrefetcher()
         )
     }
@@ -114,7 +115,8 @@ struct FeedViewModelLikeTests {
             postId: target.id,
             viewerId: "0199a1b2-5eed-7000-8000-000000000001",
             posts: service,
-            likes: likes
+            likes: likes,
+            deletions: PostDeletionStore(service: service)
         )
         await detail.load()
 

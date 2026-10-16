@@ -52,21 +52,6 @@ struct FeedView: View {
                 Text("Cette publication sera définitivement supprimée.")
             }
             .alert(
-                "Suppression impossible",
-                isPresented: Binding(
-                    get: { viewModel.deleteErrorMessage != nil },
-                    set: {
-                        if !$0 {
-                            viewModel.deleteErrorMessage = nil
-                        }
-                    }
-                )
-            ) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(viewModel.deleteErrorMessage ?? "")
-            }
-            .alert(
                 "Action impossible",
                 isPresented: Binding(
                     get: { viewModel.likeErrorMessage != nil },
@@ -141,7 +126,6 @@ struct FeedView: View {
     private func cell(_ post: Post) -> some View {
         PostView(
             post: viewModel.displayed(post),
-            isDeleting: viewModel.deletingPostId == post.id,
             onDelete: viewModel.canDelete(post) ? { postToDelete = post } : nil,
             onToggleLike: { Task { await viewModel.toggleLike(post) } },
             onDoubleTapLike: { Task { await viewModel.likeFromDoubleTap(post) } },

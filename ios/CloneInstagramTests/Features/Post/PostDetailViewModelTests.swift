@@ -9,8 +9,14 @@ struct PostDetailViewModelTests {
         LikeSynchronizer(service: engagement)
     }
 
+    private let deletions: PostDeletionStore
+
+    init() {
+        deletions = PostDeletionStore(service: service)
+    }
+
     @Test func `post chargé`() async {
-        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes)
+        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes, deletions: deletions)
 
         await viewModel.load()
 
@@ -19,7 +25,7 @@ struct PostDetailViewModelTests {
 
     @Test func `post invisible ou supprimé → notFound`() async {
         service.fetchResults = [.failure(.postNotFound)]
-        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes)
+        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes, deletions: deletions)
 
         await viewModel.load()
 
@@ -28,7 +34,7 @@ struct PostDetailViewModelTests {
 
     @Test func `API injoignable → message, puis réessai`() async {
         service.fetchResults = [.failure(.unreachable)]
-        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes)
+        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes, deletions: deletions)
 
         await viewModel.load()
         guard case .failed = viewModel.state else {
@@ -41,8 +47,8 @@ struct PostDetailViewModelTests {
     }
 
     @Test func `menu Supprimer : seulement sur mes posts`() async {
-        let mine = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes)
-        let other = PostDetailViewModel(postId: "p1", viewerId: "autre", posts: service, likes: likes)
+        let mine = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes, deletions: deletions)
+        let other = PostDetailViewModel(postId: "p1", viewerId: "autre", posts: service, likes: likes, deletions: deletions)
 
         #expect(!mine.canDelete)
         await mine.load()
@@ -52,44 +58,55 @@ struct PostDetailViewModelTests {
         #expect(!other.canDelete)
     }
 
-    @Test func `suppression réussie : post supprimé, profil prévenu`() async {
-        var deletions = 0
-        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes) { deletions += 1 }
+    @Test func `suppression : post masqué partout, puis supprimé`() async {
+        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes, deletions: deletions)
         await viewModel.load()
+        var hiddenDuringCall: Bool?
+        service.duringDelete = { hiddenDuringCall = deletions.isDeleted("p1") }
 
-        let closed = await viewModel.delete()
+        await viewModel.delete()
 
-        #expect(closed)
+        #expect(hiddenDuringCall == true)
         #expect(service.deleted == ["p1"])
-        #expect(deletions == 1)
+        #expect(deletions.isDeleted("p1"))
     }
 
     @Test func `post déjà supprimé (404) : suppression considérée comme réussie`() async {
         service.deleteErrors = [.postNotFound]
-        var deletions = 0
-        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes) { deletions += 1 }
+        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes, deletions: deletions)
         await viewModel.load()
 
-        #expect(await viewModel.delete())
-        #expect(deletions == 1)
+        await viewModel.delete()
+
+        #expect(deletions.isDeleted("p1"))
+        #expect(deletions.errorMessage == nil)
     }
 
-    @Test func `suppression en échec : message, écran gardé`() async {
+    @Test func `suppression en échec : post réaffiché, message`() async {
         service.deleteErrors = [.unreachable]
-        var deletions = 0
-        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes) { deletions += 1 }
+        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes, deletions: deletions)
         await viewModel.load()
 
-        #expect(await !viewModel.delete())
-        #expect(viewModel.deleteErrorMessage != nil)
-        #expect(deletions == 0)
+        await viewModel.delete()
+
+        #expect(!deletions.isDeleted("p1"))
+        #expect(deletions.errorMessage != nil)
+    }
+
+    @Test func `post d'un autre : jamais supprimé`() async {
+        let viewModel = PostDetailViewModel(postId: "p1", viewerId: "autre", posts: service, likes: likes, deletions: deletions)
+        await viewModel.load()
+
+        await viewModel.delete()
+
+        #expect(service.deleted.isEmpty)
     }
 
     // MARK: - J'aime
 
     private func loadedViewModel(_ post: Post = .fixture(id: "p1")) async -> PostDetailViewModel {
         service.fetchResults = [.success(post)]
-        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes)
+        let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes, deletions: deletions)
         await viewModel.load()
         return viewModel
     }

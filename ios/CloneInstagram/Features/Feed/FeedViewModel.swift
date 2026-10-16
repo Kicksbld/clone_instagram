@@ -18,17 +18,13 @@ final class FeedViewModel {
     private static let prefetchDistance = 3
 
     private(set) var state: State = .loading
-    /// Tous les posts chargés, du plus récent au plus ancien.
-    private(set) var posts: [Post] = []
+    /// Tous les posts chargés, du plus récent au plus ancien, y compris ceux que je viens de supprimer.
+    private var loadedPosts: [Post] = []
     private(set) var isLoadingMore = false
     /// Échec de la page suivante, affiché sous le feed.
     private(set) var loadMoreFailed = false
     /// « Afficher les publications plus anciennes » a été touché.
     private(set) var isShowingOlder = false
-    /// Post en cours de suppression (menu « … »).
-    private(set) var deletingPostId: String?
-    /// Échec de la suppression, affiché en alerte ; `nil` une fois fermée.
-    var deleteErrorMessage: String?
     /// Échec d'un like ou d'un unlike (état revenu en arrière), affiché en alerte ; `nil` une fois fermée.
     var likeErrorMessage: String?
 
@@ -36,12 +32,11 @@ final class FeedViewModel {
     private let service: any PostService
     private let likes: LikeSynchronizer
     private let commentCounts: CommentCountStore
+    private let deletions: PostDeletionStore
     private let prefetcher: any ImagePrefetching
     private let now: () -> Date
-    /// Après une suppression : grille et compteur de mon profil sont rechargés.
-    private let onDeleted: () -> Void
     private var nextCursor: String?
-    /// Révision des posts supprimés ailleurs (détail, profil) déjà prise en compte.
+    /// Révision des comptes bloqués déjà prise en compte.
     private var loadedRevision: Int?
 
     init(
@@ -49,17 +44,22 @@ final class FeedViewModel {
         posts: any PostService,
         likes: LikeSynchronizer,
         commentCounts: CommentCountStore = CommentCountStore(),
+        deletions: PostDeletionStore,
         prefetcher: any ImagePrefetching,
-        now: @escaping () -> Date = Date.init,
-        onDeleted: @escaping () -> Void = {}
+        now: @escaping () -> Date = Date.init
     ) {
         self.viewerId = viewerId
         service = posts
         self.likes = likes
         self.commentCounts = commentCounts
+        self.deletions = deletions
         self.prefetcher = prefetcher
         self.now = now
-        self.onDeleted = onDeleted
+    }
+
+    /// Posts affichables, du plus récent au plus ancien : sans ceux que j'ai supprimés (`PostDeletionStore`).
+    var posts: [Post] {
+        deletions.visible(loadedPosts)
     }
 
     var hasMore: Bool {
@@ -97,7 +97,7 @@ final class FeedViewModel {
         post.author.id == viewerId
     }
 
-    /// Affichage de l'onglet : charge la première fois, ou si un post a été supprimé ailleurs (`revision`).
+    /// Affichage de l'onglet : charge la première fois, ou après un blocage (`revision`).
     /// Revenir sur l'onglet ne recharge pas le feed, comme Instagram.
     func appear(revision: Int) async {
         guard revision != loadedRevision || state != .loaded else { return }
@@ -122,7 +122,7 @@ final class FeedViewModel {
             let page = try await service.listFeed(cursor: nil)
             likes.record(page.items)
             commentCounts.record(page.items)
-            posts = page.items
+            loadedPosts = page.items
             nextCursor = page.nextCursor
             loadMoreFailed = false
             state = .loaded
@@ -143,8 +143,8 @@ final class FeedViewModel {
             let page = try await service.listFeed(cursor: cursor)
             likes.record(page.items)
             commentCounts.record(page.items)
-            let known = Set(posts.map(\.id))
-            posts += page.items.filter { !known.contains($0.id) }
+            let known = Set(loadedPosts.map(\.id))
+            loadedPosts += page.items.filter { !known.contains($0.id) }
             nextCursor = page.nextCursor
             loadMoreFailed = false
         } catch {
@@ -170,27 +170,11 @@ final class FeedViewModel {
         }
     }
 
-    /// Supprime un de mes posts (confirmé par l'utilisateur) ; il disparaît du feed.
+    /// Supprime un de mes posts (confirmé par l'utilisateur) : il disparaît tout de suite de tous les écrans,
+    /// et réapparaît si l'API échoue (`PostDeletionStore`).
     func delete(_ post: Post) async {
-        guard canDelete(post), deletingPostId == nil else { return }
-        deletingPostId = post.id
-        defer { deletingPostId = nil }
-        do {
-            try await service.deletePost(id: post.id)
-        } catch .postNotFound {
-            // Déjà supprimé (réponse perdue lors d'un premier essai) : le résultat attendu est atteint.
-        } catch .unreachable {
-            deleteErrorMessage = "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
-            return
-        } catch {
-            deleteErrorMessage = "La publication n'a pas pu être supprimée. Réessayez."
-            return
-        }
-        posts.removeAll { $0.id == post.id }
-        // Déjà retiré ici : la révision incrémentée par `onDeleted` ne recharge pas le feed (pages et
-        // position gardées).
-        loadedRevision = loadedRevision.map { $0 + 1 }
-        onDeleted()
+        guard canDelete(post) else { return }
+        await deletions.delete(postId: post.id)
     }
 
     /// Le post avec son dernier état de like et son nombre de commentaires, partagés avec les autres écrans.
@@ -213,7 +197,7 @@ final class FeedViewModel {
         case let .reverted(message):
             likeErrorMessage = message
         case .postGone:
-            posts.removeAll { $0.id == post.id }
+            loadedPosts.removeAll { $0.id == post.id }
         case .confirmed, nil:
             break
         }

@@ -1,7 +1,8 @@
 import Foundation
 import Observation
 
-/// Grille des posts d'un profil (`GET /v1/users/{id}/posts`) : pages de 12, du plus récent au plus ancien.
+/// Grille des posts d'un profil (`GET /v1/users/{id}/posts`) : pages de 12, du plus récent au plus ancien ;
+/// mes posts supprimés en disparaissent tout de suite (`PostDeletionStore`).
 @Observable
 final class ProfilePostsViewModel {
     enum State: Equatable {
@@ -11,18 +12,26 @@ final class ProfilePostsViewModel {
     }
 
     private(set) var state: State = .loading
-    private(set) var posts: [Post] = []
+    /// Posts reçus de l'API, y compris ceux que je viens de supprimer.
+    private var loadedPosts: [Post] = []
     private(set) var isLoadingMore = false
     /// Échec de la page suivante, affiché sous la grille.
     private(set) var loadMoreFailed = false
 
     private let userId: String
     private let service: any PostService
+    private let deletions: PostDeletionStore?
     private var nextCursor: String?
 
-    init(userId: String, posts: any PostService) {
+    /// - Parameter deletions: mes suppressions, pour la grille de mon profil.
+    init(userId: String, posts: any PostService, deletions: PostDeletionStore? = nil) {
         self.userId = userId
         service = posts
+        self.deletions = deletions
+    }
+
+    var posts: [Post] {
+        deletions?.visible(loadedPosts) ?? loadedPosts
     }
 
     var hasMore: Bool {
@@ -36,7 +45,7 @@ final class ProfilePostsViewModel {
         }
         do {
             let page = try await service.listPosts(of: userId, cursor: nil)
-            posts = page.items
+            loadedPosts = page.items
             nextCursor = page.nextCursor
             loadMoreFailed = false
             state = .loaded
@@ -54,8 +63,8 @@ final class ProfilePostsViewModel {
         defer { isLoadingMore = false }
         do {
             let page = try await service.listPosts(of: userId, cursor: cursor)
-            let known = Set(posts.map(\.id))
-            posts += page.items.filter { !known.contains($0.id) }
+            let known = Set(loadedPosts.map(\.id))
+            loadedPosts += page.items.filter { !known.contains($0.id) }
             nextCursor = page.nextCursor
             loadMoreFailed = false
         } catch {
