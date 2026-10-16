@@ -8,6 +8,10 @@ struct RootView: View {
     @State private var deletedPostCount = 0
     /// Feuille des commentaires ouverte depuis un post (feed, détail).
     @State private var commentsRoute: CommentsRoute?
+    /// Feuille des commentaires ouverte depuis un post (feed, détail).
+    @State private var commentsRoute: CommentsRoute?
+    /// Splash animé joué une seule fois, au lancement.
+    @State private var isSplashFinished = false
     @Environment(\.scenePhase) private var scenePhase
 
     init(dependencies: AppDependencies) {
@@ -24,6 +28,11 @@ struct RootView: View {
 
     var body: some View {
         content
+            .overlay {
+                if !isSplashFinished {
+                    SplashView(isReady: viewModel.route != .loading) { isSplashFinished = true }
+                }
+            }
             .task { await viewModel.start() }
             // Compte suspendu ou banni pendant la session (`403 account_suspended`, ADR-005).
             .onChange(of: dependencies.suspension.revision) {

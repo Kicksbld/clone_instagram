@@ -1,0 +1,858 @@
+<title>Splash animé Clone</title>
+<meta name="claude:viewport-fit-sides" content="cover" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+/>
+<style>
+  /* Mise en page : planche de propositions, une maquette d'iPhone par variante, notes de réalisation dessous */
+  :root {
+    --bg: #eeefea;
+    --surface: #fafaf7;
+    --fg: #16171a;
+    --muted: #5e6168;
+    --line: #d6d8d0;
+    --accent: #4e6b00;
+    --accent-ink: #16171a;
+    --bezel: #1b1c1e;
+    --chosen: #c6f432;
+    --display: 'Bricolage Grotesque', 'Avenir Next', system-ui, sans-serif;
+    --body: 'Onest', system-ui, -apple-system, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #0d0e0f;
+      --surface: #16171a;
+      --fg: #ecede8;
+      --muted: #9a9da4;
+      --line: #2a2c30;
+      --accent: #c6f432;
+      --accent-ink: #111111;
+      --bezel: #2f3134;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme='dark'] {
+    --bg: #0d0e0f;
+    --surface: #16171a;
+    --fg: #ecede8;
+    --muted: #9a9da4;
+    --line: #2a2c30;
+    --accent: #c6f432;
+    --accent-ink: #111111;
+    --bezel: #2f3134;
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.55 var(--body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding-block: 40px 64px;
+    display: grid;
+    gap: 28px;
+  }
+  header {
+    display: grid;
+    gap: 10px;
+    max-width: 70ch;
+  }
+  .eyebrow {
+    font: 500 12px/1 var(--mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    font: 800 clamp(30px, 5vw, 46px)/1.05 var(--display);
+    margin: 0;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  header p {
+    margin: 0;
+    color: var(--muted);
+  }
+
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    align-items: center;
+    justify-content: space-between;
+    border-block: 1px solid var(--line);
+    padding-block: 12px;
+  }
+  .bar .group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .choice {
+    font-weight: 500;
+  }
+  .choice strong {
+    font-family: var(--display);
+    font-weight: 800;
+  }
+  button {
+    font: 500 14px/1 var(--body);
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 9px 14px;
+    cursor: pointer;
+  }
+  button:hover {
+    border-color: var(--muted);
+  }
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px;
+    background: var(--surface);
+  }
+  .seg button {
+    border: 0;
+    padding: 6px 12px;
+    background: transparent;
+  }
+  .seg button[aria-pressed='true'] {
+    background: var(--fg);
+    color: var(--bg);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 20px;
+    display: grid;
+    gap: 14px;
+    align-content: start;
+    min-width: 0;
+  }
+  .card.is-chosen {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent) inset;
+  }
+  .card h2 {
+    margin: 0;
+    font: 800 22px/1.1 var(--display);
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .card h2 .letter {
+    font: 500 13px/1 var(--mono);
+    color: var(--muted);
+  }
+  .meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    font: 500 12px/1 var(--mono);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 5px 9px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .card p {
+    margin: 0;
+  }
+  .ios {
+    font: 12.5px/1.5 var(--mono);
+    color: var(--muted);
+    border-top: 1px dashed var(--line);
+    padding-top: 12px;
+  }
+  .ios b {
+    color: var(--fg);
+    font-weight: 500;
+  }
+  .actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .pick[aria-pressed='true'] {
+    background: var(--chosen);
+    color: #111;
+    border-color: var(--chosen);
+  }
+
+  /* iPhone */
+  .phone {
+    justify-self: center;
+    width: 210px;
+    max-width: 100%;
+    aspect-ratio: 9 / 19.5;
+    border-radius: 36px;
+    border: 7px solid var(--bezel);
+    background: #111;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .phone::after {
+    content: '';
+    position: absolute;
+    top: 9px;
+    left: 50%;
+    width: 64px;
+    height: 19px;
+    margin-left: -32px;
+    background: #000;
+    border-radius: 12px;
+    z-index: 9;
+  }
+  .stage {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+  }
+  .logo {
+    width: 88px;
+    height: 88px;
+    overflow: visible;
+    display: block;
+  }
+  .logo * {
+    transform-box: fill-box;
+  }
+  .logo .frame,
+  .logo .flash {
+    transform-origin: center;
+  }
+  .logo .lens-full {
+    transform-origin: 100% 50%;
+  }
+  .logo .lens-solid,
+  .logo .lens-copy {
+    transform-origin: 0% 50%;
+  }
+  .whiteout {
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    opacity: 0;
+    z-index: 6;
+    pointer-events: none;
+  }
+
+  /* Pellicule */
+  .reel {
+    position: absolute;
+    inset: 0;
+  }
+  .strip {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: flex;
+    gap: 32px;
+    padding: 34px 20px;
+    transform: translate(calc(-64px - 240px), -50%);
+  }
+  .strip .logo {
+    flex: none;
+  }
+  .perf {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 9px;
+    opacity: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.28) 0 9px,
+      transparent 9px 17px
+    );
+    border-radius: 2px;
+  }
+  .perf.top {
+    top: 10px;
+  }
+  .perf.bottom {
+    bottom: 10px;
+  }
+
+  /* Mise au point */
+  .af {
+    position: absolute;
+    width: 124px;
+    height: 124px;
+    top: 50%;
+    left: 50%;
+    margin: -62px 0 0 -62px;
+    opacity: 0;
+  }
+  .af i {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border: 0 solid #fff;
+  }
+  .af i:nth-child(1) {
+    top: 0;
+    left: 0;
+    border-top-width: 3px;
+    border-left-width: 3px;
+    border-top-left-radius: 6px;
+  }
+  .af i:nth-child(2) {
+    top: 0;
+    right: 0;
+    border-top-width: 3px;
+    border-right-width: 3px;
+    border-top-right-radius: 6px;
+  }
+  .af i:nth-child(3) {
+    bottom: 0;
+    left: 0;
+    border-bottom-width: 3px;
+    border-left-width: 3px;
+    border-bottom-left-radius: 6px;
+  }
+  .af i:nth-child(4) {
+    bottom: 0;
+    right: 0;
+    border-bottom-width: 3px;
+    border-right-width: 3px;
+    border-bottom-right-radius: 6px;
+  }
+  .ghost {
+    position: absolute;
+    opacity: 0;
+  }
+
+  /* Écran de l'app (après le splash) */
+  .app {
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    opacity: 0;
+    z-index: 5;
+    padding: 36px 12px 0;
+    display: grid;
+    gap: 10px;
+    align-content: start;
+  }
+  .app-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .wm {
+    font: 800 17px/1 var(--display);
+    color: #111;
+    letter-spacing: -0.01em;
+  }
+  .app-top span:last-child {
+    width: 18px;
+    height: 16px;
+    border: 2px solid #111;
+    border-radius: 5px;
+  }
+  .stories {
+    display: flex;
+    gap: 8px;
+  }
+  .stories i {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #e9eae5;
+    box-shadow:
+      0 0 0 2px #fff,
+      0 0 0 3.5px #111;
+    flex: none;
+  }
+  .stories i:first-child {
+    box-shadow:
+      0 0 0 2px #fff,
+      0 0 0 3.5px #c6f432;
+  }
+  .post-h {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .post-h i {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #e2e3de;
+  }
+  .post-h b {
+    width: 70px;
+    height: 8px;
+    border-radius: 4px;
+    background: #e2e3de;
+  }
+  .post-img {
+    aspect-ratio: 4 / 5;
+    margin-inline: -12px;
+    background: linear-gradient(160deg, #d9dccf, #b9bfab 60%, #9aa287);
+  }
+  .post-a {
+    display: flex;
+    gap: 10px;
+  }
+  .post-a b {
+    width: 18px;
+    height: 16px;
+    border-radius: 5px;
+    border: 2px solid #111;
+  }
+
+  aside.notes {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 20px;
+    display: grid;
+    gap: 10px;
+  }
+  aside.notes h2 {
+    margin: 0;
+    font: 800 18px/1.2 var(--display);
+  }
+  aside.notes ul {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 6px;
+  }
+  aside.notes li {
+    max-width: 80ch;
+  }
+  code {
+    font: 13px var(--mono);
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Clone · iOS · proposition de design</span>
+    <h1>Animation du splash screen</h1>
+    <p>
+      Quatre propositions construites avec le nouveau logo (cadre blanc, objectif citron coupé en
+      deux, flash). Touche un iPhone pour rejouer, passe en ralenti pour regarder le détail, puis
+      retiens celle que tu veux.
+    </p>
+  </header>
+
+  <div class="bar">
+    <span class="choice" id="choice">Aucune proposition retenue pour l'instant.</span>
+    <div class="group">
+      <div class="seg" role="group" aria-label="Vitesse">
+        <button type="button" data-speed="1" aria-pressed="true">Vitesse réelle</button>
+        <button type="button" data-speed="3" aria-pressed="false">Ralenti ×3</button>
+      </div>
+      <button type="button" id="all">Tout rejouer</button>
+    </div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <aside class="notes">
+    <h2>Contraintes communes côté iOS</h2>
+    <ul>
+      <li>
+        L'écran de lancement d'iOS est statique : il n'affichera que le fond
+        <code>#111111</code> (clé <code>UILaunchScreen</code>). L'animation est la première vue
+        SwiftUI, elle part donc d'un écran vide pour éviter tout saut.
+      </li>
+      <li>
+        Jouée une fois au démarrage, pendant que <code>RootViewModel</code> est en
+        <code>.loading</code>. Si le chargement dure plus longtemps, elle reste sur le logo complet
+        ; s'il est plus court, on attend la fin de l'animation (2 s au plus).
+      </li>
+      <li>Avec « Réduire les animations », simple fondu du logo puis de l'app.</li>
+      <li>
+        Le logo devient un composant <code>DesignSystem/AppLogo</code> dessiné en SwiftUI (formes et
+        tracés), pas une image : chaque partie s'anime séparément.
+      </li>
+    </ul>
+  </aside>
+</div>
+
+<script>
+  const LIME = '#C6F432';
+  const SPRING = 'cubic-bezier(.34,1.56,.64,1)';
+  const EASE = 'cubic-bezier(.2,.7,.2,1)';
+  let speed = 1;
+
+  function logo(color = '#fff', lens = LIME, hide = []) {
+    const h = (n) => (hide.includes(n) ? ' opacity="0"' : '');
+    return `<svg class="logo" viewBox="92 92 328 328" aria-hidden="true">
+    <rect class="frame" x="112" y="112" width="288" height="288" rx="80" fill="none" stroke="${color}" stroke-width="30" pathLength="100" stroke-dasharray="101 101"${h('frame')}/>
+    <path class="lens-full" d="M 256 186 A 70 70 0 0 0 256 326 Z" fill="${lens}"${h('full')}/>
+    <path class="lens-solid" d="M 256 186 A 70 70 0 0 1 256 326 Z" fill="${lens}" opacity="0"/>
+    <path class="lens-copy" d="M 256 186 A 70 70 0 0 1 256 326" fill="none" stroke="${lens}" stroke-width="22" pathLength="100" stroke-dasharray="101 101"${h('copy')}/>
+    <circle class="flash" cx="340" cy="172" r="18" fill="${color}"${h('flash')}/>
+  </svg>`;
+  }
+  const APP = `<div class="app"><div class="app-top"><span class="wm">Clone</span><span></span></div>
+  <div class="stories"><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="post-h"><i></i><b></b></div><div class="post-img"></div><div class="post-a"><b></b><b></b><b></b></div></div>`;
+
+  /* tl(el, [[ms, props], …]) : une animation par élément, temps en millisecondes depuis le début. */
+  function tl(el, steps, easing = EASE) {
+    const end = steps[steps.length - 1][0];
+    return el.animate(
+      steps.map(([t, p]) => ({ offset: t / end, easing: p.easing || easing, ...p })),
+      { duration: end * speed, fill: 'both' },
+    );
+  }
+  const q = (p, s) => p.querySelector(s);
+  const qa = (p, s) => [...p.querySelectorAll(s)];
+
+  const proposals = [
+    {
+      id: 'A',
+      name: 'Déclic',
+      duration: '1,5 s',
+      text: "Le cadre se trace, la moitié pleine de l'objectif glisse en place, l'autre moitié se dessine, puis le flash part. L'app apparaît comme révélée par la photo qui vient d'être prise.",
+      ios: "<b>trim(from:to:)</b> sur le cadre et l'arc, <b>keyframeAnimator</b> pour l'objectif, overlay blanc pour le flash. Retour haptique léger au flash.",
+      markup: `<div class="stage">${logo()}</div><div class="whiteout"></div>${APP}`,
+      play(p) {
+        const s = q(p, '.logo');
+        tl(
+          q(s, '.frame'),
+          [
+            [0, { strokeDashoffset: 101, opacity: 0 }],
+            [30, { opacity: 1 }],
+            [560, { strokeDashoffset: 0, opacity: 1, easing: 'cubic-bezier(.65,0,.35,1)' }],
+          ],
+          'cubic-bezier(.65,0,.35,1)',
+        );
+        tl(q(s, '.lens-full'), [
+          [0, { transform: 'translateX(-70px)', opacity: 0 }],
+          [380, { transform: 'translateX(-70px)', opacity: 0, easing: SPRING }],
+          [800, { transform: 'translateX(0)', opacity: 1 }],
+        ]);
+        tl(q(s, '.lens-copy'), [
+          [0, { strokeDashoffset: 101 }],
+          [470, { strokeDashoffset: 101 }],
+          [850, { strokeDashoffset: 0 }],
+        ]);
+        tl(q(s, '.flash'), [
+          [0, { transform: 'scale(0)' }],
+          [800, { transform: 'scale(0)' }],
+          [990, { transform: 'scale(1.5)' }],
+          [1120, { transform: 'scale(1)' }],
+        ]);
+        tl(q(p, '.whiteout'), [
+          [0, { opacity: 0 }],
+          [1060, { opacity: 0 }],
+          [1130, { opacity: 0.92 }],
+          [1440, { opacity: 0 }],
+        ]);
+        tl(s, [
+          [0, { opacity: 1 }],
+          [1180, { opacity: 1 }],
+          [1300, { opacity: 0 }],
+        ]);
+        tl(q(p, '.app'), [
+          [0, { opacity: 0 }],
+          [1170, { opacity: 0 }],
+          [1500, { opacity: 1 }],
+        ]);
+      },
+    },
+    {
+      id: 'B',
+      name: 'Iris',
+      duration: '2 s',
+      text: "Un disque citron éclot au centre, se coupe en deux comme dans le logo, puis le cadre se referme autour avec un rebond et le flash clignote deux fois. L'app s'ouvre à travers l'objectif.",
+      ios: "Ressorts <b>.spring(duration:bounce:)</b>, sortie par un <b>mask</b> en <b>Circle</b> qui grandit depuis le centre de l'objectif.",
+      markup: `<div class="stage">${logo()}</div>${APP}`,
+      play(p) {
+        const s = q(p, '.logo');
+        tl(
+          q(s, '.lens-full'),
+          [
+            [0, { transform: 'scale(0)' }],
+            [280, { transform: 'scale(1.12)' }],
+            [460, { transform: 'scale(1)' }],
+          ],
+          'cubic-bezier(.3,.9,.4,1)',
+        );
+        tl(
+          q(s, '.lens-solid'),
+          [
+            [0, { transform: 'scale(0)', opacity: 1 }],
+            [280, { transform: 'scale(1.12)' }],
+            [460, { transform: 'scale(1)' }],
+            [560, { transform: 'scale(1)', easing: 'cubic-bezier(.7,0,.3,1)' }],
+            [860, { transform: 'scaleX(0)', opacity: 1 }],
+            [861, { opacity: 0, transform: 'scaleX(0)' }],
+          ],
+          'cubic-bezier(.3,.9,.4,1)',
+        );
+        tl(q(s, '.lens-copy'), [
+          [0, { strokeDashoffset: 101 }],
+          [560, { strokeDashoffset: 101 }],
+          [900, { strokeDashoffset: 0 }],
+        ]);
+        tl(q(s, '.frame'), [
+          [0, { transform: 'scale(1.4) rotate(-12deg)', opacity: 0 }],
+          [640, { transform: 'scale(1.4) rotate(-12deg)', opacity: 0, easing: SPRING }],
+          [1140, { transform: 'scale(1) rotate(0deg)', opacity: 1 }],
+        ]);
+        tl(
+          q(s, '.flash'),
+          [
+            [0, { opacity: 0 }],
+            [1060, { opacity: 0 }],
+            [1120, { opacity: 1 }],
+            [1200, { opacity: 0.1 }],
+            [1270, { opacity: 1 }],
+          ],
+          'linear',
+        );
+        tl(s, [
+          [0, { transform: 'scale(1)', opacity: 1 }],
+          [1450, { transform: 'scale(1)', opacity: 1, easing: 'cubic-bezier(.6,0,.9,.4)' }],
+          [1950, { transform: 'scale(3.2)', opacity: 0 }],
+        ]);
+        tl(q(p, '.app'), [
+          [0, { opacity: 1, clipPath: 'circle(0% at 50% 50%)' }],
+          [
+            1450,
+            { opacity: 1, clipPath: 'circle(0% at 50% 50%)', easing: 'cubic-bezier(.7,0,.2,1)' },
+          ],
+          [1980, { opacity: 1, clipPath: 'circle(80% at 50% 50%)' }],
+        ]);
+      },
+    },
+    {
+      id: 'C',
+      name: 'Pellicule',
+      duration: '1,9 s',
+      text: "Trois images défilent comme une pellicule qu'on avance d'un cran, chacune plus complète que la précédente : le cadre, puis l'objectif, puis le logo entier avec son flash. L'app monte ensuite depuis le bas.",
+      ios: '<b>HStack</b> décalé par crans avec <b>.spring(duration: 0.2, bounce: 0.4)</b>, perforations en <b>Canvas</b>. Un tick haptique à chaque cran.',
+      markup: `<div class="reel"><div class="strip"><div class="perf top"></div><div class="perf bottom"></div>
+      ${logo('#fff', LIME, ['full', 'copy', 'flash'])}${logo('#fff', LIME, ['full', 'flash'])}${logo()}</div></div>${APP}`,
+      play(p) {
+        const strip = q(p, '.strip');
+        const T = (i) => `translate(calc(-64px - ${i * 120}px), -50%)`;
+        const RATCHET = 'cubic-bezier(.3,1.6,.5,1)';
+        tl(strip, [
+          [0, { transform: T(0) }],
+          [320, { transform: T(0), easing: RATCHET }],
+          [520, { transform: T(1) }],
+          [760, { transform: T(1), easing: RATCHET }],
+          [960, { transform: T(2) }],
+        ]);
+        const [c1, c2, c3] = qa(p, '.strip .logo');
+        [c1, c2].forEach((c) =>
+          tl(c, [
+            [0, { opacity: 1 }],
+            [1000, { opacity: 1 }],
+            [1200, { opacity: 0 }],
+          ]),
+        );
+        qa(p, '.perf').forEach((pf) =>
+          tl(pf, [
+            [0, { opacity: 0 }],
+            [120, { opacity: 1 }],
+            [1000, { opacity: 1 }],
+            [1250, { opacity: 0 }],
+          ]),
+        );
+        tl(c3, [
+          [0, { transform: 'scale(1)' }],
+          [980, { transform: 'scale(1)' }],
+          [1080, { transform: 'scale(1.07)' }],
+          [1220, { transform: 'scale(1)' }],
+        ]);
+        tl(q(c3, '.flash'), [
+          [0, { transform: 'scale(0)' }],
+          [1040, { transform: 'scale(0)' }],
+          [1180, { transform: 'scale(1.5)' }],
+          [1300, { transform: 'scale(1)' }],
+        ]);
+        tl(q(p, '.reel'), [
+          [0, { opacity: 0, transform: 'translateY(0)' }],
+          [140, { opacity: 1 }],
+          [1450, { opacity: 1, transform: 'translateY(0)' }],
+          [1800, { opacity: 0, transform: 'translateY(-40px)' }],
+        ]);
+        tl(q(p, '.app'), [
+          [0, { opacity: 1, transform: 'translateY(100%)' }],
+          [1450, { opacity: 1, transform: 'translateY(100%)', easing: 'cubic-bezier(.2,.8,.2,1)' }],
+          [1900, { opacity: 1, transform: 'translateY(0)' }],
+        ]);
+      },
+    },
+    {
+      id: 'D',
+      name: 'Mise au point',
+      duration: '1,8 s',
+      text: "Le logo arrive flou et dédoublé, l'autofocus cherche avec un léger aller-retour, se verrouille et ses coins passent au citron, puis le flash s'allume. L'app apparaît en sortant du flou.",
+      ios: '<b>.blur(radius:)</b> et <b>.scaleEffect</b> dans un <b>keyframeAnimator</b>, coins de mise au point en <b>Path</b>. Haptique « rigid » au verrouillage.',
+      markup: `<div class="stage"><div class="ghost">${logo(LIME, LIME)}</div>${logo()}<div class="af"><i></i><i></i><i></i><i></i></div></div>${APP}`,
+      play(p) {
+        const s = q(p, '.stage > .logo');
+        tl(s, [
+          [0, { opacity: 0, filter: 'blur(14px)', transform: 'scale(1.14)' }],
+          [150, { opacity: 1 }],
+          [620, { filter: 'blur(0px)', transform: 'scale(.985)' }],
+          [760, { filter: 'blur(2.5px)', transform: 'scale(1.01)' }],
+          [900, { filter: 'blur(0px)', transform: 'scale(1)' }],
+          [1400, { opacity: 1, transform: 'scale(1)' }],
+          [1650, { opacity: 0, transform: 'scale(1.06)' }],
+        ]);
+        tl(q(p, '.ghost'), [
+          [0, { opacity: 0, transform: 'translate(16px,-6px)', filter: 'blur(10px)' }],
+          [120, { opacity: 0.7 }],
+          [700, { opacity: 0, transform: 'translate(0,0)', filter: 'blur(0px)' }],
+        ]);
+        tl(q(p, '.af'), [
+          [0, { opacity: 0, transform: 'scale(1.7)' }],
+          [150, { opacity: 1 }],
+          [760, { transform: 'scale(1)' }],
+          [950, { opacity: 1 }],
+          [1010, { opacity: 0.2 }],
+          [1070, { opacity: 1 }],
+          [1300, { opacity: 0, transform: 'scale(1)' }],
+        ]);
+        qa(p, '.af i').forEach((c) =>
+          tl(
+            c,
+            [
+              [0, { borderColor: '#fff' }],
+              [880, { borderColor: '#fff' }],
+              [920, { borderColor: LIME }],
+            ],
+            'linear',
+          ),
+        );
+        tl(q(s, '.flash'), [
+          [0, { transform: 'scale(0)' }],
+          [920, { transform: 'scale(0)' }],
+          [1080, { transform: 'scale(1.5)' }],
+          [1200, { transform: 'scale(1)' }],
+        ]);
+        tl(q(p, '.app'), [
+          [0, { opacity: 0, filter: 'blur(10px)' }],
+          [1420, { opacity: 0, filter: 'blur(10px)' }],
+          [1800, { opacity: 1, filter: 'blur(0px)' }],
+        ]);
+      },
+    },
+  ];
+
+  const STORE = 'clone-splash-choice';
+  const read = () => {
+    try {
+      return localStorage.getItem(STORE);
+    } catch {
+      return null;
+    }
+  };
+  const write = (v) => {
+    try {
+      v ? localStorage.setItem(STORE, v) : localStorage.removeItem(STORE);
+    } catch {}
+  };
+
+  const grid = document.getElementById('grid');
+  proposals.forEach((pr) => {
+    const card = document.createElement('article');
+    card.className = 'card';
+    card.dataset.id = pr.id;
+    card.innerHTML = `
+    <div class="phone" role="button" tabindex="0" aria-label="Rejouer la proposition ${pr.id}">${pr.markup}</div>
+    <h2><span class="letter">${pr.id}</span>${pr.name}</h2>
+    <div class="meta"><span class="chip">${pr.duration}</span></div>
+    <p>${pr.text}</p>
+    <p class="ios">${pr.ios}</p>
+    <div class="actions">
+      <button type="button" class="replay">Rejouer</button>
+      <button type="button" class="pick" aria-pressed="false">Je retiens ${pr.id}</button>
+    </div>`;
+    grid.append(card);
+    pr.card = card;
+    const run = () => {
+      card
+        .querySelectorAll('.phone *')
+        .forEach((e) => e.getAnimations().forEach((a) => a.cancel()));
+      pr.play(q(card, '.phone'));
+    };
+    pr.run = run;
+    q(card, '.phone').addEventListener('click', run);
+    q(card, '.phone').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        run();
+      }
+    });
+    q(card, '.replay').addEventListener('click', run);
+    q(card, '.pick').addEventListener('click', () => {
+      write(read() === pr.id ? null : pr.id);
+      renderChoice();
+    });
+  });
+
+  function renderChoice() {
+    const c = read();
+    proposals.forEach((pr) => {
+      const on = pr.id === c;
+      pr.card.classList.toggle('is-chosen', on);
+      const b = q(pr.card, '.pick');
+      b.setAttribute('aria-pressed', on);
+      b.textContent = on ? `${pr.id} retenue` : `Je retiens ${pr.id}`;
+    });
+    const pr = proposals.find((x) => x.id === c);
+    document.getElementById('choice').innerHTML = pr
+      ? `Retenue : <strong>${pr.id} · ${pr.name}</strong>. Donne-moi la lettre dans le chat pour que je l'implémente.`
+      : 'Aucune proposition retenue pour l’instant.';
+  }
+  renderChoice();
+
+  document.querySelectorAll('[data-speed]').forEach((b) =>
+    b.addEventListener('click', () => {
+      speed = Number(b.dataset.speed);
+      document
+        .querySelectorAll('[data-speed]')
+        .forEach((x) => x.setAttribute('aria-pressed', x === b));
+      proposals.forEach((pr) => pr.run());
+    }),
+  );
+  document
+    .getElementById('all')
+    .addEventListener('click', () => proposals.forEach((pr) => pr.run()));
+
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    proposals.forEach((pr, i) => setTimeout(pr.run, 400 + i * 250));
+  }
+</script>

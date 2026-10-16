@@ -14,6 +14,11 @@
 	<string>$(POSTHOG_API_KEY)</string>
 	<key>PostHogHost</key>
 	<string>$(POSTHOG_HOST)</string>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>SplashBackground</string>
+	</dict>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

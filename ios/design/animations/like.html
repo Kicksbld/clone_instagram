@@ -1,0 +1,1086 @@
+<title>Like animé Clone</title>
+<meta name="claude:viewport-fit-sides" content="cover" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+/>
+<style>
+  /* Mise en page : planche de propositions, un post interactif par variante, notes de réalisation dessous */
+  :root {
+    --bg: #eeefea;
+    --surface: #fafaf7;
+    --fg: #16171a;
+    --muted: #5e6168;
+    --line: #d6d8d0;
+    --accent: #4e6b00;
+    --chosen: #c6f432;
+    --heart: #ff3b5c;
+    --heart-edge: transparent;
+    --display: 'Bricolage Grotesque', 'Avenir Next', system-ui, sans-serif;
+    --body: 'Onest', system-ui, -apple-system, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #0d0e0f;
+      --surface: #16171a;
+      --fg: #ecede8;
+      --muted: #9a9da4;
+      --line: #2a2c30;
+      --accent: #c6f432;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme='dark'] {
+    --bg: #0d0e0f;
+    --surface: #16171a;
+    --fg: #ecede8;
+    --muted: #9a9da4;
+    --line: #2a2c30;
+    --accent: #c6f432;
+    color-scheme: dark;
+  }
+  .lime {
+    --heart: #c6f432;
+    --heart-edge: #111111;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.55 var(--body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding-block: 40px 64px;
+    display: grid;
+    gap: 28px;
+  }
+  header {
+    display: grid;
+    gap: 10px;
+    max-width: 70ch;
+  }
+  .eyebrow {
+    font: 500 12px/1 var(--mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    font: 800 clamp(30px, 5vw, 46px)/1.05 var(--display);
+    margin: 0;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  header p {
+    margin: 0;
+    color: var(--muted);
+  }
+
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    align-items: center;
+    justify-content: space-between;
+    border-block: 1px solid var(--line);
+    padding-block: 12px;
+  }
+  .bar .group {
+    display: flex;
+    gap: 8px 14px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .bar label {
+    font: 500 12px/1 var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .choice {
+    font-weight: 500;
+  }
+  .choice strong {
+    font-family: var(--display);
+    font-weight: 800;
+  }
+  button {
+    font: 500 14px/1 var(--body);
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 9px 14px;
+    cursor: pointer;
+  }
+  button:hover {
+    border-color: var(--muted);
+  }
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px;
+    background: var(--surface);
+  }
+  .seg button {
+    border: 0;
+    padding: 6px 12px;
+    background: transparent;
+  }
+  .seg button[aria-pressed='true'] {
+    background: var(--fg);
+    color: var(--bg);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 20px;
+    display: grid;
+    gap: 14px;
+    align-content: start;
+    min-width: 0;
+  }
+  .card.is-chosen {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent) inset;
+  }
+  .card h2 {
+    margin: 0;
+    font: 800 22px/1.1 var(--display);
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .card h2 .letter {
+    font: 500 13px/1 var(--mono);
+    color: var(--muted);
+  }
+  .card p {
+    margin: 0;
+  }
+  .ios {
+    font: 12.5px/1.5 var(--mono);
+    color: var(--muted);
+    border-top: 1px dashed var(--line);
+    padding-top: 12px;
+  }
+  .ios b {
+    color: var(--fg);
+    font-weight: 500;
+  }
+  .actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .pick[aria-pressed='true'] {
+    background: var(--chosen);
+    color: #111;
+    border-color: var(--chosen);
+  }
+
+  /* Post (toujours en clair, comme le feed de l'app) */
+  .post {
+    background: #fff;
+    color: #111;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid #e3e4df;
+    font:
+      13px/1.4 -apple-system,
+      system-ui,
+      sans-serif;
+    position: relative;
+  }
+  .post-h {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+  .av {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    flex: none;
+  }
+  .post-h b {
+    font-weight: 600;
+    flex: 1;
+    min-width: 0;
+  }
+  .post-h span {
+    letter-spacing: 1px;
+    font-weight: 700;
+  }
+  .photo {
+    position: relative;
+    aspect-ratio: 4 / 5;
+    overflow: hidden;
+    touch-action: manipulation;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .art {
+    position: absolute;
+    inset: 0;
+  }
+  .fx {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: grid;
+    place-items: center;
+  }
+  .big {
+    width: 96px;
+    height: 96px;
+    overflow: visible;
+    opacity: 0;
+    grid-area: 1 / 1;
+  }
+  .big * {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .flashout {
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    opacity: 0;
+  }
+  .hint {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    font: 500 11px/1 var(--mono);
+    color: #fff;
+    background: rgba(0, 0, 0, 0.35);
+    padding: 5px 7px;
+    border-radius: 6px;
+    pointer-events: none;
+  }
+  .post-a {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 10px 2px;
+  }
+  .hb {
+    border: 0;
+    background: none;
+    padding: 0;
+    width: 26px;
+    height: 26px;
+    color: #111;
+    position: relative;
+    border-radius: 6px;
+  }
+  .hb svg {
+    width: 26px;
+    height: 26px;
+    overflow: visible;
+    display: block;
+  }
+  .hb svg * {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .hb .hf {
+    opacity: 0;
+  }
+  .hb[aria-pressed='true'] .hf {
+    opacity: 1;
+  }
+  .hb[aria-pressed='true'] .ho {
+    opacity: 0;
+  }
+  .post-a .ic {
+    width: 23px;
+    height: 23px;
+    color: #111;
+  }
+  .count {
+    padding: 4px 10px 10px;
+    font-weight: 600;
+    display: flex;
+    gap: 4px;
+  }
+  .num {
+    display: inline-block;
+    position: relative;
+    overflow: hidden;
+    height: 1.4em;
+    vertical-align: bottom;
+    font-variant-numeric: tabular-nums;
+  }
+  .num span {
+    display: block;
+  }
+  .num span + span {
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+  .particle {
+    position: absolute;
+    pointer-events: none;
+    left: 0;
+    top: 0;
+  }
+
+  aside.notes {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 20px;
+    display: grid;
+    gap: 10px;
+  }
+  aside.notes h2 {
+    margin: 0;
+    font: 800 18px/1.2 var(--display);
+  }
+  aside.notes ul {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 6px;
+  }
+  aside.notes li {
+    max-width: 80ch;
+  }
+  code {
+    font: 13px var(--mono);
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Clone · iOS · proposition de design</span>
+    <h1>Animation du like</h1>
+    <p>
+      Quatre propositions, chacune pour les deux gestes : le bouton J'aime et le double tap sur la
+      photo. Les posts sont interactifs : tape le cœur, tape deux fois la photo. Le compteur qui
+      défile est commun aux quatre.
+    </p>
+  </header>
+
+  <div class="bar">
+    <span class="choice" id="choice">Aucune proposition retenue pour l'instant.</span>
+    <div class="group">
+      <label for="c-red">Cœur</label>
+      <div class="seg" role="group" aria-label="Couleur du cœur">
+        <button type="button" id="c-red" data-color="red" aria-pressed="true">Rouge</button>
+        <button type="button" data-color="lime" aria-pressed="false">Citron</button>
+      </div>
+      <div class="seg" role="group" aria-label="Vitesse">
+        <button type="button" data-speed="1" aria-pressed="true">Vitesse réelle</button>
+        <button type="button" data-speed="3" aria-pressed="false">Ralenti ×3</button>
+      </div>
+      <button type="button" id="all">Tout rejouer</button>
+    </div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <aside class="notes">
+    <h2>Règles communes</h2>
+    <ul>
+      <li>
+        Le double tap ne retire jamais un like (comme aujourd'hui) : sur un post déjà aimé, seule
+        l'animation de la photo se rejoue.
+      </li>
+      <li>Retirer un like : le cœur rétrécit brièvement et redevient vide, sans effet.</li>
+      <li>
+        Le like reste optimiste (<code>LikeSynchronizer</code>) : l'animation part au toucher,
+        jamais à la réponse de l'API.
+      </li>
+      <li>
+        Avec « Réduire les animations » : le cœur se remplit sans mouvement et le grand cœur fait un
+        simple fondu.
+      </li>
+      <li>
+        Couleur citron : lisible sur les photos, faible contraste sur le fond blanc de la barre
+        d'actions, d'où le contour sombre du cœur plein.
+      </li>
+    </ul>
+  </aside>
+</div>
+
+<script>
+  const H =
+    'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z';
+  const SPRING = 'cubic-bezier(.34,1.56,.64,1)';
+  const EASE = 'cubic-bezier(.2,.7,.2,1)';
+  const LIME = '#C6F432';
+  let speed = 1;
+
+  function tl(el, steps, easing = EASE, fill = 'backwards') {
+    const end = steps[steps.length - 1][0];
+    return el.animate(
+      steps.map(([t, p]) => ({ offset: t / end, easing: p.easing || easing, ...p })),
+      { duration: end * speed, fill },
+    );
+  }
+  const q = (p, s) => p.querySelector(s);
+  const qa = (p, s) => [...p.querySelectorAll(s)];
+  const heartVar = () => getComputedStyle(document.body).getPropertyValue('--heart').trim();
+
+  /* Petites formes reprises du logo : carré arrondi (cadre), demi-disque (objectif), point (flash). */
+  function shape(kind, color, size) {
+    const d = document.createElement('div');
+    d.className = 'particle';
+    d.style.width = d.style.height = size + 'px';
+    d.style.marginLeft = d.style.marginTop = -size / 2 + 'px';
+    if (kind === 'square') {
+      d.style.border = `${Math.max(2, size / 5)}px solid ${color}`;
+      d.style.borderRadius = size / 3.2 + 'px';
+    } else if (kind === 'half') {
+      d.style.background = color;
+      d.style.borderRadius = `${size}px 0 0 ${size}px`;
+      d.style.width = size / 2 + 'px';
+    } else if (kind === 'ring') {
+      d.style.border = `2px solid ${color}`;
+      d.style.borderRadius = '50%';
+    } else {
+      d.style.background = color;
+      d.style.borderRadius = '50%';
+    }
+    return d;
+  }
+  function spawn(host, x, y, el) {
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    host.append(el);
+    return el;
+  }
+  const center = (host, el) => {
+    const a = host.getBoundingClientRect(),
+      b = el.getBoundingClientRect();
+    return [b.left - a.left + b.width / 2, b.top - a.top + b.height / 2];
+  };
+
+  const proposals = [
+    {
+      id: 'A',
+      name: 'Battement',
+      who: 'lea.marchand',
+      likes: 1284,
+      art: 'radial-gradient(circle at 70% 30%, #ffe0a3 0 9%, transparent 10%), linear-gradient(180deg, #ffb36b 0%, #ff7a59 38%, #7d3c6a 64%, #1d2d50 100%)',
+      av: 'linear-gradient(135deg,#ff7a59,#7d3c6a)',
+      text: "Le cœur bat deux fois, « boum-boum », comme un vrai battement. Au double tap, chaque battement envoie une onde sur la photo, puis le cœur s'envole et disparaît.",
+      ios: "<b>keyframeAnimator</b> sur l'échelle, ondes en <b>Circle().stroke</b> qui grandissent. Deux impacts haptiques <b>.light</b> calés sur les battements.",
+      button(p, hb) {
+        tl(q(hb, '.hf'), [
+          [0, { transform: 'scale(.55)' }],
+          [120, { transform: 'scale(1.28)' }],
+          [230, { transform: 'scale(.94)' }],
+          [340, { transform: 'scale(1.16)' }],
+          [480, { transform: 'scale(1)' }],
+        ]);
+        const [x, y] = center(p, hb);
+        [100, 330].forEach((d) => {
+          const r = spawn(p, x, y, shape('ring', heartVar(), 26));
+          tl(
+            r,
+            [
+              [0, { transform: 'scale(.4)', opacity: 0 }],
+              [d, { transform: 'scale(.4)', opacity: 0.9 }],
+              [d + 480, { transform: 'scale(2)', opacity: 0 }],
+            ],
+            'ease-out',
+            'both',
+          )
+            .finished.then(() => r.remove())
+            .catch(() => r.remove());
+        });
+      },
+      photo(p) {
+        const big = q(p, '.big');
+        big.innerHTML = `<path d="${H}" fill="#fff" style="filter: drop-shadow(0 2px 8px rgba(0,0,0,.3))"/>`;
+        tl(big, [
+          [0, { opacity: 1, transform: 'translateY(0) scale(0)' }],
+          [170, { transform: 'scale(1.18)' }],
+          [290, { transform: 'scale(.9)' }],
+          [410, { transform: 'scale(1.1)' }],
+          [560, { transform: 'translateY(0) scale(1)' }],
+          [
+            900,
+            { opacity: 1, transform: 'translateY(0) scale(1)', easing: 'cubic-bezier(.5,0,.8,.4)' },
+          ],
+          [1180, { opacity: 0, transform: 'translateY(-46px) scale(.75)' }],
+        ]);
+        const fx = q(p, '.fx'),
+          w = fx.clientWidth,
+          h = fx.clientHeight;
+        [150, 400].forEach((d) => {
+          const r = spawn(fx, w / 2, h / 2, shape('ring', '#fff', 100));
+          tl(
+            r,
+            [
+              [0, { transform: 'scale(.5)', opacity: 0 }],
+              [d, { transform: 'scale(.5)', opacity: 0.8 }],
+              [d + 650, { transform: 'scale(2.6)', opacity: 0 }],
+            ],
+            'cubic-bezier(.1,.6,.3,1)',
+            'both',
+          )
+            .finished.then(() => r.remove())
+            .catch(() => r.remove());
+        });
+      },
+    },
+    {
+      id: 'B',
+      name: 'Déclic',
+      who: 'tom_rivage',
+      likes: 312,
+      art: 'linear-gradient(200deg, transparent 55%, #2e4a3c 55.5%), linear-gradient(150deg, transparent 48%, #3f6150 48.5%), linear-gradient(180deg, #a9d3e8 0%, #e6f0e2 60%, #6d8f6a 100%)',
+      av: 'linear-gradient(135deg,#3f6150,#a9d3e8)',
+      text: "Reprend le logo : la moitié gauche du cœur arrive pleine, la droite arrive en contour, elles s'emboîtent, la droite se remplit et un point de flash s'allume en haut à droite. Au double tap, un flash blanc balaie la photo.",
+      ios: "Deux moitiés masquées par <b>.mask(Rectangle)</b>, <b>.spring(bounce: 0.35)</b>, flash en overlay blanc. Haptique <b>.rigid</b> à l'emboîtement.",
+      button(p, hb) {
+        tl(
+          q(hb, '.hl'),
+          [
+            [0, { transform: 'translateX(-6px)', opacity: 0 }],
+            [180, { transform: 'translateX(0)', opacity: 1 }],
+          ],
+          SPRING,
+        );
+        tl(q(hb, '.hr'), [
+          [0, { opacity: 0 }],
+          [150, { opacity: 0 }],
+          [230, { opacity: 1 }],
+        ]);
+        tl(
+          q(hb, '.hro'),
+          [
+            [0, { transform: 'translateX(6px)', opacity: 0 }],
+            [180, { transform: 'translateX(0)', opacity: 1 }],
+            [240, { opacity: 1 }],
+            [241, { opacity: 0 }],
+          ],
+          SPRING,
+          'both',
+        )
+          .finished.then((a) => a.cancel())
+          .catch(() => {});
+        tl(q(hb, '.hf'), [
+          [0, { transform: 'scale(1)' }],
+          [200, { transform: 'scale(1)' }],
+          [290, { transform: 'scale(1.18)' }],
+          [400, { transform: 'scale(1)' }],
+        ]);
+        const [x, y] = center(p, hb);
+        const dot = spawn(p, x + 11, y - 11, shape('dot', heartVar(), 6));
+        tl(
+          dot,
+          [
+            [0, { transform: 'scale(0)' }],
+            [220, { transform: 'scale(0)' }],
+            [320, { transform: 'scale(1.5)' }],
+            [520, { transform: 'scale(0)' }],
+          ],
+          EASE,
+          'both',
+        )
+          .finished.then(() => dot.remove())
+          .catch(() => dot.remove());
+      },
+      photo(p) {
+        const big = q(p, '.big');
+        const id = 'b' + Math.random().toString(36).slice(2, 7);
+        big.innerHTML = `<defs><clipPath id="${id}L"><rect x="-2" y="0" width="14" height="24"/></clipPath><clipPath id="${id}R"><rect x="12" y="0" width="14" height="24"/></clipPath></defs>
+        <g style="filter: drop-shadow(0 2px 8px rgba(0,0,0,.25))">
+          <g class="l"><path d="${H}" fill="var(--heart)" clip-path="url(#${id}L)"/></g>
+          <g class="r"><path d="${H}" fill="none" stroke="var(--heart)" stroke-width="1.6" clip-path="url(#${id}R)"/><path class="rf" d="${H}" fill="var(--heart)" clip-path="url(#${id}R)"/></g>
+          <circle class="dot" cx="21" cy="3.5" r="1.6" fill="#fff"/>
+        </g>`;
+        tl(
+          q(p, '.flashout'),
+          [
+            [0, { opacity: 0 }],
+            [40, { opacity: 0.8 }],
+            [300, { opacity: 0 }],
+          ],
+          'ease-out',
+        );
+        tl(big, [
+          [0, { opacity: 1, transform: 'scale(1)' }],
+          [300, { transform: 'scale(1)' }],
+          [380, { transform: 'scale(1.12)' }],
+          [500, { transform: 'scale(1)' }],
+          [950, { opacity: 1, transform: 'scale(1)' }],
+          [1150, { opacity: 0, transform: 'scale(.88)' }],
+        ]);
+        tl(
+          q(big, '.l'),
+          [
+            [0, { transform: 'translateX(-40px) rotate(-12deg)', opacity: 0 }],
+            [300, { transform: 'translateX(0) rotate(0)', opacity: 1 }],
+          ],
+          SPRING,
+          'both',
+        );
+        tl(
+          q(big, '.r'),
+          [
+            [0, { transform: 'translateX(40px) rotate(12deg)', opacity: 0 }],
+            [60, { transform: 'translateX(40px) rotate(12deg)', opacity: 0, easing: SPRING }],
+            [340, { transform: 'translateX(0) rotate(0)', opacity: 1 }],
+          ],
+          EASE,
+          'both',
+        );
+        tl(
+          q(big, '.rf'),
+          [
+            [0, { opacity: 0 }],
+            [360, { opacity: 0 }],
+            [460, { opacity: 1 }],
+          ],
+          'ease-out',
+          'both',
+        );
+        tl(
+          q(big, '.dot'),
+          [
+            [0, { transform: 'scale(0)' }],
+            [420, { transform: 'scale(0)' }],
+            [540, { transform: 'scale(1.6)' }],
+            [660, { transform: 'scale(1)' }],
+          ],
+          EASE,
+          'both',
+        );
+      },
+    },
+    {
+      id: 'C',
+      name: 'Tampon',
+      who: 'atelier.nuit',
+      likes: 9047,
+      art: 'radial-gradient(circle at 30% 70%, #f6d365 0 6%, transparent 6.5%), radial-gradient(circle at 65% 45%, #f6d365 0 4%, transparent 4.5%), radial-gradient(circle at 80% 75%, #fda085 0 5%, transparent 5.5%), linear-gradient(180deg, #141e30 0%, #243b55 70%, #3a2f4f 100%)',
+      av: 'linear-gradient(135deg,#243b55,#fda085)',
+      text: "Le cœur est tamponné sur la photo : il tombe de haut en tournant, frappe, la photo tremble d'un pixel, quelques gouttes d'encre giclent et la marque reste un instant, inclinée, avant de s'effacer.",
+      ios: "<b>keyframeAnimator</b> (échelle, rotation), <b>.offset</b> de la photo pour la secousse, gouttes en <b>Canvas</b> + <b>TimelineView</b>. Haptique <b>.heavy</b> à l'impact.",
+      button(p, hb) {
+        tl(
+          q(hb, '.hf'),
+          [
+            [0, { transform: 'scale(1.9) rotate(-20deg)', opacity: 0 }],
+            [130, { transform: 'scale(.82) rotate(-6deg)', opacity: 1 }],
+            [230, { transform: 'scale(1.07) rotate(3deg)' }],
+            [340, { transform: 'scale(1) rotate(0deg)' }],
+          ],
+          'cubic-bezier(.5,0,.9,.6)',
+        );
+      },
+      photo(p) {
+        const big = q(p, '.big');
+        big.innerHTML = `<path class="ink" d="${H}" fill="none" stroke="var(--heart)" stroke-width="1"/><path d="${H}" fill="var(--heart)"/>`;
+        const IMPACT = 200;
+        tl(big, [
+          [
+            0,
+            {
+              opacity: 0,
+              transform: 'scale(2.5) rotate(-26deg)',
+              easing: 'cubic-bezier(.55,0,.9,.5)',
+            },
+          ],
+          [60, { opacity: 1 }],
+          [IMPACT, { transform: 'scale(.9) rotate(-9deg)' }],
+          [300, { transform: 'scale(1.05) rotate(-11deg)' }],
+          [380, { transform: 'scale(1) rotate(-10deg)' }],
+          [1000, { opacity: 1, transform: 'scale(1) rotate(-10deg)' }],
+          [1250, { opacity: 0, transform: 'scale(1.06) rotate(-10deg)' }],
+        ]);
+        tl(
+          q(big, '.ink'),
+          [
+            [0, { opacity: 0, transform: 'scale(1)' }],
+            [IMPACT, { opacity: 0, transform: 'scale(1)' }],
+            [IMPACT + 10, { opacity: 0.7 }],
+            [IMPACT + 420, { opacity: 0, transform: 'scale(1.35)' }],
+          ],
+          'ease-out',
+          'both',
+        );
+        tl(
+          q(p, '.art'),
+          [
+            [0, { transform: 'translate(0,0)' }],
+            [IMPACT, { transform: 'translate(0,0)' }],
+            [IMPACT + 40, { transform: 'translate(-3px,2px)' }],
+            [IMPACT + 80, { transform: 'translate(3px,-2px)' }],
+            [IMPACT + 120, { transform: 'translate(-1px,1px)' }],
+            [IMPACT + 160, { transform: 'translate(0,0)' }],
+          ],
+          'linear',
+        );
+        const fx = q(p, '.fx'),
+          w = fx.clientWidth,
+          h = fx.clientHeight;
+        for (let i = 0; i < 9; i++) {
+          const a = (i / 9) * Math.PI * 2 + Math.random() * 0.5,
+            dist = 55 + Math.random() * 35,
+            s = 4 + Math.random() * 7;
+          const d = spawn(fx, w / 2, h / 2, shape('dot', heartVar(), s));
+          tl(
+            d,
+            [
+              [0, { transform: 'translate(0,0) scale(1)', opacity: 0 }],
+              [
+                IMPACT,
+                {
+                  transform: 'translate(0,0) scale(1)',
+                  opacity: 1,
+                  easing: 'cubic-bezier(.1,.8,.3,1)',
+                },
+              ],
+              [
+                IMPACT + 420,
+                {
+                  transform: `translate(${Math.cos(a) * dist}px,${Math.sin(a) * dist}px) scale(.4)`,
+                  opacity: 0,
+                },
+              ],
+            ],
+            EASE,
+            'both',
+          )
+            .finished.then(() => d.remove())
+            .catch(() => d.remove());
+        }
+      },
+    },
+    {
+      id: 'D',
+      name: 'Éclats',
+      who: 'noe.photos',
+      likes: 57,
+      art: 'radial-gradient(circle at 35% 40%, #C6F432 0 14%, transparent 14.5%), radial-gradient(circle at 62% 58%, #e8f78f 0 12%, transparent 12.5%), radial-gradient(circle at 45% 72%, #b5e01f 0 9%, transparent 9.5%), linear-gradient(160deg, #f4f1d0, #e2dca8)',
+      av: 'linear-gradient(135deg,#C6F432,#111)',
+      text: "Le cœur éclate en petites formes tirées du logo : carrés arrondis du cadre, demi-disques de l'objectif, points du flash. Au double tap, le grand cœur apparaît puis se brise en éclats qui retombent avec la gravité.",
+      ios: "Particules en <b>Canvas</b> piloté par <b>TimelineView(.animation)</b> (positions calculées, pas de vue par éclat). Haptique <b>.success</b> léger à l'éclatement.",
+      button(p, hb) {
+        tl(
+          q(hb, '.hf'),
+          [
+            [0, { transform: 'scale(0)' }],
+            [160, { transform: 'scale(1.3)' }],
+            [290, { transform: 'scale(1)' }],
+          ],
+          'cubic-bezier(.3,.9,.4,1)',
+        );
+        const [x, y] = center(p, hb);
+        const kinds = ['square', 'half', 'dot'];
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 - Math.PI / 2,
+            dist = 20 + (i % 2) * 7;
+          const c = i % 3 === 0 ? '#111' : heartVar();
+          const d = spawn(p, x, y, shape(kinds[i % 3], c, 7));
+          tl(
+            d,
+            [
+              [0, { transform: 'translate(0,0) rotate(0) scale(0)', opacity: 1 }],
+              [
+                80,
+                {
+                  transform: 'translate(0,0) rotate(0) scale(1)',
+                  opacity: 1,
+                  easing: 'cubic-bezier(.1,.8,.3,1)',
+                },
+              ],
+              [
+                540,
+                {
+                  transform: `translate(${Math.cos(a) * dist}px,${Math.sin(a) * dist}px) rotate(${(i % 2 ? 1 : -1) * 120}deg) scale(.6)`,
+                  opacity: 0,
+                },
+              ],
+            ],
+            EASE,
+            'both',
+          )
+            .finished.then(() => d.remove())
+            .catch(() => d.remove());
+        }
+      },
+      photo(p) {
+        const big = q(p, '.big');
+        big.innerHTML = `<path d="${H}" fill="#fff" style="filter: drop-shadow(0 2px 8px rgba(0,0,0,.25))"/>`;
+        const BURST = 620;
+        tl(
+          big,
+          [
+            [0, { opacity: 1, transform: 'scale(0)' }],
+            [180, { transform: 'scale(1.12)' }],
+            [300, { transform: 'scale(1)' }],
+            [BURST - 80, { transform: 'scale(.94)', opacity: 1 }],
+            [BURST, { transform: 'scale(1.25)', opacity: 0 }],
+          ],
+          'cubic-bezier(.3,.9,.4,1)',
+        );
+        const fx = q(p, '.fx'),
+          w = fx.clientWidth,
+          h = fx.clientHeight;
+        const kinds = ['square', 'half', 'dot'],
+          colors = ['#fff', heartVar(), LIME];
+        for (let i = 0; i < 18; i++) {
+          const a = Math.random() * Math.PI * 2,
+            v = 70 + Math.random() * 90,
+            s = 8 + Math.random() * 10;
+          const vx = Math.cos(a) * v,
+            vy = Math.sin(a) * v - 60,
+            g = 260,
+            T = 0.9;
+          const frames = [
+            [0, { transform: 'translate(0,0) rotate(0deg)', opacity: 0 }],
+            [BURST - 20, { transform: 'translate(0,0) rotate(0deg)', opacity: 0 }],
+            [BURST, { opacity: 1, transform: 'translate(0,0) rotate(0deg)' }],
+          ];
+          for (let k = 1; k <= 5; k++) {
+            const t = (k / 5) * T;
+            frames.push([
+              BURST + t * 1000,
+              {
+                transform: `translate(${vx * t}px,${vy * t + g * t * t}px) rotate(${(i % 2 ? 1 : -1) * 220 * t}deg)`,
+                opacity: k === 5 ? 0 : 1 - k * 0.12,
+              },
+            ]);
+          }
+          const d = spawn(fx, w / 2, h / 2, shape(kinds[i % 3], colors[i % 3], s));
+          tl(d, frames, 'linear', 'both')
+            .finished.then(() => d.remove())
+            .catch(() => d.remove());
+        }
+      },
+    },
+  ];
+
+  const ICONS = {
+    comment:
+      '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M20.6 15.5A8.5 8.5 0 1 0 17 19.6L21 21l-.4-5.5z"/></svg>',
+    share:
+      '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M21.5 3 9.6 10.4M21.5 3 15 21l-5.4-10.6L2.5 6.6 21.5 3z"/></svg>',
+  };
+  const fmt = (n) => n.toLocaleString('fr-FR');
+
+  const STORE = 'clone-like-choice';
+  const read = (k) => {
+    try {
+      return localStorage.getItem(k);
+    } catch {
+      return null;
+    }
+  };
+  const write = (k, v) => {
+    try {
+      v ? localStorage.setItem(k, v) : localStorage.removeItem(k);
+    } catch {}
+  };
+
+  const grid = document.getElementById('grid');
+  proposals.forEach((pr, idx) => {
+    const card = document.createElement('article');
+    card.className = 'card';
+    const clip = 'h' + idx;
+    card.innerHTML = `
+    <div class="post">
+      <div class="post-h"><i class="av" style="background:${pr.av}"></i><b>${pr.who}</b><span>···</span></div>
+      <div class="photo" role="button" tabindex="0" aria-label="Photo, toucher deux fois pour aimer">
+        <div class="art" style="background:${pr.art}"></div>
+        <div class="flashout"></div>
+        <div class="fx"><svg class="big" viewBox="0 0 24 24" aria-hidden="true"></svg></div>
+        <span class="hint">double tap</span>
+      </div>
+      <div class="post-a">
+        <button type="button" class="hb" aria-pressed="false" aria-label="J'aime">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <defs><clipPath id="${clip}L"><rect x="-2" y="0" width="14" height="26"/></clipPath><clipPath id="${clip}R"><rect x="12" y="0" width="14" height="26"/></clipPath></defs>
+            <path class="ho" d="${H}" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <g class="hf">
+              <path class="hl" d="${H}" fill="var(--heart)" stroke="var(--heart-edge)" stroke-width="1.2" clip-path="url(#${clip}L)"/>
+              <path class="hr" d="${H}" fill="var(--heart)" stroke="var(--heart-edge)" stroke-width="1.2" clip-path="url(#${clip}R)"/>
+              <path class="hro" d="${H}" fill="none" stroke="var(--heart)" stroke-width="1.8" clip-path="url(#${clip}R)" opacity="0"/>
+            </g>
+          </svg>
+        </button>
+        ${ICONS.comment}${ICONS.share}
+      </div>
+      <div class="count"><span class="num"><span>${fmt(pr.likes)}</span></span> mentions J'aime</div>
+    </div>
+    <h2><span class="letter">${pr.id}</span>${pr.name}</h2>
+    <p>${pr.text}</p>
+    <p class="ios">${pr.ios}</p>
+    <div class="actions">
+      <button type="button" class="replay">Rejouer</button>
+      <button type="button" class="pick" aria-pressed="false">Je retiens ${pr.id}</button>
+    </div>`;
+    grid.append(card);
+    pr.card = card;
+
+    const post = q(card, '.post'),
+      hb = q(card, '.hb'),
+      photo = q(card, '.photo'),
+      num = q(card, '.num');
+    let liked = false,
+      count = pr.likes;
+
+    function roll(dir) {
+      const old = num.lastElementChild;
+      const next = document.createElement('span');
+      next.textContent = fmt(count);
+      num.append(next);
+      num.style.width = Math.max(old.offsetWidth, next.offsetWidth) + 'px';
+      tl(
+        old,
+        [
+          [0, { transform: 'translateY(0)', opacity: 1 }],
+          [260, { transform: `translateY(${-100 * dir}%)`, opacity: 0 }],
+        ],
+        EASE,
+        'forwards',
+      )
+        .finished.then(() => {
+          old.remove();
+          num.style.width = '';
+        })
+        .catch(() => {});
+      tl(next, [
+        [0, { transform: `translateY(${100 * dir}%)`, opacity: 0 }],
+        [260, { transform: 'translateY(0)', opacity: 1 }],
+      ]);
+    }
+    function setLiked(on, animate = true) {
+      if (on === liked) return;
+      liked = on;
+      count += on ? 1 : -1;
+      hb.setAttribute('aria-pressed', on);
+      hb.setAttribute('aria-label', on ? "Je n'aime plus" : "J'aime");
+      if (!animate) {
+        num.innerHTML = `<span>${fmt(count)}</span>`;
+        return;
+      }
+      roll(on ? 1 : -1);
+      if (reduce()) return;
+      if (on) pr.button(post, hb);
+      else
+        tl(
+          q(hb, '.ho'),
+          [
+            [0, { transform: 'scale(.75)' }],
+            [180, { transform: 'scale(1)' }],
+          ],
+          SPRING,
+        );
+    }
+    function doubleTap() {
+      setLiked(true);
+      if (reduce()) {
+        tl(q(photo, '.big'), [
+          [0, { opacity: 0 }],
+          [150, { opacity: 1 }],
+          [700, { opacity: 1 }],
+          [900, { opacity: 0 }],
+        ]);
+        return;
+      }
+      pr.photo(photo);
+    }
+    pr.replay = () => {
+      setLiked(false, false);
+      setTimeout(doubleTap, 200);
+    };
+
+    hb.addEventListener('click', () => setLiked(!liked));
+    let last = 0;
+    photo.addEventListener('pointerup', (e) => {
+      const now = e.timeStamp;
+      if (now - last < 320) {
+        last = 0;
+        doubleTap();
+      } else last = now;
+    });
+    photo.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        doubleTap();
+      }
+    });
+    q(card, '.replay').addEventListener('click', pr.replay);
+    q(card, '.pick').addEventListener('click', () => {
+      write(STORE, read(STORE) === pr.id ? null : pr.id);
+      renderChoice();
+    });
+  });
+
+  const reduce = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function renderChoice() {
+    const c = read(STORE);
+    proposals.forEach((pr) => {
+      const on = pr.id === c;
+      pr.card.classList.toggle('is-chosen', on);
+      const b = q(pr.card, '.pick');
+      b.setAttribute('aria-pressed', on);
+      b.textContent = on ? `${pr.id} retenue` : `Je retiens ${pr.id}`;
+    });
+    const pr = proposals.find((x) => x.id === c);
+    const color = document.body.classList.contains('lime') ? 'citron' : 'rouge';
+    document.getElementById('choice').innerHTML = pr
+      ? `Retenue : <strong>${pr.id} · ${pr.name}</strong>, cœur ${color}. Donne-moi la lettre et la couleur dans le chat.`
+      : 'Aucune proposition retenue pour l’instant.';
+  }
+
+  function setColor(c) {
+    document.body.classList.toggle('lime', c === 'lime');
+    document
+      .querySelectorAll('[data-color]')
+      .forEach((x) => x.setAttribute('aria-pressed', x.dataset.color === c));
+    write('clone-like-color', c);
+    renderChoice();
+  }
+  document
+    .querySelectorAll('[data-color]')
+    .forEach((b) => b.addEventListener('click', () => setColor(b.dataset.color)));
+  setColor(read('clone-like-color') || 'red');
+
+  document.querySelectorAll('[data-speed]').forEach((b) =>
+    b.addEventListener('click', () => {
+      speed = Number(b.dataset.speed);
+      document
+        .querySelectorAll('[data-speed]')
+        .forEach((x) => x.setAttribute('aria-pressed', x === b));
+    }),
+  );
+  document
+    .getElementById('all')
+    .addEventListener('click', () => proposals.forEach((pr, i) => setTimeout(pr.replay, i * 200)));
+
+  if (!reduce()) proposals.forEach((pr, i) => setTimeout(pr.replay, 600 + i * 300));
+</script>
