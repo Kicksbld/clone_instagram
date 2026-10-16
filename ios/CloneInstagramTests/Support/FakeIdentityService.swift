@@ -111,7 +111,8 @@ extension Profile {
         username: String = "killian",
         fullName: String = "Killian",
         bio: String = "",
-        isPrivate: Bool = false
+        isPrivate: Bool = false,
+        status: AccountStatus = .active
     ) -> Profile {
         Profile(
             id: "0199a1b2-0000-7000-8000-000000000001",
@@ -119,7 +120,7 @@ extension Profile {
             fullName: fullName,
             bio: bio,
             isPrivate: isPrivate,
-            status: .active,
+            status: status,
             followerCount: 0,
             followingCount: 0,
             postCount: 0

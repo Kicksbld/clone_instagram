@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { check, index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 import { comments } from './engagement.ts';
 import { posts } from './posts.ts';
@@ -64,3 +64,49 @@ export const reports = pgTable(
 
 export type ReportRow = typeof reports.$inferSelect;
 export type NewReportRow = typeof reports.$inferInsert;
+
+export const ADMIN_AUDIT_ACTIONS = [
+  'user_suspended',
+  'user_banned',
+  'user_reactivated',
+  'user_deleted',
+] as const;
+export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number];
+
+export const ADMIN_AUDIT_TARGET_TYPES = ['user'] as const;
+export type AdminAuditTargetType = (typeof ADMIN_AUDIT_TARGET_TYPES)[number];
+
+/**
+ * Journal des actions d'administration (module `moderation`, ADR-011), écrit par l'API dans la
+ * transaction de chaque action qui modifie des données. Écriture seule : un trigger refuse `UPDATE` et
+ * `DELETE` (migration `0010_admin`). Sans clé étrangère : l'admin n'a pas forcément de profil, et la
+ * cible peut avoir été purgée depuis (le journal garde alors son seul identifiant).
+ */
+export const adminAuditLog = pgTable(
+  'admin_audit_log',
+  {
+    id: uuid('id').primaryKey(),
+    adminId: uuid('admin_id').notNull(),
+    action: text('action', { enum: ADMIN_AUDIT_ACTIONS }).notNull(),
+    targetType: text('target_type', { enum: ADMIN_AUDIT_TARGET_TYPES }).notNull(),
+    targetId: uuid('target_id').notNull(),
+    // Motif et statuts avant / après ; jamais de donnée personnelle de la cible.
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('admin_audit_log_target_idx').on(
+      table.targetType,
+      table.targetId,
+      table.createdAt.desc(),
+    ),
+    check(
+      'admin_audit_log_action',
+      sql`${table.action} IN ('user_suspended', 'user_banned', 'user_reactivated', 'user_deleted')`,
+    ),
+    check('admin_audit_log_target_type', sql`${table.targetType} IN ('user')`),
+  ],
+).enableRLS(); // RLS sans policy : refus total hors de l'API (ADR-004).
+
+export type AdminAuditLogRow = typeof adminAuditLog.$inferSelect;
+export type NewAdminAuditLogRow = typeof adminAuditLog.$inferInsert;

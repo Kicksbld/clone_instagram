@@ -33,7 +33,7 @@ export interface paths {
         };
         /**
          * Mon profil
-         * @description Profil de l'utilisateur authentifié, dont sa date de naissance et le statut du compte. `404 profile_not_found` tant que l'onboarding n'est pas terminé.
+         * @description Profil de l'utilisateur authentifié, dont sa date de naissance et le statut du compte. `404 profile_not_found` tant que l'onboarding n'est pas terminé. Répond aussi pour un compte suspendu ou banni (l'app affiche alors l'écran « Compte suspendu », ADR-005).
          */
         get: operations["getMe"];
         put?: never;
@@ -574,6 +574,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ma session d'administration
+         * @description Vérifie que l'utilisateur authentifié a le rôle `admin` (connexion au backoffice, puis chaque page et chaque action). Un admin n'a pas besoin de profil.
+         */
+        get: operations["getAdminSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rechercher des utilisateurs
+         * @description Comptes du plus récent au plus ancien, par pages de 20 (comptes supprimés exclus). `q` filtre par correspondance partielle sur le username ou le nom, insensible à la casse (sans espaces superflus ni `@` initial) ; `status` filtre par statut.
+         */
+        get: operations["listAdminUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fiche d'un utilisateur
+         * @description Profil, statut, compteurs, abonnement Clone Plus, et les 20 signalements reçus (compte, ses posts, ses commentaires) et émis les plus récents, avec leur total. Compte inexistant ou supprimé → `404 user_not_found`.
+         */
+        get: operations["getAdminUser"];
+        put?: never;
+        post?: never;
+        /**
+         * Supprimer un compte
+         * @description Même suppression que `DELETE /v1/me` : utilisateur Supabase Auth supprimé (accès coupé), profil supprimé, puis purge des données et fichiers. Motif obligatoire, écrit dans le journal d'audit.
+         *     Compte inexistant ou déjà supprimé → `404 user_not_found` ; Supabase Auth injoignable → `500`, compte intact.
+         */
+        delete: operations["deleteAdminUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{id}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suspendre un compte
+         * @description Compte `active` → `suspended` : toute route lui est refusée sauf `GET /v1/me` et `DELETE /v1/me` (`403 account_suspended`) ; son profil et ses contenus deviennent invisibles (ADR-006).
+         *     Motif obligatoire, écrit dans le journal d'audit. Autre statut → `409 invalid_status_transition` ; compte inexistant ou supprimé → `404 user_not_found`.
+         */
+        post: operations["suspendAdminUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{id}/ban": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bannir un compte
+         * @description Compte `active` ou `suspended` → `banned`. Mêmes effets qu'une suspension (ADR-005).
+         *     Motif obligatoire, écrit dans le journal d'audit. Autre statut → `409 invalid_status_transition` ; compte inexistant ou supprimé → `404 user_not_found`.
+         */
+        post: operations["banAdminUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/users/{id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Réactiver un compte
+         * @description Compte `suspended` ou `banned` → `active` : accès et visibilité rétablis.
+         *     Motif obligatoire, écrit dans le journal d'audit. Autre statut → `409 invalid_status_transition` ; compte inexistant ou supprimé → `404 user_not_found`.
+         */
+        post: operations["reactivateAdminUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -928,6 +1056,75 @@ export interface components {
             /** Format: uuid */
             id: string;
         };
+        /** @description Utilisateur authentifié qui a le rôle `admin`. */
+        AdminSession: {
+            /**
+             * Format: uuid
+             * @description Identifiant Supabase Auth.
+             */
+            id: string;
+            /** @enum {string} */
+            role: "admin";
+        };
+        AdminActionRequest: {
+            /** @description Motif de l'action, 500 caractères au plus, avec au moins un caractère visible ; espaces de début et de fin retirés. */
+            reason: string;
+        };
+        /** @description Compte vu par un admin. */
+        AdminUserSummary: {
+            /** Format: uuid */
+            id: string;
+            username: components["schemas"]["Username"];
+            fullName: components["schemas"]["FullName"];
+            status: components["schemas"]["AccountStatus"];
+            /** @description Photo de profil ; absente si aucune photo. */
+            avatar?: components["schemas"]["ImageVariants"];
+            followerCount: number;
+            followingCount: number;
+            postCount: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AdminUserPage: {
+            items: components["schemas"]["AdminUserSummary"][];
+            /** @description Curseur de la page suivante ; absent sur la dernière page. */
+            nextCursor?: string;
+        };
+        /** @enum {string} */
+        AdminReportStatus: "open" | "resolved_removed" | "resolved_dismissed";
+        /** @description Signalement vu par un admin. */
+        AdminReport: {
+            /** Format: uuid */
+            id: string;
+            targetType: components["schemas"]["ReportTargetType"];
+            /** Format: uuid */
+            targetId: string;
+            reason: components["schemas"]["ReportReason"];
+            details?: string;
+            status: components["schemas"]["AdminReportStatus"];
+            reporter: components["schemas"]["PostAuthor"];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AdminReportList: {
+            total: number;
+            /** @description Les 20 plus récents. */
+            items: components["schemas"]["AdminReport"][];
+        };
+        AdminUserDetail: components["schemas"]["AdminUserSummary"] & {
+            bio: components["schemas"]["Bio"];
+            isPrivate: boolean;
+            plan: components["schemas"]["Plan"];
+            /**
+             * Format: date-time
+             * @description Fin de la période payée de Clone Plus ; absente si le plan est `free`.
+             */
+            plusExpiresAt?: string;
+            /** @description Signalements visant le compte, ses posts ou ses commentaires. */
+            reportsReceived: components["schemas"]["AdminReportList"];
+            /** @description Signalements émis par le compte. */
+            reportsFiled: components["schemas"]["AdminReportList"];
+        };
     };
     responses: {
         /** @description Entrée non conforme au schéma (`validation_failed`). */
@@ -1022,6 +1219,24 @@ export interface components {
         };
         /** @description Commentaire inexistant, supprimé ou invisible pour l'appelant (`comment_not_found`). */
         CommentNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
+        /** @description Rôle `admin` requis (`admin_required`) ou compte suspendu (`account_suspended`). */
+        AdminForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
+        /** @description Un admin ne peut pas se viser lui-même (`cannot_moderate_self`). */
+        CannotModerateSelf: {
             headers: {
                 [name: string]: unknown;
             };
@@ -2069,6 +2284,239 @@ export interface operations {
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["MediaNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAdminSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description L'appelant est admin. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSession"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAdminUsers: {
+        parameters: {
+            query?: {
+                /** @description Username ou nom, partiel ; 1 à 30 caractères après suppression des espaces et du `@` initial. */
+                q?: string;
+                status?: components["schemas"]["AccountStatus"];
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de comptes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAdminUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description La fiche. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserDetail"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["UserNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    deleteAdminUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Compte supprimé ; la purge suit. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["UserNotFound"];
+            422: components["responses"]["CannotModerateSelf"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    suspendAdminUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Compte avec son nouveau statut. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserSummary"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["UserNotFound"];
+            /** @description Le statut actuel ne permet pas cette action (`invalid_status_transition`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            422: components["responses"]["CannotModerateSelf"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    banAdminUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Compte avec son nouveau statut. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserSummary"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["UserNotFound"];
+            /** @description Le statut actuel ne permet pas cette action (`invalid_status_transition`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            422: components["responses"]["CannotModerateSelf"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    reactivateAdminUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Compte avec son nouveau statut. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserSummary"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["UserNotFound"];
+            /** @description Le statut actuel ne permet pas cette action (`invalid_status_transition`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            422: components["responses"]["CannotModerateSelf"];
             500: components["responses"]["InternalError"];
         };
     };

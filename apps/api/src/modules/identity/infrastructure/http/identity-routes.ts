@@ -72,9 +72,14 @@ export function registerIdentityRoutes(
     canViewContent,
   });
 
-  app.get('/v1/me', { schema: routeSchemaFor('getMe') }, async (request): Promise<Me> => {
-    return toMe(await useCases.getMe.execute({ userId: authenticatedUserId(request) }));
-  });
+  // Ouverte à un compte suspendu ou banni : l'app lit son statut et affiche « Compte suspendu ».
+  app.get(
+    '/v1/me',
+    { schema: routeSchemaFor('getMe'), config: { allowSuspendedAccount: true } },
+    async (request): Promise<Me> => {
+      return toMe(await useCases.getMe.execute({ userId: authenticatedUserId(request) }));
+    },
+  );
 
   app.patch<{ Body: JsonBody<'updateMe'> }>(
     '/v1/me',
@@ -100,9 +105,10 @@ export function registerIdentityRoutes(
     },
   );
 
+  // Suppression du compte toujours possible, même suspendu ou banni (ADR-005).
   app.delete(
     '/v1/me',
-    { schema: routeSchemaFor('deleteMe') },
+    { schema: routeSchemaFor('deleteMe'), config: { allowSuspendedAccount: true } },
     async (request, reply): Promise<void> => {
       await useCases.deleteMe.execute({ userId: authenticatedUserId(request) });
       reply.status(204);

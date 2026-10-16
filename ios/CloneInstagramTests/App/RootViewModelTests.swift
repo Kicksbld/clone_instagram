@@ -189,4 +189,53 @@ struct RootViewModelTests {
 
         #expect(icons.changes == [.standard])
     }
+
+    @Test(arguments: [AccountStatus.suspended, .banned])
+    func `compte suspendu ou banni → écran « Compte suspendu »`(status: AccountStatus) async {
+        let identity = FakeIdentityService()
+        identity.meResults = [.success(.fixture(status: status))]
+        let viewModel = RootViewModel(auth: FakeAuthService(currentProvider: .email), identity: identity)
+
+        await viewModel.start()
+
+        #expect(viewModel.route == .suspended(.fixture(status: status)))
+    }
+
+    @Test func `refus account_suspended pendant la session → statut relu, écran « Compte suspendu »`() async {
+        let identity = FakeIdentityService()
+        identity.meResults = [.success(.fixture()), .success(.fixture(status: .suspended))]
+        let viewModel = RootViewModel(auth: FakeAuthService(currentProvider: .email), identity: identity)
+        await viewModel.start()
+
+        await viewModel.accountSuspended()
+
+        #expect(viewModel.route == .suspended(.fixture(status: .suspended)))
+    }
+
+    @Test func `refus account_suspended hors de l'accueil → ignoré`() async {
+        let viewModel = RootViewModel(auth: FakeAuthService(), identity: FakeIdentityService())
+        await viewModel.start()
+
+        await viewModel.accountSuspended()
+
+        #expect(viewModel.route == .welcome)
+    }
+
+    @Test func `retour dans l'app : compte réactivé → accueil ; toujours suspendu → écran conservé`() async {
+        let identity = FakeIdentityService()
+        identity.meResults = [
+            .success(.fixture(status: .suspended)),
+            .success(.fixture(status: .banned)),
+            .success(.fixture()),
+            .success(.fixture()),
+        ]
+        let viewModel = RootViewModel(auth: FakeAuthService(currentProvider: .email), identity: identity)
+        await viewModel.start()
+
+        await viewModel.recheckSuspension()
+        #expect(viewModel.route == .suspended(.fixture(status: .banned)))
+
+        await viewModel.recheckSuspension()
+        #expect(viewModel.route == .home(.fixture()))
+    }
 }

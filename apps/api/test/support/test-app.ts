@@ -11,8 +11,13 @@ import { GetFeed } from '../../src/modules/feed/application/use-cases/get-feed.t
 import { CheckUsernameAvailability } from '../../src/modules/identity/application/use-cases/check-username-availability.ts';
 import { CompleteOnboarding } from '../../src/modules/identity/application/use-cases/complete-onboarding.ts';
 import { DeleteMe } from '../../src/modules/identity/application/use-cases/delete-me.ts';
+import { DeleteUserAsAdmin } from '../../src/modules/identity/application/use-cases/delete-user-as-admin.ts';
+import { GetAdminSession } from '../../src/modules/identity/application/use-cases/get-admin-session.ts';
 import { GetMe } from '../../src/modules/identity/application/use-cases/get-me.ts';
 import { GetProfile } from '../../src/modules/identity/application/use-cases/get-profile.ts';
+import { GetUserForAdmin } from '../../src/modules/identity/application/use-cases/get-user-for-admin.ts';
+import { ListUsersForAdmin } from '../../src/modules/identity/application/use-cases/list-users-for-admin.ts';
+import { ModerateUser } from '../../src/modules/identity/application/use-cases/moderate-user.ts';
 import { RemoveAvatar } from '../../src/modules/identity/application/use-cases/remove-avatar.ts';
 import { UpdateMe } from '../../src/modules/identity/application/use-cases/update-me.ts';
 import { UpdateSettings } from '../../src/modules/identity/application/use-cases/update-settings.ts';
@@ -35,10 +40,13 @@ import { UnfollowUser } from '../../src/modules/social/application/use-cases/unf
 import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-media-urls.ts';
 import {
   FakeMediaStorage,
+  InMemoryAdminAuditLog,
+  InMemoryAdminRoles,
   InMemoryAnalyticsTracker,
   InMemoryAuthAccounts,
   InMemoryJobQueue,
   InMemoryUnitOfWork,
+  InMemoryUserReports,
   sequentialIds,
 } from './fakes.ts';
 import { InMemorySubscriptionProvider, InMemorySubscriptions } from './in-memory-billing.ts';
@@ -113,6 +121,11 @@ export function buildTestApp() {
   const subscriptionProvider = new InMemorySubscriptionProvider();
   const analytics = new InMemoryAnalyticsTracker();
   const authAccounts = new InMemoryAuthAccounts();
+  const adminRoles = new InMemoryAdminRoles();
+  const auditLog = new InMemoryAdminAuditLog();
+  const userReports = new InMemoryUserReports();
+  const adminTransaction = new InMemoryUnitOfWork({ profiles, audit: auditLog });
+  const getPlan = new GetPlan(subscriptions, clock);
   const app = buildApp({
     logLevel: 'silent',
     dependencies: {
@@ -127,7 +140,7 @@ export function buildTestApp() {
         completeOnboarding: new CompleteOnboarding(profiles, clock, analytics),
         checkUsernameAvailability: new CheckUsernameAvailability(profiles),
         getProfile: new GetProfile(profiles, relationships),
-        getPlan: new GetPlan(subscriptions, clock),
+        getPlan,
       },
       media: {
         requestUpload: new RequestUpload(media, new FakeMediaStorage(clock.now), sequentialIds()),
@@ -187,6 +200,20 @@ export function buildTestApp() {
           sequentialIds('0199a1b2-0000-7000-c100-'),
         ),
       },
+      admin: {
+        getAdminSession: new GetAdminSession(adminRoles),
+        listUsers: new ListUsersForAdmin(adminRoles, profiles),
+        getUser: new GetUserForAdmin(adminRoles, profiles, userReports),
+        moderateUser: new ModerateUser(adminRoles, adminTransaction),
+        deleteUser: new DeleteUserAsAdmin(
+          adminRoles,
+          profiles,
+          authAccounts,
+          adminTransaction,
+          jobs,
+        ),
+        getPlan,
+      },
       mediaUrls: publicMediaUrls(TEST_MEDIA_BASE_URL),
     },
   });
@@ -203,5 +230,8 @@ export function buildTestApp() {
     analytics,
     reports,
     authAccounts,
+    adminRoles,
+    auditLog,
+    userReports,
   };
 }

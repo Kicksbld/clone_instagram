@@ -17,4 +17,5 @@ export {
   type OwnerMediaFiles,
   type PurgeableMedia,
 } from './media.ts';
+export { transitionProfileStatus, type ProfileStatus } from './profile-status.ts';
 export * from './schema/index.ts';
