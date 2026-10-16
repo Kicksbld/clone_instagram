@@ -8,7 +8,7 @@ Projet de cours : un clone d'Instagram composé de trois produits.
 
 Le projet tourne dans deux environnements : en local pour le développement, et sur une démo hébergée (Supabase Cloud, Railway, Vercel). Les deux sont en place (§ 7).
 
-> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. T1 (démo hébergée : Supabase Cloud, Railway, Vercel) est terminée. T2 (inscription par email ou Apple, connexion, onboarding) est terminée. T3 (pipeline image et photo de profil) est terminée. T4 (profils et politique de visibilité) est terminée. T5 (suivre, listes d'abonnés, recherche) est terminée. T6a (publier un post photo) est terminée. T6b (carrousel et suppression de post) est terminée. T7 (feed d'accueil) est terminée. T8 (likes) est terminée. T9 (commentaires et réponses) est terminée. T10 (paywall Clone Plus) est terminée. T11 (analytics et A/B test du paywall) est terminée. T12 (paramètres, blocage, signalement) est terminée. T13 (suppression du compte) est en cours de validation. Détail dans le [plan P0](docs/plan/P0.md).
+> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. T1 (démo hébergée : Supabase Cloud, Railway, Vercel) est terminée. T2 (inscription par email ou Apple, connexion, onboarding) est terminée. T3 (pipeline image et photo de profil) est terminée. T4 (profils et politique de visibilité) est terminée. T5 (suivre, listes d'abonnés, recherche) est terminée. T6a (publier un post photo) est terminée. T6b (carrousel et suppression de post) est terminée. T7 (feed d'accueil) est terminée. T8 (likes) est terminée. T9 (commentaires et réponses) est terminée. T10 (paywall Clone Plus) est terminée. T11 (analytics et A/B test du paywall) est terminée. T12 (paramètres, blocage, signalement) est terminée. T13 (suppression du compte) est terminée. T14 (backoffice : connexion admin et utilisateurs) est en cours de validation. Détail dans le [plan P0](docs/plan/P0.md).
 
 ---
 
@@ -78,7 +78,7 @@ pnpm dev                 # API + worker + backoffice (Ctrl+C pour arrêter)
 | Service | Adresse | Attendu |
 |---|---|---|
 | API | http://localhost:3000/health | `{"status":"ok"}` |
-| Backoffice | http://localhost:3001 | « API : ok » |
+| Backoffice | http://localhost:3001 | page de connexion ; une fois connecté en admin (§ 6, `pnpm admin:create`), « API : ok » dans l'en-tête |
 | Worker | logs de `pnpm dev` | `Worker démarré` (files `media`, `maintenance`), puis `Médias orphelins purgés` (toutes les heures) |
 | Supabase Studio | http://127.0.0.1:54323 | interface d'administration de la base |
 | Mails de test (Mailpit) | http://127.0.0.1:54324 | emails envoyés par Supabase Auth, dont le **code de confirmation** de l'inscription |
@@ -152,6 +152,7 @@ Au prochain `supabase start`, relancer `pnpm db:migrate`, puis `pnpm db:seed`.
 | `pnpm contract:breaking` | Compare `openapi.yaml` à celui de `origin/main` (faire `git fetch` avant) et échoue sur une rupture de compatibilité (ADR-019) ; demande `brew install oasdiff` ; aussi lancé par la CI |
 | `pnpm db:migrate` | Applique les migrations Drizzle |
 | `pnpm db:seed` (`pnpm db:seed:demo` pour la démo, § 7) | Crée 100 profils de démo (publics, privés, un suspendu), leurs abonnements et environ 320 posts avec photos ; relançable sans doublon. La première exécution télécharge environ 540 photos d'exemple (picsum.photos, accès Internet requis, 1 à 2 minutes) et les écrit dans Storage (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) ; les suivantes n'envoient rien. Avec `SEED_VIEWER_USERNAME=<ton username>` (compte déjà créé dans l'app), relie aussi ton compte à ces profils : il suit `lea.martin`, `chloe.petit` (privé), `ines.moreau` (suspendue, absente du feed) et 30 autres comptes, `hugo.bernard`, `nathan.durand` et 20 autres le suivent, `emma.leroy` le bloque et il bloque `tom.fournier` |
+| `ADMIN_EMAIL=… ADMIN_PASSWORD=… pnpm admin:create` (`admin:create:demo` pour la démo, `.env.demo`) | Crée un admin du backoffice : compte Supabase Auth (email confirmé, sans profil dans l'app) et rôle `admin` ; relançable, un compte existant garde son mot de passe |
 | `pnpm test:supabase` | Vérifie contre un vrai Supabase qu'aucune table n'est lisible avec la clé publique, et l'upload présigné et les URL publiques des médias (hors CI, voir § 7) |
 | `supabase status` | Affiche les clés locales de Supabase (l'API de Supabase est sur http://127.0.0.1:54321) |
 
@@ -203,6 +204,7 @@ Même code qu'en local ; seule la configuration change (variables dans Railway e
 - **Clone Plus (T10, ADR-012)** : variables du service `api` sur Railway : `REVENUECAT_SECRET_KEY` (clé secrète V2, Customers en lecture-écriture et Subscriptions en lecture) et `REVENUECAT_PROJECT_ID` ; mêmes variables dans `.env` en local (l'API refuse de démarrer sans elles).
 - **Analytics (T11, ADR-013)** : variables du service `api` sur Railway : `POSTHOG_PROJECT_API_KEY` (et `POSTHOG_HOST` si le projet n'est pas en région UE). Facultatives : sans elles, l'API démarre et n'envoie rien.
 - **Suppression du compte (T13)** : variables du service `worker` sur Railway : `REVENUECAT_SECRET_KEY` et `REVENUECAT_PROJECT_ID` (mêmes valeurs que l'API ; le worker refuse de démarrer sans elles), `POSTHOG_PERSONAL_API_KEY` et `POSTHOG_PROJECT_ID` (facultatives : sans elles, la personne PostHog n'est pas supprimée), `POSTHOG_API_HOST` si le projet n'est pas en région UE. En local, le worker lit les mêmes variables dans `.env`.
+- **Backoffice (T14, ADR-011)** : variables du projet Vercel : `API_URL` (URL de l'API Railway), `SUPABASE_URL` (`https://<ref>.supabase.co`) et `SUPABASE_PUBLISHABLE_KEY` (clé « Publishable » de Supabase Cloud) ; aucune n'est préfixée `NEXT_PUBLIC_` (rien n'est exposé au navigateur). Premier admin de la démo : ajouter `ADMIN_EMAIL` et `ADMIN_PASSWORD` dans `.env.demo`, `pnpm admin:create:demo`, puis les retirer.
 - **Coût** : Railway, offre Hobby (5 $ / mois après l'essai de 29 jours) ; Supabase en offre gratuite. Le projet Supabase gratuit se met en pause après une période d'inactivité : le réveiller depuis le dashboard avant une démo.
 
 ## 8. Organisation du code
@@ -245,6 +247,8 @@ Principes clés :
 | API : `401 unauthenticated` avec un utilisateur connecté | Vérifier `SUPABASE_JWT_ISSUER` (`<SUPABASE_URL>/auth/v1`) et que Supabase signe en ES256 (clé de signature générée, `supabase stop` puis `supabase start`) |
 | Pas d'email de code à l'inscription | En local : Mailpit (http://127.0.0.1:54324). Sur la démo : vérifier le SMTP iCloud dans Supabase (mot de passe pour app valide) et les courriers indésirables ; logs dans Supabase → Logs → Auth |
 | Démo : l'email contient un lien au lieu d'un code | Les modèles de `supabase/templates/` n'ont pas été copiés dans Supabase Cloud (SMTP personnel requis pour les modifier) |
+| Backoffice : « Ce compte n'a pas accès au backoffice » | Le compte n'a pas le rôle `admin` dans cet environnement : `pnpm admin:create` (ou `admin:create:demo`) avec son email |
+| App iOS : écran « Compte suspendu » | Le compte a été suspendu ou banni depuis le backoffice ; le réactiver depuis sa fiche, puis revenir dans l'app |
 | Backoffice : « API : injoignable » | Vérifier que l'API tourne (`/health`) et que `API_URL` est renseignée dans `.env` |
 | Port 3000 ou 3001 déjà utilisé | Arrêter l'autre processus : `lsof -ti tcp:3000 \| xargs kill` |
 | App iOS en démo : « Connexion impossible » alors que l'API répond (`/health`) | L'app est compilée sur une branche en retard sur `main` : `git switch main && git pull`, puis `ios/scripts/sync.sh` et recompiler |

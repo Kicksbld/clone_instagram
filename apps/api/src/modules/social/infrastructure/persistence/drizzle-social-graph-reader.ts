@@ -8,12 +8,8 @@ import type {
   SocialGraphReader,
 } from '../../application/ports/social-graph-reader.ts';
 import type { Page } from '../../../../shared/domain/pagination.ts';
+import { escapeLike } from '../../../../shared/infrastructure/persistence/escape-like.ts';
 import type { UserSummary } from '../../domain/user-summary.ts';
-
-/** Échappe `%`, `_` et `\` pour un motif `LIKE` (le `_` est autorisé dans un username). */
-function escapeLike(text: string): string {
-  return text.replace(/[\\%_]/g, (char) => `\\${char}`);
-}
 
 /**
  * Listes et recherche en une requête chacune. La politique de visibilité (ADR-006) y est traduite en

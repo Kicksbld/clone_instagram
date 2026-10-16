@@ -18,7 +18,10 @@ Backoffice client de l'API uniquement : [ADR-011](../../docs/adr/ADR-011-backoff
 - **Chaque Server Action revérifie la session** avant d'appeler l'API ; `src/proxy.ts` (Next 16, ex-`middleware.ts`) n'est qu'un confort de redirection.
 - L'API reste l'autorité pour le rôle `admin`.
 - Pagination, tri et filtres dans l'URL ; états vides, de chargement et d'erreur explicites ; toast et revalidation après chaque action.
-- Tests : Vitest (`*.test.ts` à côté du code) ; Playwright à partir de T14.
+- **Session admin** (T14) : `src/lib/auth/session.ts` (client `@supabase/ssr` sur `cookies()`, cookies httpOnly), connexion et déconnexion par Server Action (`features/auth/data/actions.ts`) : le navigateur n'appelle jamais Supabase. Chaque page et chaque Server Action commence par `requireAdmin()` (`features/auth/data/session.ts`, `GET /v1/admin/me`), qui renvoie le client API avec le jeton ; refus → `/logout?error=…` (route qui ferme la session).
+- **Server Action** de référence : `moderateUser` (`features/users/data/actions.ts`) — `requireAdmin()`, entrée revalidée par Zod, appel API, `revalidatePath`, résultat `{ ok, message }` pour le toast. Le composant la reçoit en prop depuis la page (`ModerationActions`).
+- **Tableau** : `@tanstack/react-table` v9 (`useTable`, `createColumnHelper`), sans traitement de lignes : pagination, filtres et tri restent côté serveur, dans l'URL.
+- Tests : Vitest (`*.test.ts` à côté du code). Pas de Playwright en T14 : parcours vérifiés à la main par le lead dev.
 
 ## Interdits
 

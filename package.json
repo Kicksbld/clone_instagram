@@ -18,7 +18,9 @@
     "contract:breaking": "bash scripts/contract-breaking.sh",
     "db:migrate": "pnpm --filter @clone/db db:migrate",
     "db:seed": "pnpm --filter @clone/db db:seed",
-    "db:seed:demo": "pnpm --filter @clone/db db:seed:demo"
+    "db:seed:demo": "pnpm --filter @clone/db db:seed:demo",
+    "admin:create": "pnpm --filter @clone/db admin:create",
+    "admin:create:demo": "pnpm --filter @clone/db admin:create:demo"
   },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",

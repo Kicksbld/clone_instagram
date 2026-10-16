@@ -1,4 +1,4 @@
-import type { Profile } from '../../domain/profile.ts';
+import type { AccountStatus, Profile } from '../../domain/profile.ts';
 
 export interface NewProfile {
   id: string;
@@ -25,6 +25,11 @@ export interface ProfileRepository {
   update(id: string, changes: ProfileChanges): Promise<Profile | null>;
   /** Passe le profil en `deleted` (suppression du compte, T13) ; la ligne est purgée par le worker. */
   markDeleted(id: string): Promise<void>;
+  /**
+   * Écriture conditionnelle du statut (T14) : `false` si le profil est absent ou si son statut
+   * actuel n'est pas dans `from`.
+   */
+  transitionStatus(id: string, from: readonly AccountStatus[], to: AccountStatus): Promise<boolean>;
   /** Parmi `usernames`, ceux déjà utilisés par un profil autre que `exceptProfileId`. */
   findTakenUsernames(usernames: readonly string[], exceptProfileId: string): Promise<Set<string>>;
 }

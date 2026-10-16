@@ -39,7 +39,15 @@ export {
   type SubscriptionRow,
   type SubscriptionStatus,
 } from './billing.ts';
+export { ADMIN_ROLES, adminRoles, type AdminRole, type AdminRoleRow } from './admin.ts';
 export {
+  ADMIN_AUDIT_ACTIONS,
+  ADMIN_AUDIT_TARGET_TYPES,
+  adminAuditLog,
+  type AdminAuditAction,
+  type AdminAuditLogRow,
+  type AdminAuditTargetType,
+  type NewAdminAuditLogRow,
   REPORT_REASONS,
   REPORT_STATUSES,
   reports,

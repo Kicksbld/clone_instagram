@@ -26,11 +26,17 @@ import { DrizzleFeedReader } from './modules/feed/infrastructure/persistence/dri
 import { CheckUsernameAvailability } from './modules/identity/application/use-cases/check-username-availability.ts';
 import { CompleteOnboarding } from './modules/identity/application/use-cases/complete-onboarding.ts';
 import { DeleteMe } from './modules/identity/application/use-cases/delete-me.ts';
+import { DeleteUserAsAdmin } from './modules/identity/application/use-cases/delete-user-as-admin.ts';
+import { GetAdminSession } from './modules/identity/application/use-cases/get-admin-session.ts';
 import { GetMe } from './modules/identity/application/use-cases/get-me.ts';
 import { GetProfile } from './modules/identity/application/use-cases/get-profile.ts';
+import { GetUserForAdmin } from './modules/identity/application/use-cases/get-user-for-admin.ts';
+import { ListUsersForAdmin } from './modules/identity/application/use-cases/list-users-for-admin.ts';
+import { ModerateUser } from './modules/identity/application/use-cases/moderate-user.ts';
 import { RemoveAvatar } from './modules/identity/application/use-cases/remove-avatar.ts';
 import { UpdateMe } from './modules/identity/application/use-cases/update-me.ts';
 import { UpdateSettings } from './modules/identity/application/use-cases/update-settings.ts';
+import { DrizzleAdminUserReader } from './modules/identity/infrastructure/persistence/drizzle-admin-user-reader.ts';
 import { DrizzleProfileRepository } from './modules/identity/infrastructure/persistence/drizzle-profile-repository.ts';
 import { SupabaseAuthAccounts } from './modules/identity/infrastructure/supabase/supabase-auth-accounts.ts';
 import { CompleteUpload } from './modules/media/application/use-cases/complete-upload.ts';
@@ -43,6 +49,7 @@ import {
   DrizzleReportRepository,
   DrizzleReportTargetReader,
 } from './modules/moderation/infrastructure/persistence/drizzle-reports.ts';
+import { DrizzleUserReportsReader } from './modules/moderation/infrastructure/persistence/drizzle-user-reports-reader.ts';
 import { CreatePost } from './modules/posts/application/use-cases/create-post.ts';
 import { DeletePost } from './modules/posts/application/use-cases/delete-post.ts';
 import { GetPost } from './modules/posts/application/use-cases/get-post.ts';
@@ -75,6 +82,8 @@ import { loadConfig } from './shared/infrastructure/config.ts';
 import { publicMediaUrls } from './shared/infrastructure/http/public-media-urls.ts';
 import { BullMqJobQueue } from './shared/infrastructure/jobs/bullmq-job-queue.ts';
 import { DrizzleAccountStatusReader } from './shared/infrastructure/persistence/drizzle-account-status-reader.ts';
+import { DrizzleAdminAuditLog } from './shared/infrastructure/persistence/drizzle-admin-audit-log.ts';
+import { DrizzleAdminRoles } from './shared/infrastructure/persistence/drizzle-admin-roles.ts';
 import { DrizzleRelationshipReader } from './shared/infrastructure/persistence/drizzle-relationship-reader.ts';
 import { DrizzleUnitOfWork } from './shared/infrastructure/persistence/drizzle-unit-of-work.ts';
 import { systemClock } from './shared/infrastructure/system-clock.ts';
@@ -147,6 +156,14 @@ const commentReader = new DrizzleCommentReader(database.db);
 const subscriptions = new DrizzleSubscriptionRepository(database.db);
 const jobs = new BullMqJobQueue(config.REDIS_URL);
 const secretKey = config.SUPABASE_SERVICE_ROLE_KEY;
+const authAccounts = new SupabaseAuthAccounts({ supabaseUrl: config.SUPABASE_URL, secretKey });
+const adminRoles = new DrizzleAdminRoles(database.db);
+// Action d'administration et journal d'audit dans une même transaction (ADR-011).
+const adminTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  profiles: new DrizzleProfileRepository(tx),
+  audit: new DrizzleAdminAuditLog(tx),
+}));
+const getPlan = new GetPlan(subscriptions, systemClock);
 const storage = new SupabaseMediaStorage(
   new StorageClient(new URL('/storage/v1', config.SUPABASE_URL).toString(), {
     apikey: secretKey,
@@ -169,15 +186,11 @@ const app = buildApp({
       updateMe: new UpdateMe(profiles, avatarTransaction),
       updateSettings: new UpdateSettings(profiles),
       removeAvatar: new RemoveAvatar(avatarTransaction),
-      deleteMe: new DeleteMe(
-        profiles,
-        new SupabaseAuthAccounts({ supabaseUrl: config.SUPABASE_URL, secretKey }),
-        jobs,
-      ),
+      deleteMe: new DeleteMe(profiles, authAccounts, jobs),
       completeOnboarding: new CompleteOnboarding(profiles, systemClock, analytics),
       checkUsernameAvailability: new CheckUsernameAvailability(profiles),
       getProfile: new GetProfile(profiles, relationships),
-      getPlan: new GetPlan(subscriptions, systemClock),
+      getPlan,
     },
     media: {
       requestUpload: new RequestUpload(media, storage, uuidV7Generator),
@@ -238,6 +251,14 @@ const app = buildApp({
         new DrizzleReportRepository(database.db),
         uuidV7Generator,
       ),
+    },
+    admin: {
+      getAdminSession: new GetAdminSession(adminRoles),
+      listUsers: new ListUsersForAdmin(adminRoles, new DrizzleAdminUserReader(database.db)),
+      getUser: new GetUserForAdmin(adminRoles, profiles, new DrizzleUserReportsReader(database.db)),
+      moderateUser: new ModerateUser(adminRoles, adminTransaction),
+      deleteUser: new DeleteUserAsAdmin(adminRoles, profiles, authAccounts, adminTransaction, jobs),
+      getPlan,
     },
     mediaUrls: publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL),
   },

@@ -8,6 +8,7 @@ struct RootView: View {
     @State private var deletedPostCount = 0
     /// Feuille des commentaires ouverte depuis un post (feed, détail).
     @State private var commentsRoute: CommentsRoute?
+    @Environment(\.scenePhase) private var scenePhase
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
@@ -24,6 +25,15 @@ struct RootView: View {
     var body: some View {
         content
             .task { await viewModel.start() }
+            // Compte suspendu ou banni pendant la session (`403 account_suspended`, ADR-005).
+            .onChange(of: dependencies.suspension.revision) {
+                Task { await viewModel.accountSuspended() }
+            }
+            // Retour dans l'app : un compte réactivé quitte l'écran « Compte suspendu ».
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task { await viewModel.recheckSuspension() }
+            }
     }
 
     @ViewBuilder
@@ -168,6 +178,13 @@ struct RootView: View {
                 .modifier(ModerationPresenter(dependencies: dependencies))
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+            }
+        case let .suspended(profile):
+            SuspendedAccountView(profile: profile, onSignOut: signOut) {
+                DeleteAccountView(
+                    planStatus: profile.planStatus,
+                    viewModel: DeleteAccountViewModel(identity: dependencies.identity, onDeleted: signOut)
+                )
             }
         case let .failed(message):
             ContentUnavailableView {

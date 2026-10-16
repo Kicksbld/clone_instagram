@@ -25,6 +25,8 @@ struct AppDependencies {
     let appIcons: any AppIconService
     /// Événements et variante du paywall (PostHog, ADR-013).
     let analytics: any AnalyticsService
+    /// Refus `403 account_suspended` reçus pendant la session (ADR-005).
+    let suspension: AccountSuspensionMonitor
 
     static func live(bundle: Bundle = .main) -> AppDependencies {
         let auth = makeAuth(bundle: bundle)
@@ -33,7 +35,12 @@ struct AppDependencies {
         guard let configuration = try? APIConfiguration(bundle: bundle) else {
             return unavailable(auth: auth, purchases: purchases, analytics: analytics)
         }
-        let client = APIClientFactory.makeClient(configuration: configuration) { await auth.accessToken() }
+        let suspension = AccountSuspensionMonitor()
+        let client = APIClientFactory.makeClient(
+            configuration: configuration,
+            accessToken: { await auth.accessToken() },
+            onAccountSuspended: { await suspension.report() }
+        )
         let uploads = UploadManager(media: APIMediaService(client: client), uploader: BackgroundFileUploader.shared)
         let posts = APIPostService(client: client)
         let social = APISocialService(client: client)
@@ -58,7 +65,8 @@ struct AppDependencies {
             purchases: purchases,
             subscriptions: APISubscriptionService(client: client),
             appIcons: SystemAppIconService(),
-            analytics: analytics
+            analytics: analytics,
+            suspension: suspension
         )
     }
 }
@@ -92,7 +100,8 @@ extension AppDependencies {
             purchases: purchases,
             subscriptions: UnavailableSubscriptionService(),
             appIcons: SystemAppIconService(),
-            analytics: analytics
+            analytics: analytics,
+            suspension: AccountSuspensionMonitor()
         )
     }
 
