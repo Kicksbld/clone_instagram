@@ -46,7 +46,10 @@ struct SplashView: View {
         .accessibilityElement()
         .accessibilityLabel("Clone")
         .task { await playEntrance() }
+        // Sortie déclenchée par `onChange`, qui lit la vue courante : la tâche de `playEntrance` garde la
+        // copie de son lancement, où `isReady` est encore `false`.
         .onChange(of: isReady) { exitIfPossible() }
+        .onChange(of: isEntranceDone) { exitIfPossible() }
     }
 
     private var logo: some View {
@@ -83,7 +86,6 @@ struct SplashView: View {
             isFrameShown = true
             flashOpacity = 1
             isEntranceDone = true
-            exitIfPossible()
             return
         }
         withAnimation(.spring(duration: 0.46, bounce: 0.45)) { lensScale = 1 }
@@ -99,7 +101,6 @@ struct SplashView: View {
         }
         guard await pause(0.17) else { return }
         isEntranceDone = true
-        exitIfPossible()
     }
 
     /// Attend `seconds` ; `false` si la tâche est annulée.
