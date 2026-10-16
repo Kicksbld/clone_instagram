@@ -97,6 +97,13 @@ export class DrizzleProfileRepository implements ProfileRepository {
     }
   }
 
+  async markDeleted(id: string): Promise<void> {
+    await this.db
+      .update(profiles)
+      .set({ status: 'deleted', updatedAt: sql`now()` })
+      .where(eq(profiles.id, id));
+  }
+
   async findTakenUsernames(
     usernames: readonly string[],
     exceptProfileId: string,

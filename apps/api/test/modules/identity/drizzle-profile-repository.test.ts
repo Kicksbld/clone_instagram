@@ -49,6 +49,15 @@ describe('DrizzleProfileRepository', () => {
     await expect(repository.findById(input.id)).resolves.toEqual(profile);
   });
 
+  it('markDeleted passe le profil en deleted, sans le supprimer', async () => {
+    const input = newProfile();
+    await repository.create(input);
+
+    await repository.markDeleted(input.id);
+
+    await expect(repository.findById(input.id)).resolves.toMatchObject({ status: 'deleted' });
+  });
+
   it('profil inconnu → null', async () => {
     await expect(repository.findById(newId())).resolves.toBeNull();
   });

@@ -25,12 +25,14 @@ import { GetFeed } from './modules/feed/application/use-cases/get-feed.ts';
 import { DrizzleFeedReader } from './modules/feed/infrastructure/persistence/drizzle-feed-reader.ts';
 import { CheckUsernameAvailability } from './modules/identity/application/use-cases/check-username-availability.ts';
 import { CompleteOnboarding } from './modules/identity/application/use-cases/complete-onboarding.ts';
+import { DeleteMe } from './modules/identity/application/use-cases/delete-me.ts';
 import { GetMe } from './modules/identity/application/use-cases/get-me.ts';
 import { GetProfile } from './modules/identity/application/use-cases/get-profile.ts';
 import { RemoveAvatar } from './modules/identity/application/use-cases/remove-avatar.ts';
 import { UpdateMe } from './modules/identity/application/use-cases/update-me.ts';
 import { UpdateSettings } from './modules/identity/application/use-cases/update-settings.ts';
 import { DrizzleProfileRepository } from './modules/identity/infrastructure/persistence/drizzle-profile-repository.ts';
+import { SupabaseAuthAccounts } from './modules/identity/infrastructure/supabase/supabase-auth-accounts.ts';
 import { CompleteUpload } from './modules/media/application/use-cases/complete-upload.ts';
 import { GetMedia } from './modules/media/application/use-cases/get-media.ts';
 import { RequestUpload } from './modules/media/application/use-cases/request-upload.ts';
@@ -72,6 +74,7 @@ import { createJwtVerifier, supabaseJwks } from './shared/infrastructure/auth/to
 import { loadConfig } from './shared/infrastructure/config.ts';
 import { publicMediaUrls } from './shared/infrastructure/http/public-media-urls.ts';
 import { BullMqJobQueue } from './shared/infrastructure/jobs/bullmq-job-queue.ts';
+import { DrizzleAccountStatusReader } from './shared/infrastructure/persistence/drizzle-account-status-reader.ts';
 import { DrizzleRelationshipReader } from './shared/infrastructure/persistence/drizzle-relationship-reader.ts';
 import { DrizzleUnitOfWork } from './shared/infrastructure/persistence/drizzle-unit-of-work.ts';
 import { systemClock } from './shared/infrastructure/system-clock.ts';
@@ -160,11 +163,17 @@ const app = buildApp({
       issuer: config.SUPABASE_JWT_ISSUER,
       keys: supabaseJwks(config.SUPABASE_URL),
     }),
+    accountStatuses: new DrizzleAccountStatusReader(database.db),
     identity: {
       getMe: new GetMe(profiles),
       updateMe: new UpdateMe(profiles, avatarTransaction),
       updateSettings: new UpdateSettings(profiles),
       removeAvatar: new RemoveAvatar(avatarTransaction),
+      deleteMe: new DeleteMe(
+        profiles,
+        new SupabaseAuthAccounts({ supabaseUrl: config.SUPABASE_URL, secretKey }),
+        jobs,
+      ),
       completeOnboarding: new CompleteOnboarding(profiles, systemClock, analytics),
       checkUsernameAvailability: new CheckUsernameAvailability(profiles),
       getProfile: new GetProfile(profiles, relationships),

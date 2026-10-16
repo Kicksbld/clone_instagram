@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { CheckUsernameAvailability } from '../../../src/modules/identity/application/use-cases/check-username-availability.ts';
 import { CompleteOnboarding } from '../../../src/modules/identity/application/use-cases/complete-onboarding.ts';
+import { DeleteMe } from '../../../src/modules/identity/application/use-cases/delete-me.ts';
 import { GetMe } from '../../../src/modules/identity/application/use-cases/get-me.ts';
 import { GetProfile } from '../../../src/modules/identity/application/use-cases/get-profile.ts';
 import { UpdateMe } from '../../../src/modules/identity/application/use-cases/update-me.ts';
@@ -12,7 +13,13 @@ import {
   UsernameTakenError,
   UserNotFoundError,
 } from '../../../src/modules/identity/domain/errors.ts';
-import { InMemoryAnalyticsTracker, InMemoryUnitOfWork } from '../../support/fakes.ts';
+import { AuthAccountsUnavailableError } from '../../../src/modules/identity/application/ports/auth-accounts.ts';
+import {
+  InMemoryAnalyticsTracker,
+  InMemoryAuthAccounts,
+  InMemoryJobQueue,
+  InMemoryUnitOfWork,
+} from '../../support/fakes.ts';
 import { InMemoryMediaRepository } from '../../support/in-memory-media-repository.ts';
 import { InMemoryProfileRepository } from '../../support/in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from '../../support/in-memory-relationship-reader.ts';
@@ -43,6 +50,49 @@ describe('GetMe', () => {
     await expect(new GetMe(profiles).execute({ userId: ME })).rejects.toBeInstanceOf(
       ProfileNotFoundError,
     );
+  });
+});
+
+describe('DeleteMe', () => {
+  let authAccounts: InMemoryAuthAccounts;
+  let jobs: InMemoryJobQueue;
+  const deleteMe = () => new DeleteMe(profiles, authAccounts, jobs).execute({ userId: ME });
+
+  beforeEach(() => {
+    authAccounts = new InMemoryAuthAccounts();
+    jobs = new InMemoryJobQueue();
+  });
+
+  it('supprime l’utilisateur Auth, passe le profil en deleted et enfile la purge', async () => {
+    profiles.add({ id: ME, username: 'killian' });
+
+    await deleteMe();
+
+    expect(authAccounts.deleted).toEqual(new Set([ME]));
+    expect(profiles.rows.get(ME)?.status).toBe('deleted');
+    expect(jobs.accountPurges).toEqual(new Set([ME]));
+  });
+
+  it('compte suspendu ou banni → suppression permise (ADR-005)', async () => {
+    profiles.add({ id: ME, username: 'killian', status: 'banned' });
+
+    await deleteMe();
+
+    expect(profiles.rows.get(ME)?.status).toBe('deleted');
+  });
+
+  it('Supabase Auth injoignable → erreur, profil inchangé et aucune purge', async () => {
+    profiles.add({ id: ME, username: 'killian' });
+    authAccounts.unavailable = true;
+
+    await expect(deleteMe()).rejects.toBeInstanceOf(AuthAccountsUnavailableError);
+    expect(profiles.rows.get(ME)?.status).toBe('active');
+    expect(jobs.accountPurges.size).toBe(0);
+  });
+
+  it('profil absent → profile_not_found', async () => {
+    await expect(deleteMe()).rejects.toBeInstanceOf(ProfileNotFoundError);
+    expect(authAccounts.deleted.size).toBe(0);
   });
 });
 

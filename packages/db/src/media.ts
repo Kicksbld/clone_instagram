@@ -143,3 +143,16 @@ export async function deletePurgeableMedia(db: Executor, id: string): Promise<bo
     .returning({ id: media.id });
   return rows.length === 1;
 }
+
+export interface OwnerMediaFiles {
+  originalPath: string;
+  variants: ImageVariantPaths | null;
+}
+
+/** Fichiers de tous les médias d'un propriétaire, quel que soit leur état (`purge-account`, T13). */
+export function listOwnerMediaFiles(db: Executor, ownerId: string): Promise<OwnerMediaFiles[]> {
+  return db
+    .select({ originalPath: media.originalPath, variants: media.variants })
+    .from(media)
+    .where(eq(media.ownerId, ownerId));
+}

@@ -38,6 +38,7 @@ import {
   decorateAuthentication,
   requireAuthentication,
 } from './shared/infrastructure/auth/authentication.ts';
+import type { AccountStatusReader } from './shared/application/account-status-reader.ts';
 import type { TokenVerifier } from './shared/infrastructure/auth/token-verifier.ts';
 import type { Config } from './shared/infrastructure/config.ts';
 import { installContractValidation } from './shared/infrastructure/http/contract-schemas.ts';
@@ -49,6 +50,7 @@ import { registerRateLimit } from './shared/infrastructure/http/rate-limit.ts';
 /** Dépendances assemblées par `main.ts` (ou par les tests, avec des adapters en mémoire). */
 export interface AppDependencies {
   tokenVerifier: TokenVerifier;
+  accountStatuses: AccountStatusReader;
   identity: IdentityUseCases;
   media: MediaUseCases;
   social: SocialUseCases;
@@ -91,7 +93,7 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
 
   // Routes `/v1` : toutes authentifiées (ADR-003).
   void app.register((v1, _options, done) => {
-    requireAuthentication(v1, dependencies.tokenVerifier);
+    requireAuthentication(v1, dependencies.tokenVerifier, dependencies.accountStatuses);
     registerIdentityRoutes(v1, dependencies.identity, dependencies.mediaUrls);
     registerMediaRoutes(v1, dependencies.media, dependencies.mediaUrls);
     registerSocialRoutes(v1, dependencies.social, dependencies.mediaUrls);

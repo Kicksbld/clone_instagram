@@ -1,4 +1,10 @@
-import { DEFAULT_JOB_OPTIONS, PROCESS_IMAGE, processImageJobId } from '@clone/jobs';
+import {
+  DEFAULT_JOB_OPTIONS,
+  PROCESS_IMAGE,
+  processImageJobId,
+  PURGE_ACCOUNT,
+  purgeAccountJobId,
+} from '@clone/jobs';
 import { Queue } from 'bullmq';
 
 import type { JobQueue } from '../../application/job-queue.ts';
@@ -6,10 +12,13 @@ import type { JobQueue } from '../../application/job-queue.ts';
 /** Adapter BullMQ du port `JobQueue` (ADR-015) : payloads validés par leur schéma avant l'envoi. */
 export class BullMqJobQueue implements JobQueue {
   private readonly media: Queue;
+  private readonly maintenance: Queue;
 
   constructor(redisUrl: string) {
     // `family: 0` : Redis joignable en IPv4 ou IPv6 (réseau privé Railway, ADR-009).
-    this.media = new Queue(PROCESS_IMAGE.queue, { connection: { url: redisUrl, family: 0 } });
+    const connection = { url: redisUrl, family: 0 };
+    this.media = new Queue(PROCESS_IMAGE.queue, { connection });
+    this.maintenance = new Queue(PURGE_ACCOUNT.queue, { connection });
   }
 
   async enqueueImageProcessing(mediaId: string): Promise<void> {
@@ -21,7 +30,15 @@ export class BullMqJobQueue implements JobQueue {
     });
   }
 
-  close(): Promise<void> {
-    return this.media.close();
+  async enqueueAccountPurge(profileId: string): Promise<void> {
+    const payload = PURGE_ACCOUNT.payload.parse({ profileId });
+    await this.maintenance.add(PURGE_ACCOUNT.name, payload, {
+      ...DEFAULT_JOB_OPTIONS,
+      jobId: purgeAccountJobId(profileId),
+    });
+  }
+
+  async close(): Promise<void> {
+    await Promise.all([this.media.close(), this.maintenance.close()]);
   }
 }

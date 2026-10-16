@@ -2,13 +2,14 @@ import StoreKit
 import SwiftUI
 
 /// Paramètres et activité (wireframe, comme Instagram) : Clone Plus, confidentialité du compte, comptes
-/// bloqués et déconnexion. Le paywall est fourni par le routeur racine : une feature n'importe pas une autre
+/// bloqués, déconnexion et suppression du compte. Le paywall est fourni par le routeur racine : une feature n'importe pas une autre
 /// (ADR-010).
 struct SettingsView<Paywall: View>: View {
     let planStatus: PlanStatus
     let icons: AppIconViewModel
     let privacy: AccountPrivacyViewModel
     let blockedAccounts: BlockedAccountsViewModel
+    let deleteAccount: DeleteAccountViewModel
     /// Plan relu par l'API à l'ouverture de Clone Plus.
     let onRefreshPlan: () async -> Void
     let onSignOut: () -> Void
@@ -49,6 +50,9 @@ struct SettingsView<Paywall: View>: View {
             }
             Section("Connexion") {
                 Button("Se déconnecter", role: .destructive) { isConfirmingSignOut = true }
+                NavigationLink("Supprimer le compte") {
+                    DeleteAccountView(planStatus: planStatus, viewModel: deleteAccount)
+                }
             }
         }
         .navigationTitle("Paramètres et activité")

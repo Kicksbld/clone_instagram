@@ -64,6 +64,13 @@
       "when": 1792070370987,
       "tag": "0008_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792133452756,
+      "tag": "0009_profile_deleted_status",
+      "breakpoints": true
     }
   ]
 }

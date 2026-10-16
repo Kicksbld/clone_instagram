@@ -8,7 +8,7 @@ Projet de cours : un clone d'Instagram composé de trois produits.
 
 Le projet tourne dans deux environnements : en local pour le développement, et sur une démo hébergée (Supabase Cloud, Railway, Vercel). Les deux sont en place (§ 7).
 
-> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. T1 (démo hébergée : Supabase Cloud, Railway, Vercel) est terminée. T2 (inscription par email ou Apple, connexion, onboarding) est terminée. T3 (pipeline image et photo de profil) est terminée. T4 (profils et politique de visibilité) est terminée. T5 (suivre, listes d'abonnés, recherche) est terminée. T6a (publier un post photo) est terminée. T6b (carrousel et suppression de post) est terminée. T7 (feed d'accueil) est terminée. T8 (likes) est terminée. T9 (commentaires et réponses) est terminée. T10 (paywall Clone Plus) est terminée. T11 (analytics et A/B test du paywall) est terminée. T12 (paramètres, blocage, signalement) est en cours de validation. Détail dans le [plan P0](docs/plan/P0.md).
+> **Avancement** : T0a (socle TypeScript, contrat d'API, CI) est terminée. T0b (squelette iOS : l'app affiche l'état de `/health`) est terminée. T1 (démo hébergée : Supabase Cloud, Railway, Vercel) est terminée. T2 (inscription par email ou Apple, connexion, onboarding) est terminée. T3 (pipeline image et photo de profil) est terminée. T4 (profils et politique de visibilité) est terminée. T5 (suivre, listes d'abonnés, recherche) est terminée. T6a (publier un post photo) est terminée. T6b (carrousel et suppression de post) est terminée. T7 (feed d'accueil) est terminée. T8 (likes) est terminée. T9 (commentaires et réponses) est terminée. T10 (paywall Clone Plus) est terminée. T11 (analytics et A/B test du paywall) est terminée. T12 (paramètres, blocage, signalement) est terminée. T13 (suppression du compte) est en cours de validation. Détail dans le [plan P0](docs/plan/P0.md).
 
 ---
 
@@ -57,7 +57,7 @@ SUPABASE_SERVICE_ROLE_KEY=sb_secret_…                              # « Secret
 PUBLIC_MEDIA_BASE_URL=http://127.0.0.1:54321                        # sur iPhone : http://<IP du Mac>:54321
 ```
 
-L'API refuse de démarrer si `DATABASE_URL`, `REDIS_URL`, `SUPABASE_URL`, `SUPABASE_JWT_ISSUER`, `SUPABASE_SERVICE_ROLE_KEY` ou `PUBLIC_MEDIA_BASE_URL` manque ; le worker, si `REDIS_URL`, `DATABASE_URL`, `SUPABASE_URL` ou `SUPABASE_SERVICE_ROLE_KEY` manque. L'API vérifie les JWT avec les clés publiques de `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`. `PUBLIC_MEDIA_BASE_URL` est l'adresse de Supabase vue par l'app : l'API s'en sert pour les URL d'upload et les URL des photos.
+L'API refuse de démarrer si `DATABASE_URL`, `REDIS_URL`, `SUPABASE_URL`, `SUPABASE_JWT_ISSUER`, `SUPABASE_SERVICE_ROLE_KEY` ou `PUBLIC_MEDIA_BASE_URL` manque ; le worker, si `REDIS_URL`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REVENUECAT_SECRET_KEY` ou `REVENUECAT_PROJECT_ID` manque. L'API vérifie les JWT avec les clés publiques de `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`. `PUBLIC_MEDIA_BASE_URL` est l'adresse de Supabase vue par l'app : l'API s'en sert pour les URL d'upload et les URL des photos.
 
 Après un `git pull` qui modifie les buckets de `supabase/config.toml` (limites de taille, types acceptés) : `supabase seed buckets`.
 
@@ -202,6 +202,7 @@ Même code qu'en local ; seule la configuration change (variables dans Railway e
   ```
 - **Clone Plus (T10, ADR-012)** : variables du service `api` sur Railway : `REVENUECAT_SECRET_KEY` (clé secrète V2, Customers en lecture-écriture et Subscriptions en lecture) et `REVENUECAT_PROJECT_ID` ; mêmes variables dans `.env` en local (l'API refuse de démarrer sans elles).
 - **Analytics (T11, ADR-013)** : variables du service `api` sur Railway : `POSTHOG_PROJECT_API_KEY` (et `POSTHOG_HOST` si le projet n'est pas en région UE). Facultatives : sans elles, l'API démarre et n'envoie rien.
+- **Suppression du compte (T13)** : variables du service `worker` sur Railway : `REVENUECAT_SECRET_KEY` et `REVENUECAT_PROJECT_ID` (mêmes valeurs que l'API ; le worker refuse de démarrer sans elles), `POSTHOG_PERSONAL_API_KEY` et `POSTHOG_PROJECT_ID` (facultatives : sans elles, la personne PostHog n'est pas supprimée), `POSTHOG_API_HOST` si le projet n'est pas en région UE. En local, le worker lit les mêmes variables dans `.env`.
 - **Coût** : Railway, offre Hobby (5 $ / mois après l'essai de 29 jours) ; Supabase en offre gratuite. Le projet Supabase gratuit se met en pause après une période d'inactivité : le réveiller depuis le dashboard avant une démo.
 
 ## 8. Organisation du code

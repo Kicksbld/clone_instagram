@@ -8,13 +8,15 @@ import {
   UsernameTakenError,
 } from '../../src/modules/identity/domain/errors.ts';
 import type { Profile } from '../../src/modules/identity/domain/profile.ts';
+import type { AccountStatusReader } from '../../src/shared/application/account-status-reader.ts';
+import type { AccountStatus } from '../../src/shared/domain/visibility.ts';
 import type { InMemoryMediaRepository } from './in-memory-media-repository.ts';
 
 /**
  * Adapter en mémoire (ADR-005) : mêmes contraintes d'unicité que la table `profiles` ; la photo de
  * profil est lue dans `media`, comme la jointure de l'adapter Drizzle.
  */
-export class InMemoryProfileRepository implements ProfileRepository {
+export class InMemoryProfileRepository implements ProfileRepository, AccountStatusReader {
   readonly rows = new Map<string, Profile>();
   media: InMemoryMediaRepository | null = null;
 
@@ -74,6 +76,16 @@ export class InMemoryProfileRepository implements ProfileRepository {
     const updated = avatarMediaId === undefined ? merged : this.withAvatar(merged, avatarMediaId);
     this.rows.set(id, updated);
     return Promise.resolve(updated);
+  }
+
+  markDeleted(id: string): Promise<void> {
+    const current = this.rows.get(id);
+    if (current) this.rows.set(id, { ...current, status: 'deleted' });
+    return Promise.resolve();
+  }
+
+  statusOf(userId: string): Promise<AccountStatus | null> {
+    return Promise.resolve(this.rows.get(userId)?.status ?? null);
   }
 
   findTakenUsernames(usernames: readonly string[], exceptProfileId: string): Promise<Set<string>> {

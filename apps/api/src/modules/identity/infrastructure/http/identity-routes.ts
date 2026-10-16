@@ -7,11 +7,13 @@ import { routeSchemaFor } from '../../../../shared/infrastructure/http/contract-
 import type { PublicMediaUrls } from '../../../../shared/infrastructure/http/public-media-urls.ts';
 import type { CheckUsernameAvailability } from '../../application/use-cases/check-username-availability.ts';
 import type { CompleteOnboarding } from '../../application/use-cases/complete-onboarding.ts';
+import type { DeleteMe } from '../../application/use-cases/delete-me.ts';
 import type { GetMe } from '../../application/use-cases/get-me.ts';
 import type { GetProfile, ProfileView } from '../../application/use-cases/get-profile.ts';
 import type { RemoveAvatar } from '../../application/use-cases/remove-avatar.ts';
 import type { UpdateMe } from '../../application/use-cases/update-me.ts';
 import type { UpdateSettings } from '../../application/use-cases/update-settings.ts';
+import { ProfileNotFoundError } from '../../domain/errors.ts';
 import type { Profile } from '../../domain/profile.ts';
 
 export interface IdentityUseCases {
@@ -19,6 +21,7 @@ export interface IdentityUseCases {
   updateMe: UpdateMe;
   updateSettings: UpdateSettings;
   removeAvatar: RemoveAvatar;
+  deleteMe: DeleteMe;
   completeOnboarding: CompleteOnboarding;
   checkUsernameAvailability: CheckUsernameAvailability;
   getProfile: GetProfile;
@@ -40,10 +43,13 @@ export function registerIdentityRoutes(
   useCases: IdentityUseCases,
   urls: PublicMediaUrls,
 ): void {
-  const toMe = async ({ avatar, createdAt, ...profile }: Profile): Promise<Me> => {
+  const toMe = async ({ avatar, createdAt, status, ...profile }: Profile): Promise<Me> => {
+    // Un compte supprimé n'atteint pas les routes (refus global, `authentication.ts`).
+    if (status === 'deleted') throw new ProfileNotFoundError();
     const { plan, expiresAt } = await useCases.getPlan.execute({ userId: profile.id });
     return {
       ...profile,
+      status,
       ...(avatar && { avatar: urls.of(avatar.variants) }),
       plan,
       ...(expiresAt && { plusExpiresAt: expiresAt.toISOString() }),
@@ -91,6 +97,15 @@ export function registerIdentityRoutes(
         isPrivate: request.body.isPrivate,
       });
       return toMe(profile);
+    },
+  );
+
+  app.delete(
+    '/v1/me',
+    { schema: routeSchemaFor('deleteMe') },
+    async (request, reply): Promise<void> => {
+      await useCases.deleteMe.execute({ userId: authenticatedUserId(request) });
+      reply.status(204);
     },
   );
 

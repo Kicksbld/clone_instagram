@@ -4,14 +4,36 @@ import type {
 } from '../../src/shared/application/analytics-tracker.ts';
 import type { JobQueue } from '../../src/shared/application/job-queue.ts';
 import type { UnitOfWork } from '../../src/shared/application/unit-of-work.ts';
+import {
+  type AuthAccounts,
+  AuthAccountsUnavailableError,
+} from '../../src/modules/identity/application/ports/auth-accounts.ts';
 import type { MediaStorage } from '../../src/modules/media/application/ports/media-storage.ts';
 
-/** File de jobs en mémoire : enregistre les médias enfilés, sans doublon comme le `jobId` BullMQ. */
+/** File de jobs en mémoire : enregistre les identifiants enfilés, sans doublon comme le `jobId` BullMQ. */
 export class InMemoryJobQueue implements JobQueue {
   readonly imageProcessing = new Set<string>();
+  readonly accountPurges = new Set<string>();
 
   enqueueImageProcessing(mediaId: string): Promise<void> {
     this.imageProcessing.add(mediaId);
+    return Promise.resolve();
+  }
+
+  enqueueAccountPurge(profileId: string): Promise<void> {
+    this.accountPurges.add(profileId);
+    return Promise.resolve();
+  }
+}
+
+/** Supabase Auth en mémoire : utilisateurs supprimés ; `unavailable` simule une panne. */
+export class InMemoryAuthAccounts implements AuthAccounts {
+  readonly deleted = new Set<string>();
+  unavailable = false;
+
+  deleteUser(userId: string): Promise<void> {
+    if (this.unavailable) return Promise.reject(new AuthAccountsUnavailableError());
+    this.deleted.add(userId);
     return Promise.resolve();
   }
 }

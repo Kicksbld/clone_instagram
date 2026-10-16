@@ -1,0 +1,2 @@
+ALTER TABLE "profiles" DROP CONSTRAINT "profiles_status";--> statement-breakpoint
+ALTER TABLE "profiles" ADD CONSTRAINT "profiles_status" CHECK ("profiles"."status" IN ('active', 'suspended', 'banned', 'deleted'));

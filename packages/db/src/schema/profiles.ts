@@ -32,7 +32,9 @@ export const profiles = pgTable(
       onDelete: 'set null',
     }),
     isPrivate: boolean('is_private').notNull().default(false),
-    status: text('status', { enum: ['active', 'suspended', 'banned'] })
+    // `deleted` : compte supprimé par son propriétaire, invisible et sans accès, en attente du job
+    // `purge-account` qui efface la ligne (T13).
+    status: text('status', { enum: ['active', 'suspended', 'banned', 'deleted'] })
       .notNull()
       .default('active'),
     followerCount: integer('follower_count').notNull().default(0),
@@ -53,7 +55,7 @@ export const profiles = pgTable(
       sql`char_length(${table.fullName}) BETWEEN 1 AND 30 AND ${table.fullName} ~ '\\S'`,
     ),
     check('profiles_bio_length', sql`char_length(${table.bio}) <= 150`),
-    check('profiles_status', sql`${table.status} IN ('active', 'suspended', 'banned')`),
+    check('profiles_status', sql`${table.status} IN ('active', 'suspended', 'banned', 'deleted')`),
     check(
       'profiles_counts_positive',
       sql`${table.followerCount} >= 0 AND ${table.followingCount} >= 0 AND ${table.postCount} >= 0`,

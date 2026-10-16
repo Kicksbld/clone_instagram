@@ -72,6 +72,24 @@ describe('authentification des routes /v1 (JWT Supabase ES256)', () => {
     expect(response.json()).toMatchObject({ status: 401, code: 'unauthenticated' });
   });
 
+  it('compte supprimé, JWT encore valide → 401 unauthenticated', async () => {
+    context.profiles.add({ id: ME, username: 'killian', status: 'deleted' });
+
+    const response = await getMe(`Bearer ${await signTestToken(ME)}`);
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({ status: 401, code: 'unauthenticated' });
+  });
+
+  it('sans profil (onboarding en cours) → la requête passe', async () => {
+    context.profiles.rows.delete(ME);
+
+    const response = await getMe(`Bearer ${await signTestToken(ME)}`);
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ code: 'profile_not_found' });
+  });
+
   it('401 avant la validation de l’entrée', async () => {
     const response = await context.app.inject({
       method: 'POST',

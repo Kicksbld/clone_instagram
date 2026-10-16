@@ -22,6 +22,7 @@ final class FakeIdentityService: IdentityService {
     var settingsError: IdentityServiceError?
     /// Réponses successives de `fetchUserProfile` ; `userNotFound` quand la liste est vide.
     var userProfileResults: [Result<UserProfile, IdentityServiceError>] = []
+    var deleteMeError: IdentityServiceError?
 
     private(set) var checkedUsernames: [String] = []
     private(set) var onboardingRequests: [OnboardingRequest] = []
@@ -29,6 +30,7 @@ final class FakeIdentityService: IdentityService {
     private(set) var removeAvatarCount = 0
     private(set) var settingsUpdates: [Bool] = []
     private(set) var fetchedUsernames: [String] = []
+    private(set) var deleteMeCount = 0
 
     func fetchMe() async throws(IdentityServiceError) -> Profile {
         guard !meResults.isEmpty else { throw .profileNotFound }
@@ -86,6 +88,13 @@ final class FakeIdentityService: IdentityService {
         fetchedUsernames.append(username)
         guard !userProfileResults.isEmpty else { throw .userNotFound }
         return try userProfileResults.removeFirst().get()
+    }
+
+    func deleteMe() async throws(IdentityServiceError) {
+        deleteMeCount += 1
+        if let deleteMeError {
+            throw deleteMeError
+        }
     }
 }
 

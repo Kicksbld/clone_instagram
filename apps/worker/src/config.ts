@@ -7,6 +7,15 @@ const configSchema = z.object({
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   SUPABASE_URL: z.url({ protocol: /^https?$/ }),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  // T13 : purge d'un compte supprimé. RevenueCat : clé secrète V2 (Customers en lecture-écriture).
+  REVENUECAT_SECRET_KEY: z.string().min(1),
+  REVENUECAT_PROJECT_ID: z.string().min(1),
+  // PostHog : clé personnelle (jamais exposée). Optionnelle, comme les analytics de l'API : sans
+  // elle, la personne PostHog n'est pas supprimée (avertissement journalisé).
+  POSTHOG_PERSONAL_API_KEY: z.string().min(1).optional(),
+  POSTHOG_PROJECT_ID: z.string().min(1).optional(),
+  // API privée de PostHog (hôte de l'application, pas celui d'ingestion `eu.i.posthog.com`).
+  POSTHOG_API_HOST: z.url({ protocol: /^https?$/ }).default('https://eu.posthog.com'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 

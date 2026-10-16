@@ -46,6 +46,8 @@ protocol IdentityService: Sendable {
     func updateSettings(isPrivate: Bool) async throws(IdentityServiceError) -> Profile
     /// Profil d'un autre utilisateur (`GET /v1/users/{username}`).
     func fetchUserProfile(username: String) async throws(IdentityServiceError) -> UserProfile
+    /// Supprime mon compte (`DELETE /v1/me`) ; données et fichiers sont purgés ensuite par l'API.
+    func deleteMe() async throws(IdentityServiceError)
 }
 
 /// `IdentityService` sur le client généré (ADR-003) : convertit DTO et erreurs en modèles de l'app.
@@ -166,6 +168,22 @@ struct APIIdentityService: IdentityService {
             throw Self.error(401) { try response.body.applicationProblemJson }
         case let .notFound(response):
             throw Self.error(404) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
+    func deleteMe() async throws(IdentityServiceError) {
+        let output = try await call { try await client.deleteMe() }
+        switch output {
+        case .noContent:
+            return
+        // Compte déjà supprimé (réponse précédente perdue) : l'accès est coupé (`401`), ou le profil
+        // déjà purgé (`404`). La suppression est faite.
+        case .unauthorized, .notFound:
+            return
         case .internalServerError:
             throw .unexpectedResponse(statusCode: 500)
         case let .undocumented(statusCode, _):
