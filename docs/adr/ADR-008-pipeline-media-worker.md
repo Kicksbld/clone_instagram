@@ -29,7 +29,7 @@ Décisions sources : D8, D9, D11 ; vidéo (D10, D43) et notification de fin de t
 | Type | Entrée acceptée | Sortie (`variants`) |
 |---|---|---|
 | Image | JPEG / PNG, ≤ 20 Mo | WebP `thumb` 150 px, `medium` 640 px, `large` 1080 px, **EXIF supprimé** |
-| Vidéo (reel, P1) | MP4 H.264 préparé par l'app, ≤ 60 s, ≤ 200 Mo | HLS 360p + 720p, playlist maître, miniature WebP, durée (ADR-024) |
+| Vidéo (reel, P1) | MP4 H.264 préparé par l'app, ≤ 60 s, ≤ 50 Mo (limite par fichier de Supabase Storage en offre gratuite) | HLS 360p + 720p, playlist maître, miniature WebP, durée (ADR-024) |
 
 - **Worker sans logique métier** : il revalide le fichier réel (type détecté, dimensions ; durée via `ffprobe` pour la vidéo) — les déclarations du client ne font pas foi — génère les variantes, puis change le statut (motif dans `failure_reason` en cas d'échec). Jobs idempotents (un job rejoué ne produit pas de doublon), 3 tentatives avec délai croissant, concurrence de 1 pour la vidéo (file `media-video`, ADR-024).
 - **Rattachement** : un média ne peut être attaché qu'une fois, par son propriétaire, seulement s'il est `ready` et que son `purpose` correspond. **Un post n'est créé que lorsque tous ses médias sont `ready`.**

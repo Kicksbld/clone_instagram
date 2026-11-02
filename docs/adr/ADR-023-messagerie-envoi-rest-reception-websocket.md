@@ -18,8 +18,8 @@ Décisions sources : D16, D42.
 ## Décision
 - **Module `messaging`**, tables :
   - `conversations` : `id`, `member_low_id`, `member_high_id` (les deux membres, le plus petit identifiant en premier), `created_at`, `last_message_at`. Contrainte unique `(member_low_id, member_high_id)` : **une seule conversation par paire**, garantie par la base. `CHECK (member_low_id < member_high_id)` : pas de conversation avec soi-même.
-  - `conversation_members` : `conversation_id`, `user_id`, `last_read_message_id` (nullable), `status` (`active` | `request`, P2), `created_at`. Clé primaire `(conversation_id, user_id)`.
-  - `messages` : `id`, `conversation_id`, `sender_id`, `client_id`, `kind`, `body`, `media_id`, `shared_post_id`, `story_id`, `note_id` (P2), `instant_id` (P3), `created_at` (`timestamptz(3)`), `deleted_at`. Contrainte unique `(sender_id, client_id)`. `CHECK` par `kind` sur les colonnes renseignées (pas de clé étrangère polymorphe, ADR-007).
+  - `conversation_members` : `conversation_id`, `user_id`, `last_read_message_id` (nullable), `created_at`. Clé primaire `(conversation_id, user_id)`. La colonne `status` (`active` | `request`) est ajoutée par la migration de P2.
+  - `messages` : `id`, `conversation_id`, `sender_id`, `client_id`, `kind`, `body`, `media_id`, `shared_post_id`, `story_id`, `created_at` (`timestamptz(3)`). `note_id` (P2) et `instant_id` (P3) sont ajoutés par la migration de leur phase : aucune colonne n'est créée avant d'être utilisée. Contrainte unique `(sender_id, client_id)`. `CHECK` par `kind` sur les colonnes renseignées (pas de clé étrangère polymorphe, ADR-007). Pas de `deleted_at` : un message n'est jamais supprimé, ni par son auteur ni par la modération.
   - Index `messages (conversation_id, created_at DESC, id DESC)` et `conversations (last_message_at DESC, id DESC)`.
 - **Types de message** :
 
@@ -36,7 +36,7 @@ Décisions sources : D16, D42.
 
 | Méthode | Chemin | P | Rôle |
 |---|---|---|---|
-| GET | `/v1/conversations` | P1 | Conversations actives, de la plus récente à la plus ancienne (`last_message_at`), avec l'autre membre, le dernier message et `unreadCount` ; pagination par curseur `(last_message_at, id)` |
+| GET | `/v1/conversations` | P1 | Conversations actives **ayant au moins un message**, de la plus récente à la plus ancienne (`last_message_at`), avec l'autre membre, le dernier message et `unreadCount` ; pagination par curseur `(last_message_at, id)`. Renvoie aussi `unreadConversationCount` (nombre total de conversations non lues, pastille de l'onglet Messages) |
 | POST | `/v1/conversations` | P1 | `{ userId }` → obtenir ou créer la conversation avec ce compte (`200` si elle existe, `201` sinon) |
 | GET | `/v1/conversations/{id}/messages` | P1 | Historique : `cursor` vers le passé (pages de 30, du plus récent au plus ancien) ; `after=<messageId>` pour le rattrapage (messages plus récents que celui-ci, du plus ancien au plus récent, pages de 100) |
 | POST | `/v1/conversations/{id}/messages` | P1 | `{ clientId, kind, body?, mediaId?, sharedPostId?, storyId?, noteId? }` → message |
@@ -51,6 +51,8 @@ Décisions sources : D16, D42.
   - dans la même transaction : insertion du message, mise à jour de `conversations.last_message_at`, rattachement du média pour une image ;
   - après la transaction : `message.created` publié aux deux membres (l'expéditeur peut avoir plusieurs appareils) par `RealtimePublisher` ;
   - limite : 60 messages / minute (ADR-005).
+- **Conversation vide** : créée par `POST /v1/conversations` (bouton « Message » d'un profil), elle n'apparaît dans la liste d'aucun des deux membres tant qu'aucun message n'a été envoyé (`last_message_at IS NULL`).
+- **Pastille de l'onglet Messages** : `unreadConversationCount` de `GET /v1/conversations`, recalculé par l'app à chaque `message.created` et `conversation.read`, rechargé par REST au retour au premier plan et après une reconnexion.
 - **Réception par WebSocket, rattrapage par REST** : l'app ajoute les messages reçus par `message.created` ; à chaque reconnexion et au retour au premier plan, elle appelle `GET …/messages?after=<dernier message connu>` pour chaque conversation ouverte, puis recharge `GET /v1/conversations`. Les doublons (message reçu par les deux voies) sont écartés par `id`.
 - **Lecture** : `last_read_message_id` n'avance jamais (un `messageId` plus ancien que l'actuel est ignoré). `unreadCount` = messages de l'autre membre plus récents que `last_read_message_id`. Après la transaction, `conversation.read` est publié à l'autre membre, qui affiche « Vu » sous le dernier message lu.
 - **Visibilité** : `canMessage(sender, recipient)` (ADR-006) est vérifié à la création de la conversation et à chaque envoi. Si les deux comptes se bloquent (dans un sens ou dans l'autre) ou si l'un n'est plus actif, la conversation disparaît de la liste des deux et tous ses endpoints répondent `404`. Elle réapparaît, historique compris, après un déblocage.
@@ -65,12 +67,14 @@ Décisions sources : D16, D42.
   - à la création d'une conversation, si le destinataire ne suit pas l'expéditeur, son `conversation_members.status` vaut `request` ; celui de l'expéditeur vaut `active` ;
   - une conversation en `request` n'apparaît que dans `GET /v1/conversations/requests` du destinataire ; aucun « Vu » n'est envoyé tant qu'elle n'est pas acceptée ;
   - accepter passe le statut à `active` ; répondre à une demande l'accepte aussi ;
-  - en P1, toutes les conversations sont `active`.
+  - en P1, la colonne n'existe pas : toutes les conversations sont actives.
+- **Signalement** : un message ne se signale pas. Depuis une conversation, on signale ou on bloque le compte (signalement de compte existant, ADR-006).
 - **Côté app** (feature `Messages`, service partagé `Core/Messaging`) :
   - envoi optimiste : la bulle apparaît tout de suite en « Envoi… », puis prend l'état confirmé ; en cas d'échec, elle reste affichée avec « Non envoyé — Réessayer », qui renvoie avec le **même** `clientId` (ADR-020) ;
   - image : préparée et envoyée par le gestionnaire d'upload (ADR-008, ADR-022), message créé une fois le média `ready` ;
-  - barre de saisie en Liquid Glass (contrôle, pas contenu, ADR-010).
-- **Hors périmètre** : conversations de groupe, réactions, messages vocaux, suppression ou modification d'un message envoyé.
+  - barre de saisie en Liquid Glass (contrôle, pas contenu, ADR-010) ;
+  - **partage d'un post** : le bouton Partager de `PostView` ouvre une feuille avec les conversations récentes et la recherche d'utilisateurs ; plusieurs destinataires possibles ; l'app crée la conversation si besoin (`POST /v1/conversations`) puis envoie un message `post_share` par destinataire, chacun avec son propre `clientId`. Aucun endpoint dédié.
+- **Hors périmètre** : conversations de groupe, réactions, messages vocaux, suppression ou modification d'un message envoyé, signalement d'un message, indicateur « en train d'écrire » (le client n'envoie rien d'autre que `auth` sur le WebSocket, ADR-021).
 - **Cas limites** (ADR-014) : message envoyé deux fois avec le même `clientId`, conversation avec un compte bloqué, conversation d'un tiers (`404`), URL signée d'un média d'une autre conversation, post partagé devenu invisible, story expirée entre l'ouverture et la réponse, curseur et `after` invalides.
 
 ## Alternatives

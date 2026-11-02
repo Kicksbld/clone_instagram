@@ -23,7 +23,7 @@ Décision source : D46.
   - les posts des comptes suivis et les siens, avec `activity_at = posts.created_at` ;
   - les republications des comptes suivis, avec `activity_at = reposts.created_at`, sauf celles d'un post que le lecteur voit déjà par la première source (auteur suivi, ou soi-même) ;
   - **un post n'apparaît qu'une fois** : parmi plusieurs republications du même post, seule la plus récente est gardée (`DISTINCT ON (post_id)`), avec son auteur comme « republié par ».
-- **Visibilité** : pour une republication, `canViewProfile` de celui qui republie **et** `canViewContent` de l'auteur du post ; posts supprimés et auteurs non actifs exclus, comme aujourd'hui.
+- **Visibilité** : pour une republication, `canViewContent` de celui qui republie (un compte privé ne montre ses republications qu'à ses abonnés ; dans le feed, le lecteur le suit déjà) **et** `canViewContent` de l'auteur du post ; posts supprimés et auteurs non actifs exclus, comme aujourd'hui.
 - **Curseur** : couple `(activity_at, post_id)` du dernier élément, encodé en base64 et opaque (ADR-007). Un post qui reçoit une nouvelle republication pendant le scroll remonte en tête, au prochain rafraîchissement ; il n'apparaît pas une seconde fois plus bas, car seule sa date d'activité la plus récente existe.
 - Requête de principe, à écrire en Drizzle dans `selectPosts` (ou une variante dédiée au feed) et à valider par `EXPLAIN ANALYZE` sur le seed :
 
@@ -50,6 +50,7 @@ LIMIT 12;
 - **Contrat** : chaque élément du feed garde la forme actuelle du post et reçoit un champ optionnel `repostedBy` (aperçu du profil : `id`, `username`, avatar), absent pour un post qui n'est pas une republication. Ajout compatible (ADR-019), sans nouvelle version du feed.
 - **Profil** : `GET /v1/users/{id}/reposts`, republications d'un compte, de la plus récente à la plus ancienne, curseur `(reposts.created_at, post_id)`, avec la même visibilité.
 - **Côté app** : `PostView` (`DesignSystem`) affiche « username a republié » au-dessus du post quand `repostedBy` est présent ; bouton Republier optimiste (ADR-020) ; onglet « Republications » sur le profil.
+- **Onglet Amis des Reels** (ADR-029) : en P2, les republications d'un reel par un abonné mutuel y deviennent une quatrième source d'interaction d'ami.
 - **Explorer (P2)** n'est pas concerné : grille des posts publics récents, sans republications.
 - **Cas limites** (ADR-014) : post republié par deux comptes suivis (une seule fois, la plus récente), post d'un auteur suivi republié (une seule fois, à sa date de publication), auteur passé en privé après la republication, republieur bloqué, post supprimé, republication de son propre post refusée, curseur invalide.
 
@@ -77,3 +78,4 @@ LIMIT 12;
 - ADR-019 (champ `repostedBy` optionnel)
 - ADR-020 (republication optimiste)
 - ADR-026 (notification `repost`)
+- ADR-029 (republications dans l'onglet Amis des Reels)

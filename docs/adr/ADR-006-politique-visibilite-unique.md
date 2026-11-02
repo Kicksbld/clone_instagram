@@ -20,7 +20,7 @@ Décision source : D32 (compte privé en P0) ; complété pour les P1 et P2 (dem
 - **Contenus dérivés** :
   - story à la une (P2) : `canViewContent` de l'auteur et audience de la story d'origine, sans condition d'expiration (ADR-025) ;
   - note (P2) : `canViewProfile`, et `isMutual` (audience `mutuals`) ou ami proche (audience `close_friends`) (ADR-025) ;
-  - republication (P2) : `canViewProfile` de celui qui republie et `canViewContent` de l'auteur du post (ADR-028) ;
+  - republication (P2) : `canViewContent` de celui qui republie (l'onglet « Republications » d'un compte privé est réservé à ses abonnés) et `canViewContent` de l'auteur du post (ADR-028) ;
   - contenu référencé par un message ou une notification : visibilité réappliquée à la lecture ; invisible → « contenu indisponible » ou notification masquée (ADR-023, ADR-026).
 - Aucune requête ne réimplémente ces filtres à la main. Les requêtes de liste (feed, recherche, listes d'abonnés, commentaires) traduisent la même règle en SQL, testée contre la politique.
 - Un contenu invisible pour l'appelant renvoie **404**, jamais 403, pour ne pas révéler son existence.

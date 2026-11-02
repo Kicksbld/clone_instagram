@@ -34,3 +34,4 @@ Décisions d'architecture du projet, rédigées selon [Agent ADR Architecte.md](
 | [ADR-026](ADR-026-notifications-in-app-port-transverse.md) | Notifications in-app : port transverse écrit dans la transaction de l'action | Proposé |
 | [ADR-027](ADR-027-notifications-push-apns.md) | Notifications push : APNs en direct depuis le worker, déclenchées par l'API | Proposé |
 | [ADR-028](ADR-028-feed-republications-date-activite.md) | Feed avec republications : union des posts et des republications, triée par date d'activité | Proposé |
+| [ADR-029](ADR-029-onglet-amis-reels-interactions-calculees-lecture.md) | Onglet Amis des Reels : interactions des abonnés mutuels calculées à la lecture | Proposé |

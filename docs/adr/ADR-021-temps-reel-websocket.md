@@ -46,7 +46,7 @@ Décision source : D41 (D16 pour l'usage par la messagerie, ADR-023).
   - après chaque (re)connexion, les services concernés rattrapent leur état par REST (conversations ouvertes, pastille d'activité, médias en attente) ;
   - les événements sont transmis aux services de `Core` concernés, qui notifient les ViewModels ; aucune vue ne lit le WebSocket.
 - **Tests** : adapter en mémoire du port dans les tests de use cases (événements publiés après la transaction, pas en cas d'échec) ; tests de route WebSocket (authentification absente sous 5 s, jeton invalide, compte suspendu, renouvellement du jeton) ; côté iOS, `RealtimeClient` testé avec un transport factice (reconnexion, rattrapage, événement inconnu ignoré).
-- **À vérifier au début de la tranche qui pose le WebSocket** : passage du WebSocket par le proxy Railway et son délai d'inactivité (le ping de 30 s doit rester en dessous).
+- **Railway** (vérifié, `docs/research/p1-faits-externes.md`) : le proxy laisse passer les WebSocket en HTTP/1.1, sans délai d'inactivité ni durée maximale de connexion ; un redéploiement coupe toutes les connexions, d'où le ping et la reconnexion automatique.
 
 ## Alternatives
 - Supabase Realtime : aucun serveur temps réel à écrire, mais les clients liraient les données hors de l'API, contraire à ADR-004. Écarté (D5).
@@ -66,7 +66,7 @@ Décision source : D41 (D16 pour l'usage par la messagerie, ADR-023).
 - Un événement émis pendant une coupure est perdu ; chaque feature doit prévoir son rattrapage REST.
 - Le broker en mémoire ne fonctionne qu'avec une seule instance d'API (limite assumée).
 - Un redéploiement de l'API coupe toutes les connexions : les apps se reconnectent et rattrapent.
-- Les schémas des événements vivent dans `openapi.yaml` sans opération associée : leur génération côté Swift est à vérifier à la première tranche.
+- Les schémas des événements vivent dans `openapi.yaml` sans opération associée ; `swift-openapi-generator` génère tous les `components/schemas` sans filtre, ils sont donc disponibles côté Swift (vérifié, `docs/research/p1-faits-externes.md`).
 
 ## Liens
 - ADR-003 (événements décrits dans le contrat)
