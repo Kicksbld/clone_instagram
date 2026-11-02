@@ -38,6 +38,7 @@ struct FollowListsView: View {
 struct FollowListView: View {
     @Bindable var viewModel: FollowListViewModel
     @State private var pendingUnfollow: UserSummary?
+    @State private var pendingRemoval: UserSummary?
 
     var body: some View {
         content
@@ -71,7 +72,23 @@ struct FollowListView: View {
                     Task { await viewModel.setFollowing(false, for: user) }
                 }
             } message: { _ in
-                Text("Ce compte est privé : vous ne pourrez plus voir ses publications.")
+                Text("Ce compte est privé : pour revoir ses publications, vous devrez à nouveau demander à le suivre.")
+            }
+            .confirmationDialog(
+                "Supprimer l'abonné ?",
+                isPresented: Binding(get: { pendingRemoval != nil }, set: {
+                    if !$0 {
+                        pendingRemoval = nil
+                    }
+                }),
+                titleVisibility: .visible,
+                presenting: pendingRemoval
+            ) { user in
+                Button("Supprimer", role: .destructive) {
+                    Task { await viewModel.removeFollower(user) }
+                }
+            } message: { user in
+                Text("\(user.username) ne sera pas prévenu qu'il a été supprimé de vos followers.")
             }
     }
 
@@ -123,9 +140,15 @@ struct FollowListView: View {
     private func row(_ user: UserSummary) -> some View {
         NavigationLink(value: ProfileRoute(username: user.username)) {
             UserRow(user: user) {
-                if viewModel.canFollow(user) {
-                    FollowButton(isFollowing: user.isFollowing, followsMe: user.followsMe) {
-                        if !user.isFollowing {
+                if viewModel.canRemoveFollower(user) {
+                    Button("Supprimer") { pendingRemoval = user }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                } else if viewModel.canFollow(user) {
+                    FollowButton(isFollowing: user.isFollowing, followsMe: user.followsMe, isRequested: user.isRequested) {
+                        if user.isRequested {
+                            Task { await viewModel.setFollowing(false, for: user) }
+                        } else if !user.isFollowing {
                             Task { await viewModel.setFollowing(true, for: user) }
                         } else if user.isPrivate {
                             pendingUnfollow = user

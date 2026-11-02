@@ -15,9 +15,20 @@ export interface BlockEntry {
   createdAt: Date;
 }
 
-/** Adapter en mémoire (ADR-005) : mêmes règles que les tables `follows` et `blocks`. */
+/** Demande d'abonnement enregistrée, avec sa date (ordre des demandes reçues). */
+export interface FollowRequestEntry {
+  requesterId: string;
+  targetId: string;
+  createdAt: Date;
+}
+
+/**
+ * Adapter en mémoire (ADR-005) : mêmes règles que les tables `follows`, `follow_requests` et
+ * `blocks`.
+ */
 export class InMemoryRelationshipReader implements RelationshipReader {
   private readonly followEntries = new Map<string, FollowEntry>();
+  private readonly requestEntries = new Map<string, FollowRequestEntry>();
   /** Blocages et leur date (ordre de la liste des bloqués). */
   private readonly blockEntries = new Map<string, BlockEntry>();
   private clock = Date.parse('2026-01-01T00:00:00.000Z');
@@ -41,6 +52,27 @@ export class InMemoryRelationshipReader implements RelationshipReader {
 
   get follows(): FollowEntry[] {
     return [...this.followEntries.values()];
+  }
+
+  /** Demande créée 1 ms après l'écriture précédente ; `false` si elle existait déjà. */
+  request(requesterId: string, targetId: string): boolean {
+    const key = `${requesterId}>${targetId}`;
+    if (this.requestEntries.has(key)) return false;
+    this.clock += 1;
+    this.requestEntries.set(key, { requesterId, targetId, createdAt: new Date(this.clock) });
+    return true;
+  }
+
+  removeRequest(requesterId: string, targetId: string): boolean {
+    return this.requestEntries.delete(`${requesterId}>${targetId}`);
+  }
+
+  hasRequested(requesterId: string, targetId: string): boolean {
+    return this.requestEntries.has(`${requesterId}>${targetId}`);
+  }
+
+  get requests(): FollowRequestEntry[] {
+    return [...this.requestEntries.values()];
   }
 
   /** Blocage créé 1 ms après l'écriture précédente ; `false` s'il existait déjà. */
@@ -72,6 +104,7 @@ export class InMemoryRelationshipReader implements RelationshipReader {
     return Promise.resolve({
       viewerFollowsOwner: this.isFollowing(viewerId, ownerId),
       ownerFollowsViewer: this.isFollowing(ownerId, viewerId),
+      viewerRequestedOwner: this.hasRequested(viewerId, ownerId),
       blocked: this.isBlockedEitherWay(viewerId, ownerId),
       viewerIsCloseFriend: false,
     });

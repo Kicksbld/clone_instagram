@@ -7,11 +7,15 @@ import { routeSchemaFor } from '../../../../shared/infrastructure/http/contract-
 import { parseCursor } from '../../../../shared/infrastructure/http/cursor.ts';
 import type { Page } from '../../../../shared/domain/pagination.ts';
 import type { PublicMediaUrls } from '../../../../shared/infrastructure/http/public-media-urls.ts';
+import type { AcceptFollowRequest } from '../../application/use-cases/accept-follow-request.ts';
 import type { BlockUser } from '../../application/use-cases/block-user.ts';
+import type { DeclineFollowRequest } from '../../application/use-cases/decline-follow-request.ts';
 import type { FollowUser } from '../../application/use-cases/follow-user.ts';
 import type { ListBlocks } from '../../application/use-cases/list-blocks.ts';
+import type { ListFollowRequests } from '../../application/use-cases/list-follow-requests.ts';
 import type { ListFollowers } from '../../application/use-cases/list-followers.ts';
 import type { ListFollowing } from '../../application/use-cases/list-following.ts';
+import type { RemoveFollower } from '../../application/use-cases/remove-follower.ts';
 import type { SearchUsers } from '../../application/use-cases/search-users.ts';
 import type { UnblockUser } from '../../application/use-cases/unblock-user.ts';
 import type { UnfollowUser } from '../../application/use-cases/unfollow-user.ts';
@@ -26,6 +30,10 @@ export interface SocialUseCases {
   blockUser: BlockUser;
   unblockUser: UnblockUser;
   listBlocks: ListBlocks;
+  removeFollower: RemoveFollower;
+  listFollowRequests: ListFollowRequests;
+  acceptFollowRequest: AcceptFollowRequest;
+  declineFollowRequest: DeclineFollowRequest;
 }
 
 type UserPage = components['schemas']['UserPage'];
@@ -106,6 +114,56 @@ export function registerSocialRoutes(
       return toUserPage(page);
     },
   );
+
+  app.delete<{ Params: { id: string } }>(
+    '/v1/users/:id/follower',
+    { schema: routeSchemaFor('removeFollower') },
+    async (request, reply): Promise<void> => {
+      await useCases.removeFollower.execute({
+        viewerId: authenticatedUserId(request),
+        userId: request.params.id,
+      });
+      reply.status(204);
+    },
+  );
+
+  app.get<{ Querystring: { cursor?: string } }>(
+    '/v1/me/follow-requests',
+    { schema: routeSchemaFor('listFollowRequests') },
+    async (request): Promise<UserPage> => {
+      const page = await useCases.listFollowRequests.execute({
+        viewerId: authenticatedUserId(request),
+        after: parseCursor(request.query.cursor),
+      });
+      return toUserPage(page);
+    },
+  );
+
+  const decisions = [
+    [
+      '/v1/follow-requests/:requesterId/accept',
+      'acceptFollowRequest',
+      useCases.acceptFollowRequest,
+    ],
+    [
+      '/v1/follow-requests/:requesterId/decline',
+      'declineFollowRequest',
+      useCases.declineFollowRequest,
+    ],
+  ] as const;
+  for (const [path, operationId, useCase] of decisions) {
+    app.post<{ Params: { requesterId: string } }>(
+      path,
+      { schema: routeSchemaFor(operationId) },
+      async (request, reply): Promise<void> => {
+        await useCase.execute({
+          viewerId: authenticatedUserId(request),
+          requesterId: request.params.requesterId,
+        });
+        reply.status(204);
+      },
+    );
+  }
 
   const lists = [
     ['/v1/users/:id/followers', 'listFollowers', useCases.listFollowers],

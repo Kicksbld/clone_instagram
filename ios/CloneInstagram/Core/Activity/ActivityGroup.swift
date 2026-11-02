@@ -12,6 +12,10 @@ struct ActivityGroup: Equatable, Identifiable {
         case commentReply
         /// Nouvel abonné.
         case follow
+        /// Demande d'abonnement reçue (compte privé) ; affichée dans la section des demandes, pas en ligne.
+        case followRequest
+        /// Un compte privé a accepté ma demande d'abonnement.
+        case followAccepted
     }
 
     struct PostPreview: Equatable {

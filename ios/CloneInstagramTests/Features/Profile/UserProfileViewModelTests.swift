@@ -117,7 +117,7 @@ struct UserProfileViewModelTests {
         #expect(follows.followingCountDelta == 0)
     }
 
-    @Test(arguments: [SocialServiceError.unreachable, .accountPrivate])
+    @Test(arguments: [SocialServiceError.unreachable, .unexpectedResponse(statusCode: 500)])
     func `suivre en échec : retour arrière et message`(error: SocialServiceError) async {
         identity.userProfileResults = [.success(.fixture())]
         social.followResults = [.failure(error)]
@@ -155,11 +155,11 @@ struct UserProfileViewModelTests {
         #expect(viewModel.state == .notFound)
     }
 
-    @Test func `pas de bouton Suivre sur un compte privé non suivi ni sur moi`() {
+    @Test func `bouton Suivre partout sauf sur moi, compte privé compris (demande)`() {
         let viewModel = makeViewModel()
 
         #expect(viewModel.canFollow(.fixture()))
-        #expect(!viewModel.canFollow(.fixture(isPrivate: true, canViewContent: false)))
+        #expect(viewModel.canFollow(.fixture(isPrivate: true, canViewContent: false)))
         #expect(viewModel.canFollow(.fixture(isPrivate: true, isFollowing: true)))
         let myself = UserProfile(
             id: Self.viewerId, username: "killian", fullName: "K", bio: "", isPrivate: false,
@@ -167,5 +167,26 @@ struct UserProfileViewModelTests {
             isFollowing: false, followsMe: false, canViewContent: true
         )
         #expect(!viewModel.canFollow(myself))
+    }
+
+    @Test func `compte privé : « Demandé », contenus toujours invisibles, puis annulation`() async {
+        let privateProfile = UserProfile.fixture(isPrivate: true, canViewContent: false)
+        identity.userProfileResults = [.success(privateProfile)]
+        social.followResults = [
+            .success(FollowStatus(isFollowing: false, followerCount: 4, isRequested: true)),
+            .success(FollowStatus(isFollowing: false, followerCount: 4)),
+        ]
+        let viewModel = makeViewModel()
+        await viewModel.load()
+
+        await viewModel.follow()
+        #expect(loadedProfile(viewModel)?.isRequested == true)
+        #expect(loadedProfile(viewModel)?.canViewContent == false)
+        #expect(loadedProfile(viewModel)?.followerCount == 4)
+
+        await viewModel.unfollow()
+        #expect(loadedProfile(viewModel)?.isRequested == false)
+        #expect(social.follows.count == 1)
+        #expect(social.unfollows.count == 1)
     }
 }

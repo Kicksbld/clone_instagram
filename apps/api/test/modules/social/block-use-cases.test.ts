@@ -12,7 +12,11 @@ import { InMemoryUnitOfWork } from '../../support/fakes.ts';
 import { InMemoryNotifications } from '../../support/in-memory-notifications.ts';
 import { InMemoryProfileRepository } from '../../support/in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from '../../support/in-memory-relationship-reader.ts';
-import { InMemoryBlocks, InMemorySocialGraph } from '../../support/in-memory-social-graph.ts';
+import {
+  InMemoryBlocks,
+  InMemoryFollowRequests,
+  InMemorySocialGraph,
+} from '../../support/in-memory-social-graph.ts';
 
 const ME = '0199a1b2-0000-7000-8000-000000000001';
 const OTHER = '0199a1b2-0000-7000-8000-000000000002';
@@ -38,6 +42,7 @@ beforeEach(() => {
       relationships,
       blocks,
       follows: graph,
+      requests: new InMemoryFollowRequests(relationships),
       counters: graph,
       notifications,
     }),

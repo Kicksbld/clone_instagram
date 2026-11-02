@@ -28,7 +28,11 @@ struct APIActivityServiceTests {
         {"id":"mention:n3","type":"mention","actor":{"id":"u3","username":"ines"},"actorCount":1,\
         "createdAt":"2026-09-23T12:00:00.000Z","read":true},\
         {"id":"follow:n4","type":"follow","actor":{"id":"u3","username":"ines","unknown":true},"actorCount":1,\
-        "createdAt":"2026-09-22T12:00:00.000Z","read":true}\
+        "createdAt":"2026-09-22T12:00:00.000Z","read":true},\
+        {"id":"follow_request:n5","type":"follow_request","actor":{"id":"u4","username":"hugo"},"actorCount":1,\
+        "createdAt":"2026-09-21T12:00:00.000Z","read":true},\
+        {"id":"follow_accepted:n6","type":"follow_accepted","actor":{"id":"u5","username":"prive"},"actorCount":1,\
+        "createdAt":"2026-09-20T12:00:00.000Z","read":true}\
         ],"nextCursor":"abc","unreadCount":1}
         """
         let service = try makeService(.response(status: 200, contentType: "application/json", body: body))
@@ -37,7 +41,7 @@ struct APIActivityServiceTests {
 
         #expect(page.unreadCount == 1)
         #expect(page.nextCursor == "abc")
-        #expect(page.items.map(\.kind) == [.like, .commentReply, .follow])
+        #expect(page.items.map(\.kind) == [.like, .commentReply, .follow, .followRequest, .followAccepted])
         let like = try #require(page.items.first)
         #expect(like.actor == PostAuthor(id: "u1", username: "lea", avatar: nil))
         #expect(like.actorCount == 2)

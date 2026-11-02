@@ -283,7 +283,8 @@ private extension UserProfile {
             avatar: dto.avatar.flatMap(ImageVariants.init),
             isFollowing: dto.relationship.following,
             followsMe: dto.relationship.followedBy,
-            canViewContent: dto.canViewContent
+            canViewContent: dto.canViewContent,
+            isRequested: dto.relationship.requested
         )
     }
 }

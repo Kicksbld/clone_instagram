@@ -7,8 +7,10 @@ import type {
   FollowRepository,
 } from '../../src/modules/social/application/ports/follow-repository.ts';
 import type { BlockRepository } from '../../src/modules/social/application/ports/block-repository.ts';
+import type { FollowRequestRepository } from '../../src/modules/social/application/ports/follow-request-repository.ts';
 import type {
   BlockedListQuery,
+  FollowRequestListQuery,
   ListQuery,
   SearchQuery,
   SocialGraphReader,
@@ -97,6 +99,37 @@ export class InMemorySocialGraph
     });
   }
 
+  listFollowRequests({
+    viewerId,
+    after,
+    limit,
+  }: FollowRequestListQuery): Promise<Page<UserSummary>> {
+    const entries = this.relationships.requests
+      .filter((request) => request.targetId === viewerId)
+      .map((request) => ({ request, profile: this.row(request.requesterId) }))
+      .filter(({ profile }) => this.visibleTo(viewerId, profile))
+      .sort(
+        (a, b) =>
+          b.request.createdAt.getTime() - a.request.createdAt.getTime() ||
+          b.profile.id.localeCompare(a.profile.id),
+      )
+      .filter(
+        ({ request, profile }) =>
+          !after ||
+          request.createdAt.getTime() < after.createdAt.getTime() ||
+          (request.createdAt.getTime() === after.createdAt.getTime() && profile.id < after.id),
+      );
+    const page = entries.slice(0, limit);
+    const last = page.at(-1);
+    return Promise.resolve({
+      items: page.map(({ profile }) => this.summary(viewerId, profile)),
+      next:
+        entries.length > limit && last
+          ? { createdAt: last.request.createdAt, id: last.profile.id }
+          : null,
+    });
+  }
+
   search({ viewerId, query, limit }: SearchQuery): Promise<UserSummary[]> {
     const matches = [...this.profiles.rows.values()].filter(
       (p) =>
@@ -164,6 +197,7 @@ export class InMemorySocialGraph
       relationship: {
         following: this.relationships.isFollowing(viewerId, profile.id),
         followedBy: this.relationships.isFollowing(profile.id, viewerId),
+        requested: this.relationships.hasRequested(viewerId, profile.id),
       },
     };
   }
@@ -189,5 +223,27 @@ export class InMemoryBlocks implements BlockRepository {
 
   remove(blockerId: string, blockedId: string): Promise<boolean> {
     return Promise.resolve(this.relationships.unblock(blockerId, blockedId));
+  }
+}
+
+/** Demandes d'abonnement en mémoire, sur les mêmes relations que la politique de visibilité. */
+export class InMemoryFollowRequests implements FollowRequestRepository {
+  constructor(private readonly relationships: InMemoryRelationshipReader) {}
+
+  add(requesterId: string, targetId: string): Promise<boolean> {
+    return Promise.resolve(this.relationships.request(requesterId, targetId));
+  }
+
+  remove(requesterId: string, targetId: string): Promise<boolean> {
+    return Promise.resolve(this.relationships.removeRequest(requesterId, targetId));
+  }
+
+  removeAllTo(targetId: string): Promise<string[]> {
+    const requesterIds = this.relationships.requests
+      .filter((request) => request.targetId === targetId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map((request) => request.requesterId);
+    for (const requesterId of requesterIds) this.relationships.removeRequest(requesterId, targetId);
+    return Promise.resolve(requesterIds);
   }
 }

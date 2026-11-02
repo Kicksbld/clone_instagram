@@ -3,14 +3,15 @@
  * transverse `NotificationWriter`, dans la transaction de l'action.
  */
 
-/** Types de la tranche T18 ; chaque tranche suivante ajoute les siens. */
-export type NotificationType = 'like' | 'comment' | 'comment_reply' | 'follow';
+/** Types livrés (T18, T20) ; chaque tranche suivante ajoute les siens (ADR-030). */
+export type NotificationType =
+  'like' | 'comment' | 'comment_reply' | 'follow' | 'follow_request' | 'follow_accepted';
 
 /** Cible d'une notification : colonnes nullables selon le type (ADR-007). */
 export type NotificationTarget =
   | { type: 'like'; postId: string }
   | { type: 'comment' | 'comment_reply'; postId: string; commentId: string }
-  | { type: 'follow' };
+  | { type: 'follow' | 'follow_request' | 'follow_accepted' };
 
 /** Notification à écrire (ou à retirer) : destinataire, acteur et cible. */
 export type NotificationDraft = NotificationTarget & { recipientId: string; actorId: string };

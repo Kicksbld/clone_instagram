@@ -40,7 +40,7 @@ struct APISocialServiceBlockTests {
     @Test func `liste des bloqués convertie en UserPage`() async throws {
         let body = """
         {"items":[{"id":"0199a1b2-5eed-7000-8000-000000000002","username":"hugo.bernard","fullName":"Hugo Bernard",\
-        "isPrivate":false,"relationship":{"following":false,"followedBy":false}}],"nextCursor":"abc"}
+        "isPrivate":false,"relationship":{"following":false,"followedBy":false,"requested":false}}],"nextCursor":"abc"}
         """
         let service = try makeService(.response(status: 200, contentType: "application/json", body: body))
 

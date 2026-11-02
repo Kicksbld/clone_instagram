@@ -24,6 +24,7 @@ import {
   DrizzleFollowCounters,
   DrizzleFollowRepository,
 } from '../../../src/modules/social/infrastructure/persistence/drizzle-follow-repository.ts';
+import { DrizzleFollowRequestRepository } from '../../../src/modules/social/infrastructure/persistence/drizzle-follow-request-repository.ts';
 import { DrizzleSocialGraphReader } from '../../../src/modules/social/infrastructure/persistence/drizzle-social-graph-reader.ts';
 import { canViewProfile } from '../../../src/shared/domain/visibility.ts';
 import { DrizzleRelationshipReader } from '../../../src/shared/infrastructure/persistence/drizzle-relationship-reader.ts';
@@ -44,6 +45,7 @@ const blockUser = new BlockUser(
     relationships: new DrizzleRelationshipReader(tx),
     blocks: new DrizzleBlockRepository(tx),
     follows: new DrizzleFollowRepository(tx),
+    requests: new DrizzleFollowRequestRepository(tx),
     counters: new DrizzleFollowCounters(tx),
     notifications: new DrizzleNotificationWriter(tx),
   })),
@@ -154,7 +156,11 @@ describe('DrizzleSocialGraphReader.listBlocked', () => {
     expect(new Set(ids)).toEqual(new Set(blocked));
     expect(first.items[0]?.id).toBe(blocked[3]);
     expect(second.next).toBeNull();
-    expect(first.items[0]?.relationship).toEqual({ following: false, followedBy: false });
+    expect(first.items[0]?.relationship).toEqual({
+      following: false,
+      followedBy: false,
+      requested: false,
+    });
   });
 });
 

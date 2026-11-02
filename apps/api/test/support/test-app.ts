@@ -35,11 +35,15 @@ import { CreatePost } from '../../src/modules/posts/application/use-cases/create
 import { DeletePost } from '../../src/modules/posts/application/use-cases/delete-post.ts';
 import { GetPost } from '../../src/modules/posts/application/use-cases/get-post.ts';
 import { ListUserPosts } from '../../src/modules/posts/application/use-cases/list-user-posts.ts';
+import { AcceptFollowRequest } from '../../src/modules/social/application/use-cases/accept-follow-request.ts';
 import { BlockUser } from '../../src/modules/social/application/use-cases/block-user.ts';
+import { DeclineFollowRequest } from '../../src/modules/social/application/use-cases/decline-follow-request.ts';
 import { FollowUser } from '../../src/modules/social/application/use-cases/follow-user.ts';
 import { ListBlocks } from '../../src/modules/social/application/use-cases/list-blocks.ts';
+import { ListFollowRequests } from '../../src/modules/social/application/use-cases/list-follow-requests.ts';
 import { ListFollowers } from '../../src/modules/social/application/use-cases/list-followers.ts';
 import { ListFollowing } from '../../src/modules/social/application/use-cases/list-following.ts';
+import { RemoveFollower } from '../../src/modules/social/application/use-cases/remove-follower.ts';
 import { SearchUsers } from '../../src/modules/social/application/use-cases/search-users.ts';
 import { UnblockUser } from '../../src/modules/social/application/use-cases/unblock-user.ts';
 import { UnfollowUser } from '../../src/modules/social/application/use-cases/unfollow-user.ts';
@@ -70,7 +74,11 @@ import { InMemoryPosts } from './in-memory-posts.ts';
 import { InMemoryProfileRepository } from './in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from './in-memory-relationship-reader.ts';
 import { InMemoryReports } from './in-memory-reports.ts';
-import { InMemoryBlocks, InMemorySocialGraph } from './in-memory-social-graph.ts';
+import {
+  InMemoryBlocks,
+  InMemoryFollowRequests,
+  InMemorySocialGraph,
+} from './in-memory-social-graph.ts';
 import { testTokenVerifier } from './tokens.ts';
 
 export const TEST_NOW = new Date('2026-09-25T12:00:00.000Z');
@@ -93,10 +101,19 @@ export function buildTestApp() {
   const graph = new InMemorySocialGraph(profiles, relationships);
   const notifications = new InMemoryNotifications(relationships);
   const notificationDispatcher = new InMemoryNotificationDispatcher();
+  const requests = new InMemoryFollowRequests(relationships);
   const followTransaction = new InMemoryUnitOfWork({
     accounts: graph,
     relationships,
     follows: graph,
+    requests,
+    counters: graph,
+    notifications,
+  });
+  const settingsTransaction = new InMemoryUnitOfWork({
+    profiles,
+    follows: graph,
+    requests,
     counters: graph,
     notifications,
   });
@@ -106,6 +123,7 @@ export function buildTestApp() {
     relationships,
     blocks,
     follows: graph,
+    requests,
     counters: graph,
     notifications,
   });
@@ -170,7 +188,7 @@ export function buildTestApp() {
       identity: {
         getMe: new GetMe(profiles),
         updateMe: new UpdateMe(profiles, avatarTransaction),
-        updateSettings: new UpdateSettings(profiles),
+        updateSettings: new UpdateSettings(settingsTransaction, notificationDispatcher),
         removeAvatar: new RemoveAvatar(avatarTransaction),
         deleteMe: new DeleteMe(profiles, authAccounts, jobs, realtime),
         completeOnboarding: new CompleteOnboarding(profiles, clock, analytics),
@@ -192,6 +210,10 @@ export function buildTestApp() {
         blockUser: new BlockUser(blockTransaction),
         unblockUser: new UnblockUser(graph, blocks),
         listBlocks: new ListBlocks(graph),
+        removeFollower: new RemoveFollower(followTransaction),
+        listFollowRequests: new ListFollowRequests(graph),
+        acceptFollowRequest: new AcceptFollowRequest(followTransaction, notificationDispatcher),
+        declineFollowRequest: new DeclineFollowRequest(followTransaction),
       },
       posts: {
         createPost: new CreatePost(

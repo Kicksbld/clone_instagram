@@ -26,7 +26,18 @@ final class FakeSocialService: SocialService {
     /// Réponses successives de `listBlocks` ; page vide quand la liste est vide.
     var blockListResults: [Result<UserPage, SocialServiceError>] = []
 
+    /// Réponses successives de `listFollowRequests` ; page vide quand la liste est vide.
+    var followRequestResults: [Result<UserPage, SocialServiceError>] = []
+    /// Erreurs successives de `acceptFollowRequest` / `declineFollowRequest` / `removeFollower` ; succès quand vide.
+    var followRequestErrors: [SocialServiceError] = []
+    /// Appelé pendant une réponse à une demande ou un retrait d'abonné, avant la réponse de l'API.
+    var duringFollowRequest: (() async -> Void)?
+
     private(set) var follows: [String] = []
+    private(set) var acceptedRequests: [String] = []
+    private(set) var declinedRequests: [String] = []
+    private(set) var removedFollowers: [String] = []
+    private(set) var followRequestCursors: [String?] = []
     private(set) var unfollows: [String] = []
     private(set) var listRequests: [ListRequest] = []
     private(set) var searches: [String] = []
@@ -52,6 +63,37 @@ final class FakeSocialService: SocialService {
         guard let duringFollow else { return }
         self.duringFollow = nil
         await duringFollow()
+    }
+
+    func removeFollower(userId: String) async throws(SocialServiceError) {
+        removedFollowers.append(userId)
+        try await answerFollowRequest()
+    }
+
+    func listFollowRequests(cursor: String?) async throws(SocialServiceError) -> UserPage {
+        followRequestCursors.append(cursor)
+        guard !followRequestResults.isEmpty else { return UserPage(items: [], nextCursor: nil) }
+        return try followRequestResults.removeFirst().get()
+    }
+
+    func acceptFollowRequest(from requesterId: String) async throws(SocialServiceError) {
+        acceptedRequests.append(requesterId)
+        try await answerFollowRequest()
+    }
+
+    func declineFollowRequest(from requesterId: String) async throws(SocialServiceError) {
+        declinedRequests.append(requesterId)
+        try await answerFollowRequest()
+    }
+
+    private func answerFollowRequest() async throws(SocialServiceError) {
+        if let duringFollowRequest {
+            self.duringFollowRequest = nil
+            await duringFollowRequest()
+        }
+        if !followRequestErrors.isEmpty {
+            throw followRequestErrors.removeFirst()
+        }
     }
 
     func list(_ kind: FollowListKind, of userId: String, cursor: String?) async throws(SocialServiceError) -> UserPage {
@@ -102,7 +144,8 @@ extension UserSummary {
         username: String = "hugo.bernard",
         isPrivate: Bool = false,
         isFollowing: Bool = false,
-        followsMe: Bool = false
+        followsMe: Bool = false,
+        isRequested: Bool = false
     ) -> UserSummary {
         UserSummary(
             id: id,
@@ -111,7 +154,8 @@ extension UserSummary {
             isPrivate: isPrivate,
             avatar: nil,
             isFollowing: isFollowing,
-            followsMe: followsMe
+            followsMe: followsMe,
+            isRequested: isRequested
         )
     }
 }

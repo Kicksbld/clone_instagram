@@ -266,7 +266,7 @@ describe('GET /v1/users/{username}', () => {
       followerCount: 3,
       followingCount: 0,
       postCount: 0,
-      relationship: { following: true, followedBy: false },
+      relationship: { following: true, followedBy: false, requested: false },
       canViewContent: true,
     });
   });

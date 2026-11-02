@@ -31,11 +31,11 @@ describe('PUT /v1/users/{id}/follow', () => {
     const response = await inject('PUT', `/v1/users/${OTHER}/follow`);
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ following: true, followerCount: 3 });
+    expect(response.json()).toEqual({ following: true, requested: false, followerCount: 3 });
     const profile = await inject('GET', '/v1/users/lea');
     expect(profile.json()).toMatchObject({
       followerCount: 3,
-      relationship: { following: true, followedBy: false },
+      relationship: { following: true, followedBy: false, requested: false },
     });
     const me = await inject('GET', '/v1/me');
     expect(me.json()).toMatchObject({ followingCount: 1 });
@@ -48,7 +48,7 @@ describe('PUT /v1/users/{id}/follow', () => {
     const response = await inject('PUT', `/v1/users/${OTHER}/follow`);
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ following: true, followerCount: 1 });
+    expect(response.json()).toEqual({ following: true, requested: false, followerCount: 1 });
   });
 
   it('soi-même → 422 cannot_follow_self', async () => {
@@ -58,14 +58,13 @@ describe('PUT /v1/users/{id}/follow', () => {
     expect(response.json()).toMatchObject({ code: 'cannot_follow_self' });
   });
 
-  it('compte privé → 403 account_private', async () => {
+  it('compte privé → 200, demande d’abonnement (`requested`)', async () => {
     context.profiles.add({ id: OTHER, username: 'lea', isPrivate: true });
 
     const response = await inject('PUT', `/v1/users/${OTHER}/follow`);
 
-    expect(response.statusCode).toBe(403);
-    expect(response.headers['content-type']).toContain('application/problem+json');
-    expect(response.json()).toMatchObject({ code: 'account_private' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ following: false, requested: true, followerCount: 0 });
   });
 
   it('compte bloqué → 404 user_not_found', async () => {
@@ -101,8 +100,8 @@ describe('DELETE /v1/users/{id}/follow', () => {
     const second = await inject('DELETE', `/v1/users/${OTHER}/follow`);
 
     expect(first.statusCode).toBe(200);
-    expect(first.json()).toEqual({ following: false, followerCount: 0 });
-    expect(second.json()).toEqual({ following: false, followerCount: 0 });
+    expect(first.json()).toEqual({ following: false, requested: false, followerCount: 0 });
+    expect(second.json()).toEqual({ following: false, requested: false, followerCount: 0 });
   });
 
   it('compte inexistant → 404 user_not_found', async () => {
@@ -145,7 +144,7 @@ describe('GET /v1/users/{id}/followers et /following', () => {
             medium: `${TEST_MEDIA_BASE_URL}/storage/v1/object/public/media-public/a/medium.webp`,
             large: `${TEST_MEDIA_BASE_URL}/storage/v1/object/public/media-public/a/large.webp`,
           },
-          relationship: { following: false, followedBy: false },
+          relationship: { following: false, followedBy: false, requested: false },
         },
       ],
     });
@@ -158,7 +157,7 @@ describe('GET /v1/users/{id}/followers et /following', () => {
           username: 'killian',
           fullName: 'Killian',
           isPrivate: false,
-          relationship: { following: false, followedBy: false },
+          relationship: { following: false, followedBy: false, requested: false },
         },
       ],
     });
@@ -233,7 +232,7 @@ describe('GET /v1/search/users', () => {
           username: 'lea.martin',
           fullName: 'Léa Martin',
           isPrivate: false,
-          relationship: { following: false, followedBy: false },
+          relationship: { following: false, followedBy: false, requested: false },
         },
       ],
     });

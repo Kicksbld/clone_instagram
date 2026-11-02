@@ -5,9 +5,10 @@ import { CannotBlockSelfError } from '../../domain/errors.ts';
 import type { BlockTransaction } from '../ports/block-transaction.ts';
 
 /**
- * Bloquer un compte (ADR-006) : les abonnements sont supprimés dans les deux sens, compteurs compris,
- * dans la même transaction, avec leurs notifications (ADR-026) ; les deux comptes deviennent ensuite mutuellement invisibles. Idempotent :
- * un compte déjà bloqué ne change rien. Compte qui m'a bloqué ou non actif : invisible, donc 404.
+ * Bloquer un compte (ADR-006) : les abonnements et les demandes d'abonnement sont supprimés dans les
+ * deux sens, compteurs compris, dans la même transaction, avec leurs notifications (ADR-026) ; les
+ * deux comptes deviennent ensuite mutuellement invisibles. Idempotent : un compte déjà bloqué ne
+ * change rien. Compte qui m'a bloqué ou non actif : invisible, donc 404.
  */
 export class BlockUser {
   constructor(private readonly transaction: UnitOfWork<BlockTransaction>) {}
@@ -28,6 +29,8 @@ export class BlockUser {
       await blocks.add(viewerId, target.id);
       await removeFollow(scope, viewerId, target.id);
       await removeFollow(scope, target.id, viewerId);
+      await removeRequest(scope, viewerId, target.id);
+      await removeRequest(scope, target.id, viewerId);
     });
   }
 }
@@ -41,4 +44,18 @@ async function removeFollow(
   if (!(await follows.remove(followerId, followeeId))) return;
   await counters.apply(followerId, followeeId, -1);
   await notifications.retract({ recipientId: followeeId, actorId: followerId, type: 'follow' });
+}
+
+/** Demande d'abonnement supprimée avec sa notification ; sans effet si elle n'existait pas. */
+async function removeRequest(
+  { requests, notifications }: BlockTransaction,
+  requesterId: string,
+  targetId: string,
+): Promise<void> {
+  if (!(await requests.remove(requesterId, targetId))) return;
+  await notifications.retract({
+    recipientId: targetId,
+    actorId: requesterId,
+    type: 'follow_request',
+  });
 }

@@ -9,10 +9,7 @@ import { ListFollowers } from '../../../src/modules/social/application/use-cases
 import { ListFollowing } from '../../../src/modules/social/application/use-cases/list-following.ts';
 import { SearchUsers } from '../../../src/modules/social/application/use-cases/search-users.ts';
 import { UnfollowUser } from '../../../src/modules/social/application/use-cases/unfollow-user.ts';
-import {
-  AccountPrivateError,
-  CannotFollowSelfError,
-} from '../../../src/modules/social/domain/errors.ts';
+import { CannotFollowSelfError } from '../../../src/modules/social/domain/errors.ts';
 import { InMemoryUnitOfWork } from '../../support/fakes.ts';
 import {
   InMemoryNotificationDispatcher,
@@ -20,7 +17,10 @@ import {
 } from '../../support/in-memory-notifications.ts';
 import { InMemoryProfileRepository } from '../../support/in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from '../../support/in-memory-relationship-reader.ts';
-import { InMemorySocialGraph } from '../../support/in-memory-social-graph.ts';
+import {
+  InMemoryFollowRequests,
+  InMemorySocialGraph,
+} from '../../support/in-memory-social-graph.ts';
 
 const ME = '0199a1b2-0000-7000-8000-000000000001';
 const OTHER = '0199a1b2-0000-7000-8000-000000000002';
@@ -44,6 +44,7 @@ beforeEach(() => {
     accounts: graph,
     relationships,
     follows: graph,
+    requests: new InMemoryFollowRequests(relationships),
     counters: graph,
     notifications,
   });
@@ -63,6 +64,7 @@ describe('FollowUser', () => {
 
     await expect(follow.execute({ viewerId: ME, userId: OTHER })).resolves.toEqual({
       following: true,
+      requested: false,
       followerCount: 5,
     });
     expect(relationships.isFollowing(ME, OTHER)).toBe(true);
@@ -87,6 +89,7 @@ describe('FollowUser', () => {
 
     await expect(follow.execute({ viewerId: ME, userId: OTHER })).resolves.toEqual({
       following: true,
+      requested: false,
       followerCount: 1,
     });
     expect(counts(ME)).toEqual({ followerCount: 0, followingCount: 1 });
@@ -98,12 +101,15 @@ describe('FollowUser', () => {
     );
   });
 
-  it('compte privé non suivi → account_private, rien n’est écrit', async () => {
+  it('compte privé non suivi → demande d’abonnement, ni abonnement ni compteur', async () => {
     profiles.add({ id: OTHER, username: 'lea', isPrivate: true });
 
-    await expect(follow.execute({ viewerId: ME, userId: OTHER })).rejects.toBeInstanceOf(
-      AccountPrivateError,
-    );
+    await expect(follow.execute({ viewerId: ME, userId: OTHER })).resolves.toEqual({
+      following: false,
+      requested: true,
+      followerCount: 0,
+    });
+    expect(relationships.hasRequested(ME, OTHER)).toBe(true);
     expect(relationships.isFollowing(ME, OTHER)).toBe(false);
     expect(counts(OTHER).followerCount).toBe(0);
   });
@@ -114,6 +120,7 @@ describe('FollowUser', () => {
 
     await expect(follow.execute({ viewerId: ME, userId: OTHER })).resolves.toEqual({
       following: true,
+      requested: false,
       followerCount: 1,
     });
   });
@@ -160,6 +167,7 @@ describe('UnfollowUser', () => {
 
     await expect(unfollow.execute({ viewerId: ME, userId: OTHER })).resolves.toEqual({
       following: false,
+      requested: false,
       followerCount: 0,
     });
     expect(counts(ME)).toEqual({ followerCount: 0, followingCount: 0 });
@@ -181,6 +189,7 @@ describe('UnfollowUser', () => {
 
     await expect(unfollow.execute({ viewerId: ME, userId: OTHER })).resolves.toEqual({
       following: false,
+      requested: false,
       followerCount: 2,
     });
   });
@@ -192,6 +201,7 @@ describe('UnfollowUser', () => {
 
     await expect(unfollow.execute({ viewerId: ME, userId: OTHER })).resolves.toEqual({
       following: false,
+      requested: false,
       followerCount: 0,
     });
   });
@@ -225,8 +235,8 @@ describe('ListFollowers / ListFollowing', () => {
 
     const followers = await listFollowers().execute({ viewerId: ME, userId: OTHER, after: null });
     expect(followers.items.map((u) => [u.username, u.relationship])).toEqual([
-      ['killian', { following: false, followedBy: false }],
-      ['hugo', { following: false, followedBy: true }],
+      ['killian', { following: false, followedBy: false, requested: false }],
+      ['hugo', { following: false, followedBy: true, requested: false }],
     ]);
     expect(followers.next).toBeNull();
 

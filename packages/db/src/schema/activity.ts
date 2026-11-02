@@ -6,7 +6,14 @@ import { posts } from './posts.ts';
 import { profiles } from './profiles.ts';
 
 /** Types de notification autorisés ; chaque tranche ajoute les siens (ADR-026). */
-export const NOTIFICATION_TYPES = ['like', 'comment', 'comment_reply', 'follow'] as const;
+export const NOTIFICATION_TYPES = [
+  'like',
+  'comment',
+  'comment_reply',
+  'follow',
+  'follow_request',
+  'follow_accepted',
+] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 /**
@@ -49,9 +56,10 @@ export const notifications = pgTable(
       .nullsNotDistinct(),
     check(
       'notifications_type',
-      sql`${table.type} IN ('like', 'comment', 'comment_reply', 'follow')`,
+      sql`${table.type} IN ('like', 'comment', 'comment_reply', 'follow', 'follow_request', 'follow_accepted')`,
     ),
-    // Cibles par type : `like` → post ; `comment`, `comment_reply` → post + commentaire ; `follow` → aucune.
+    // Cibles par type : `like` → post ; `comment`, `comment_reply` → post + commentaire ;
+    // `follow`, `follow_request`, `follow_accepted` → aucune.
     check(
       'notifications_targets',
       sql`${table.storyId} IS NULL AND CASE ${table.type}
@@ -59,6 +67,8 @@ export const notifications = pgTable(
         WHEN 'comment' THEN ${table.postId} IS NOT NULL AND ${table.commentId} IS NOT NULL
         WHEN 'comment_reply' THEN ${table.postId} IS NOT NULL AND ${table.commentId} IS NOT NULL
         WHEN 'follow' THEN ${table.postId} IS NULL AND ${table.commentId} IS NULL
+        WHEN 'follow_request' THEN ${table.postId} IS NULL AND ${table.commentId} IS NULL
+        WHEN 'follow_accepted' THEN ${table.postId} IS NULL AND ${table.commentId} IS NULL
         ELSE false END`,
     ),
     check('notifications_not_self', sql`${table.actorId} <> ${table.recipientId}`),

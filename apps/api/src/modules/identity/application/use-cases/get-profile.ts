@@ -11,13 +11,14 @@ import type { ProfileRepository } from '../ports/profile-repository.ts';
 /** Profil d'un utilisateur vu par l'appelant : relation et droit de voir ses contenus. */
 export interface ProfileView {
   profile: Profile;
-  relationship: { following: boolean; followedBy: boolean };
+  relationship: { following: boolean; followedBy: boolean; requested: boolean };
   canViewContent: boolean;
 }
 
 /**
  * Profil d'un utilisateur par son username (ADR-006) : inexistant, bloqué dans un sens ou dans
- * l'autre, ou compte non actif → `user_not_found`. Compte privé non suivi : en-tête visible.
+ * l'autre, ou compte non actif → `user_not_found`. Compte privé non suivi : en-tête visible, contenus
+ * invisibles même avec une demande d'abonnement en attente (`requested`).
  */
 export class GetProfile {
   constructor(
@@ -40,6 +41,7 @@ export class GetProfile {
       relationship: {
         following: relation.viewerFollowsOwner,
         followedBy: relation.ownerFollowsViewer,
+        requested: relation.viewerRequestedOwner,
       },
       canViewContent: canViewContent(input.viewerId, profile, relation),
     };
