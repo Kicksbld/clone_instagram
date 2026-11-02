@@ -10,10 +10,10 @@ Le code est largement produit par l'IA : l'architecture doit donner à chaque ty
 
 Le langage doit être maîtrisé par le lead dev et partagé avec le backoffice.
 
-Décisions sources : D6, D7, D8, D34.
+Décisions sources : D6, D7, D8, D34, D44.
 
 ## Décision
-- **Stack** : Node.js LTS + TypeScript `strict`, Fastify, Drizzle ORM + drizzle-kit, Postgres avec l'extension `pg_trgm`, Vitest. Validation des entrées par les schémas de la spec : `openapi.yaml` bundlé et déréférencé par `pnpm contract:generate`, compilé par Ajv (JSON Schema 2020-12), sans suppression des champs inconnus. `@fastify/rate-limit`, logs pino. `@fastify/websocket` à partir de la P1.
+- **Stack** : Node.js LTS + TypeScript `strict`, Fastify, Drizzle ORM + drizzle-kit, Postgres avec l'extension `pg_trgm`, Vitest. Validation des entrées par les schémas de la spec : `openapi.yaml` bundlé et déréférencé par `pnpm contract:generate`, compilé par Ajv (JSON Schema 2020-12), sans suppression des champs inconnus. `@fastify/rate-limit`, logs pino. `@fastify/websocket` à partir de la P1 (ADR-021).
 - **Modules et tables** : l'utilisateur n'est qu'un identifiant référencé par des modules indépendants ; aucune entité `User` ne porte tout (« god entity »).
 
 | Module | Responsabilité | Tables principales |
@@ -44,7 +44,7 @@ apps/api/src/
 │       └── persistence/   # adapters Drizzle
 ├── shared/
 │   ├── domain/            # politique de visibilité (ADR-006), erreurs de base, types communs
-│   ├── application/       # ports transverses : UnitOfWork, Clock, IdGenerator, JobQueue, RealtimePublisher, AnalyticsTracker
+│   ├── application/       # ports transverses : UnitOfWork, Clock, IdGenerator, JobQueue, RealtimePublisher, AnalyticsTracker, NotificationWriter, NotificationDispatcher…
 │   └── infrastructure/    # auth JWT, gestion d'erreurs, rate limit, WebSocket, config
 └── main.ts                # composition root : assemblage manuel des dépendances
 ```
@@ -60,6 +60,8 @@ apps/api/src/
 | Visibilité | Tout use case de lecture passe par la politique unique (ADR-006) |
 | Compte suspendu ou banni | Refus global dans la vérification d'authentification (`shared/infrastructure`), pour toutes les routes sauf `GET /v1/me` (l'app affiche l'écran « Compte suspendu ») et `DELETE /v1/me` (suppression du compte toujours possible) : `403 account_suspended`. Aucun use case n'a à le revérifier |
 | Transactions | Port `UnitOfWork` : `uow.run(async (tx) => …)` pour tout use case qui écrit dans plusieurs tables (ligne + compteur + notification) |
+| Effets après la transaction | Événement WebSocket (`RealtimePublisher`, ADR-021), notification envoyée (`NotificationDispatcher`, ADR-026), événement analytics (`AnalyticsTracker`, ADR-013) : appelés **après** la validation de la transaction, jamais dedans ; un échec est journalisé, jamais propagé |
+| Écrire dans la table d'un autre module | Jamais par import d'un autre module : par un port transverse inclus dans le *scope* de transaction (`AdminAuditLog`, `NotificationWriter`, ADR-026) |
 | Erreurs | Erreurs typées (`NotFound`, `Forbidden`, `Conflict`, `BusinessRule`) converties en *Problem Details* (ADR-003) par un gestionnaire unique |
 | Pas de domaine riche sans raison | Un like n'a pas besoin d'entité ni de mapper ; un post, un média ou une conversation, oui |
 | Logs | pino, JSON structuré, identifiant de requête ; jamais de jeton ni de donnée personnelle (requête journalisée : méthode et chemin, sans en-têtes, IP ni query string) |
@@ -67,8 +69,9 @@ apps/api/src/
 
 - **Use case de référence : liker un post.**
   1. La route `PUT /v1/posts/:id/like` valide la requête et récupère l'utilisateur authentifié.
-  2. Le use case `LikePost` charge le post, vérifie `canViewContent`, puis, dans une transaction : insère dans `post_likes` (aucun effet si déjà liké) ; incrémente `posts.like_count` seulement si une ligne a été insérée ; (P1) crée une notification pour l'auteur, sauf si c'est soi-même.
-  3. Le use case renvoie `{ liked: true, likeCount }` ; la route le sérialise selon le contrat.
+  2. Le use case `LikePost` charge le post, vérifie `canViewContent`, puis, dans une transaction : insère dans `post_likes` (aucun effet si déjà liké) ; incrémente `posts.like_count` seulement si une ligne a été insérée ; (P1) crée une notification pour l'auteur par `NotificationWriter` (ADR-026), qui ignore les notifications vers soi-même.
+  3. Après la transaction, (P1) `NotificationDispatcher` signale la notification créée (ADR-026).
+  4. Le use case renvoie `{ liked: true, likeCount }` ; la route le sérialise selon le contrat.
 - **Rate limiting** en mémoire (`@fastify/rate-limit`, une seule instance d'API), réponse `429` + `Retry-After`. Valeurs initiales :
 
 | Portée | Limite |
@@ -111,3 +114,5 @@ apps/api/src/
 - ADR-009 (variables d'environnement)
 - ADR-014 (tests)
 - ADR-015 (contrat des jobs derrière le port `JobQueue`)
+- ADR-021 (WebSocket, `RealtimePublisher`)
+- ADR-026 (`NotificationWriter`, `NotificationDispatcher`)

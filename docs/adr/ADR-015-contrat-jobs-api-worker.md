@@ -15,7 +15,7 @@ Si chaque côté écrit ses propres types, un champ renommé d'un seul côté ne
 
 ## Décision
 - Un troisième package partagé, **`packages/jobs`**, importé par l'API et le worker. Il contient :
-  - les noms des files (`media`, `maintenance`, puis `push` en P2) et des jobs ;
+  - les noms des files (`media`, `maintenance`, puis `media-video` en P1 et `push` en P2) et des jobs ;
   - pour chaque job, un **schéma Zod** du payload et, s'il en a une, de la valeur de retour ; les types TypeScript en sont déduits (`z.infer`), jamais écrits à la main ;
   - les options communes des jobs (3 tentatives, délai croissant ; ADR-008).
 - `packages/jobs` ne dépend que de Zod : ni BullMQ, ni `packages/db`, ni aucune app.
@@ -31,6 +31,15 @@ Si chaque côté écrit ses propres types, un champ renommé d'un seul côté ne
 | `maintenance` | `purge-orphan-media` | aucun (job répété toutes les heures) | — | T3 |
 | `maintenance` | `purge-account` | identifiant du profil supprimé | — | T13 |
 | `maintenance` | `purge-content-files` | identifiant du contenu supprimé | — | T15 |
+
+Jobs P1 et P2 (tranche indiquée par leur plan de phase) :
+
+| File | Job | Payload | Valeur de retour | ADR |
+|---|---|---|---|---|
+| `media-video` | `process-video` (P1) | `{ mediaId }` | `{ mediaId, ownerId }` | ADR-024 |
+| `push` | `send-push` (P2) | `{ kind: 'notification', notificationId }` ou `{ kind: 'message', messageId }` | — | ADR-027 |
+
+La valeur de retour des jobs `process-image` et `process-video` est lue par l'adapter `QueueEvents` de l'API (ADR-022) : elle fait partie du contrat.
 
 ## Alternatives
 - Contrat des jobs dans `packages/db` : pas de nouveau package, mais la file de jobs n'a rien à voir avec le schéma de base, et le package mélangerait deux responsabilités. Non retenu.
@@ -56,3 +65,6 @@ Si chaque côté écrit ses propres types, un champ renommé d'un seul côté ne
 - ADR-008 (files, jobs, tentatives, idempotence)
 - ADR-009 (déploiements séparés de l'API et du worker)
 - ADR-014 (outils de qualité)
+- ADR-022 (valeurs de retour lues par les QueueEvents)
+- ADR-024 (`process-video`)
+- ADR-027 (`send-push`)

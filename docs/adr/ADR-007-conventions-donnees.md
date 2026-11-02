@@ -50,6 +50,10 @@ LIMIT 12;  -- pages de 12, comme Instagram (T7)
 | `messages (conversation_id, created_at DESC, id DESC)` | Historique d'une conversation (P1) |
 | `notifications (recipient_id, created_at DESC)` | Onglet Activité (P1) |
 | `profiles USING gin (username gin_trgm_ops)` | Recherche d'utilisateurs (`pg_trgm`) |
+| `conversations` unique `(member_low_id, member_high_id)` + `(last_message_at DESC, id DESC)` | Une conversation par paire, liste des conversations (P1, ADR-023) |
+| `messages` unique `(sender_id, client_id)` | Idempotence de l'envoi (P1, ADR-023) |
+| `story_views` PK `(story_id, viewer_id)` | Une vue par personne, liste des vues (P1, ADR-025) |
+| `reposts` PK `(user_id, post_id)` + `(user_id, created_at DESC)` + `(post_id)` | Feed avec republications, onglet du profil (P2, ADR-028) |
 
 - **Seed** (`pnpm db:seed`) : une centaine d'utilisateurs, des relations d'abonnement et des posts avec images d'exemple, pour tester le feed et valider les index.
 
@@ -71,10 +75,11 @@ LIMIT 12;  -- pages de 12, comme Instagram (T7)
 - Plus de tables (une par cible de like).
 - Toutes les lectures doivent filtrer `deleted_at`.
 - Dates des colonnes de curseur limitées à la milliseconde ; toute nouvelle colonne de curseur doit déclarer cette précision.
-- Republications (P2) : le feed devra devenir l'union de deux sources triée sur une date d'activité.
+- Republications (P2) : le feed devient l'union de deux sources triée sur une date d'activité (ADR-028).
 
 ## Liens
 - ADR-004 (RLS sans policy sur chaque nouvelle table)
 - ADR-005 (`UnitOfWork` pour les compteurs)
 - ADR-006 (visibilité dans les requêtes de liste)
 - ADR-008 (machine à états des médias)
+- ADR-028 (feed avec republications)

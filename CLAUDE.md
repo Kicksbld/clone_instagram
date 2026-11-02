@@ -12,11 +12,12 @@ Le socle TypeScript existe (T0a) : `apps/api`, `apps/worker`, `apps/backoffice`,
 
 | Document | Rôle | Quand le lire |
 |---|---|---|
-| Fiche de la tranche dans [`docs/plan/P0.md`](docs/plan/P0.md) | Quoi faire : contrat, tables, règles métier, cas limites, hors tranche | Pendant le développement |
+| Fiche de la tranche : issue GitHub de la tranche (P1 et suivantes), [`docs/plan/P0.md`](docs/plan/P0.md) pour P0 | Quoi faire : contrat, tables, règles métier, cas limites, hors tranche | Pendant le développement |
+| [`GLOSSARY.md`](GLOSSARY.md) | Vocabulaire du domaine | Pendant le développement, pour nommer les choses |
 | ADR cités par la fiche ([`docs/adr/`](docs/adr/README.md)) | Comment faire : décisions et règles techniques | Pendant le développement |
 | Cahier des charges (`docs/cahier-des-charges/`) | Périmètre et contexte du projet | **Uniquement** pour rédiger les ADR et le plan d'une nouvelle phase |
 
-- **Pendant une tranche, la fiche et ses ADR sont la seule source de contexte.** Ne pas lire le cahier des charges.
+- **Pendant une tranche, la fiche et ses ADR sont la seule source de règles** (le glossaire ne donne que le vocabulaire). Ne pas lire le cahier des charges.
 - Si une information manque dans la fiche et les ADR : s'arrêter et le signaler au lead dev, ne pas inventer ni aller la chercher ailleurs.
 - En cas de divergence, l'ADR fait foi. Le résumé ci-dessous n'est qu'un rappel : le détail est dans l'ADR indiqué.
 
@@ -66,11 +67,11 @@ Outils de qualité et tests par niveau : ADR-014.
 9. **iOS** (ADR-010) : MVVM `@Observable` / `@MainActor`, services injectés par protocole, une feature n'importe jamais une autre, Nuke (jamais `AsyncImage`), Liquid Glass jamais sur le contenu.
 10. **Backoffice** (ADR-011) : aucun appel API depuis le navigateur, chaque Server Action revérifie la session, seuls `features/*/data/` importent `lib/api`.
 11. **Environnements** (ADR-009) : même code, seule la config change ; secrets jamais versionnés ; l'iPhone n'atteint pas `localhost` (IP du Mac ou démo).
-12. **Le WebSocket notifie, il n'est jamais la source de vérité** (P1, ADR à rédiger).
+12. **Le WebSocket notifie, il n'est jamais la source de vérité** (ADR-021).
 
 ## Workflow et conventions
 
-- **Méthode** : [`docs/ia-workflow.md`](docs/ia-workflow.md). On prend la première tranche non cochée du plan courant, on reste dans sa fiche (ligne « Hors tranche »), on la coche une fois la definition of done validée.
+- **Méthode** : [`docs/ia-workflow.md`](docs/ia-workflow.md), outillée par les skills de Matt Pocock (bloc « Agent skills » ci-dessous). On prend une tranche disponible du plan de phase (issue ouverte sans tranche bloquante ouverte), on reste dans sa fiche (ligne « Hors tranche »), la PR de la tranche ferme l'issue une fois la definition of done validée.
 - **Ordre dans une tranche** : contrat → migration → backend (domaine → use case → adapters → route + tests) → iOS (service → ViewModel → vues + tests) → backoffice.
 - **Definition of done, cas limites obligatoires, interdits, commits** : ADR-014.
 - **README.md = guide de démarrage** (pour le lead dev et le professeur) : à chaque tranche qui change l'installation, les commandes, les services, les ports ou les variables d'environnement, mettre à jour `README.md` (prérequis, installation, lancement, arrêt / relance, problèmes fréquents, avancement). Clair et concis.
@@ -85,3 +86,17 @@ Agent de référence : [`docs/adr/Agent ADR Architecte.md`](docs/adr/Agent%20ADR
 - Fichiers `docs/adr/ADR-XXX-titre-en-kebab-case.md`, numéro = plus haut numéro existant + 1, sur trois chiffres ; ne jamais réutiliser un numéro. Statut toujours `Proposé` à la création.
 - Chaque nouvel ADR est ajouté à l'index `docs/adr/README.md` et, si c'est une nouvelle décision, reporté dans `09-decisions-risques.md` du cahier des charges.
 - **Avant de proposer du code**, rechercher les ADR concernés et conclure par `Conforme aux ADR existants`, `Contradiction avec ADR-XXX` ou `Décision non documentée — ADR recommandé`.
+
+## Agent skills
+
+### Issue tracker
+
+Plans de phase et tranches = issues GitHub (`gh`), tranches en sous-issues avec dépendances natives. Voir `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Les cinq labels par défaut (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), plus `phase`. Voir `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Un seul contexte : `GLOSSARY.md` à la racine et `docs/adr/`, **ADR au format du projet** (`Agent ADR Architecte.md`), pas celui des skills. Voir `docs/agents/domain.md`.

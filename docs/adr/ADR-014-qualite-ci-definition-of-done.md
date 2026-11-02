@@ -29,13 +29,14 @@ Source : cahier des charges, `08-qualite-conventions-ia.md`.
 | Use cases | Vitest + adapters en mémoire | Scénarios métier sans base : blocage, compte privé, idempotence, compteurs |
 | Adapters | Vitest + Postgres réel (Supabase local ou Testcontainers) | Requêtes Drizzle, contraintes, pagination par curseur |
 | Routes | Vitest + `fastify.inject` | Contrat respecté, codes d'erreur, authentification, rôle admin |
-| Worker | Vitest + fichiers d'exemple | Image avec EXIF GPS → sortie sans EXIF ; fichier invalide → `failed` |
+| Worker | Vitest + fichiers d'exemple | Image avec EXIF GPS → sortie sans EXIF ; fichier invalide → `failed` ; vidéo de plus de 60 s → `failed` (P1, ADR-024) ; faux serveur APNs (P2, ADR-027) |
+| WebSocket (P1) | Vitest + client WebSocket | Authentification par premier message, refus d'un compte suspendu, événement reçu par le seul destinataire (ADR-021) |
 | iOS : ViewModels, services | Swift Testing, faux injectés, transport factice | États de chargement, erreurs, mises à jour optimistes et retour arrière, conversion des DTO |
 | iOS : UploadManager, onboarding, paywall | Swift Testing | Enchaînement des états, reprise après échec ; username pris ; offre selon la variante, achat annulé, restauration |
-| iOS : parcours | XCUITest (optionnel) | Connexion → publication → like |
+| iOS : parcours | XCUITest (optionnel) | Connexion → publication → like ; envoi d'un message (P1) |
 | Backoffice | Vitest ; Playwright | Schémas Zod, filtres ; connexion admin, refus d'un non-admin, traitement d'un signalement, bannissement |
 
-- **Cas limites obligatoires**, testés dès qu'ils s'appliquent à la tranche : utilisateur bloqué, compte privé non suivi, compte suspendu, double like, message envoyé deux fois avec le même `clientId` (P1), média d'un autre utilisateur, transition de statut invalide, curseur invalide, avantage Plus demandé sans abonnement actif, abonnement expiré, RevenueCat injoignable pendant un rafraîchissement.
+- **Cas limites obligatoires**, testés dès qu'ils s'appliquent à la tranche : utilisateur bloqué, compte privé non suivi, compte suspendu, double like, message envoyé deux fois avec le même `clientId` (P1), conversation avec un compte bloqué (P1), story `close_friends` vue par un abonné qui n'est pas ami proche (P1), story expirée (P1), demande d'abonnement en attente sans accès aux contenus (P1), notification vers soi-même ou depuis un compte bloqué (P1), événement WebSocket sans authentification ou après échec de la transaction (P1), média d'un autre utilisateur, transition de statut invalide, curseur invalide, avantage Plus demandé sans abonnement actif, abonnement expiré, RevenueCat injoignable pendant un rafraîchissement.
 - **Definition of done** d'une tranche :
   - [ ] Le contrat est à jour et les clients sont régénérés.
   - [ ] Lint, typecheck, tests et build passent sur toutes les parties touchées.
@@ -79,3 +80,4 @@ Source : cahier des charges, `08-qualite-conventions-ia.md`.
 - ADR-009 (déploiement après CI verte)
 - ADR-011 (règles d'import du backoffice)
 - ADR-015 (validation des payloads de jobs)
+- ADR-021, ADR-023, ADR-024, ADR-025, ADR-026, ADR-027, ADR-028 (cas limites des P1 et P2)
