@@ -90,6 +90,7 @@ import {
   DrizzleFollowCounters,
   DrizzleFollowRepository,
 } from './modules/social/infrastructure/persistence/drizzle-follow-repository.ts';
+import { SocialFollowRequestAccepter } from './modules/social/infrastructure/follow-request-accepter.ts';
 import { DrizzleFollowRequestRepository } from './modules/social/infrastructure/persistence/drizzle-follow-request-repository.ts';
 import { DrizzleSocialGraphReader } from './modules/social/infrastructure/persistence/drizzle-social-graph-reader.ts';
 import {
@@ -147,10 +148,12 @@ const avatarTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => (
 // Passage en public : profil et acceptation des demandes d'abonnement dans une transaction (T20).
 const settingsTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   profiles: new DrizzleProfileRepository(tx),
-  follows: new DrizzleFollowRepository(tx),
-  requests: new DrizzleFollowRequestRepository(tx),
-  counters: new DrizzleFollowCounters(tx),
-  notifications: new DrizzleNotificationWriter(tx),
+  followRequests: new SocialFollowRequestAccepter({
+    follows: new DrizzleFollowRepository(tx),
+    requests: new DrizzleFollowRequestRepository(tx),
+    counters: new DrizzleFollowCounters(tx),
+    notifications: new DrizzleNotificationWriter(tx),
+  }),
 }));
 const accounts = new DrizzleAccountReader(database.db);
 const socialGraph = new DrizzleSocialGraphReader(database.db);

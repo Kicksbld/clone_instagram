@@ -16,6 +16,7 @@ import {
   CannotFollowSelfError,
   FollowRequestNotFoundError,
 } from '../../../src/modules/social/domain/errors.ts';
+import { SocialFollowRequestAccepter } from '../../../src/modules/social/infrastructure/follow-request-accepter.ts';
 import { canViewContent } from '../../../src/shared/domain/visibility.ts';
 import { InMemoryUnitOfWork } from '../../support/fakes.ts';
 import {
@@ -80,7 +81,15 @@ beforeEach(() => {
     }),
   );
   updateSettings = new UpdateSettings(
-    new InMemoryUnitOfWork({ profiles, follows: graph, requests, counters: graph, notifications }),
+    new InMemoryUnitOfWork({
+      profiles,
+      followRequests: new SocialFollowRequestAccepter({
+        follows: graph,
+        requests,
+        counters: graph,
+        notifications,
+      }),
+    }),
     dispatcher,
   );
   profiles.add({ id: PRIVATE, username: 'prive', isPrivate: true });

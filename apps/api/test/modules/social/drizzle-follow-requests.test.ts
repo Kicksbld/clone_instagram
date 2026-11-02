@@ -23,6 +23,7 @@ import {
   DrizzleFollowRepository,
 } from '../../../src/modules/social/infrastructure/persistence/drizzle-follow-repository.ts';
 import { DrizzleFollowRequestRepository } from '../../../src/modules/social/infrastructure/persistence/drizzle-follow-request-repository.ts';
+import { SocialFollowRequestAccepter } from '../../../src/modules/social/infrastructure/follow-request-accepter.ts';
 import { DrizzleSocialGraphReader } from '../../../src/modules/social/infrastructure/persistence/drizzle-social-graph-reader.ts';
 import { DrizzleRelationshipReader } from '../../../src/shared/infrastructure/persistence/drizzle-relationship-reader.ts';
 import { DrizzleUnitOfWork } from '../../../src/shared/infrastructure/persistence/drizzle-unit-of-work.ts';
@@ -48,10 +49,12 @@ const accept = new AcceptFollowRequest(new DrizzleUnitOfWork(db, followScope), d
 const updateSettings = new UpdateSettings(
   new DrizzleUnitOfWork(db, (tx: Executor) => ({
     profiles: new DrizzleProfileRepository(tx),
-    follows: new DrizzleFollowRepository(tx),
-    requests: new DrizzleFollowRequestRepository(tx),
-    counters: new DrizzleFollowCounters(tx),
-    notifications: new DrizzleNotificationWriter(tx),
+    followRequests: new SocialFollowRequestAccepter({
+      follows: new DrizzleFollowRepository(tx),
+      requests: new DrizzleFollowRequestRepository(tx),
+      counters: new DrizzleFollowCounters(tx),
+      notifications: new DrizzleNotificationWriter(tx),
+    }),
   })),
   dispatcher,
 );

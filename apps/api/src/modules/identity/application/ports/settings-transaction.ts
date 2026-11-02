@@ -1,10 +1,12 @@
-import type { FollowRequestAcceptance } from '../../../social/application/follow-request-acceptance.ts';
+import type { FollowRequestAccepter } from '../../../../shared/application/follow-request-accepter.ts';
 import type { ProfileRepository } from './profile-repository.ts';
 
 /**
  * Repositories d'un changement de paramètres : le profil, et l'acceptation des demandes
- * d'abonnement en attente au passage en public (module `social`, ADR-006), dans une transaction.
+ * d'abonnement en attente au passage en public (port transverse, ADR-006, ADR-032), dans une
+ * transaction.
  */
-export interface SettingsTransaction extends FollowRequestAcceptance {
+export interface SettingsTransaction {
   profiles: ProfileRepository;
+  followRequests: FollowRequestAccepter;
 }

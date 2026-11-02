@@ -47,6 +47,7 @@ import { RemoveFollower } from '../../src/modules/social/application/use-cases/r
 import { SearchUsers } from '../../src/modules/social/application/use-cases/search-users.ts';
 import { UnblockUser } from '../../src/modules/social/application/use-cases/unblock-user.ts';
 import { UnfollowUser } from '../../src/modules/social/application/use-cases/unfollow-user.ts';
+import { SocialFollowRequestAccepter } from '../../src/modules/social/infrastructure/follow-request-accepter.ts';
 import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-media-urls.ts';
 import {
   FakeMediaStorage,
@@ -112,10 +113,12 @@ export function buildTestApp() {
   });
   const settingsTransaction = new InMemoryUnitOfWork({
     profiles,
-    follows: graph,
-    requests,
-    counters: graph,
-    notifications,
+    followRequests: new SocialFollowRequestAccepter({
+      follows: graph,
+      requests,
+      counters: graph,
+      notifications,
+    }),
   });
   const blocks = new InMemoryBlocks(relationships);
   const blockTransaction = new InMemoryUnitOfWork({

@@ -1,6 +1,5 @@
 import type { NotificationDispatcher } from '../../../../shared/application/notification-dispatcher.ts';
 import type { UnitOfWork } from '../../../../shared/application/unit-of-work.ts';
-import { acceptAllRequests } from '../../../social/application/follow-request-acceptance.ts';
 import { ProfileNotFoundError } from '../../domain/errors.ts';
 import type { Profile } from '../../domain/profile.ts';
 import type { SettingsTransaction } from '../ports/settings-transaction.ts';
@@ -23,7 +22,7 @@ export class UpdateSettings {
       if (!updated) throw new ProfileNotFoundError();
       if (input.isPrivate) return { profile: updated, created: [] };
 
-      const created = await acceptAllRequests(scope, input.userId);
+      const created = await scope.followRequests.acceptAll(input.userId);
       // Compteur d'abonnés relu après les acceptations.
       return { profile: (await scope.profiles.findById(input.userId)) ?? updated, created };
     });
