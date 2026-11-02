@@ -89,8 +89,6 @@ Agent de référence : [`docs/adr/Agent ADR Architecte.md`](docs/adr/Agent%20ADR
 
 ## Agent skills
 
-Skills de Matt Pocock versionnés dans `.claude/skills/` (origine et mise à jour : `.claude/skills/README.md`) ; ne pas modifier leurs `SKILL.md`, la configuration du projet va dans `docs/agents/`.
-
 ### Issue tracker
 
 Plans de phase et tranches = issues GitHub (`gh`), tranches en sous-issues avec dépendances natives. Voir `docs/agents/issue-tracker.md`.
