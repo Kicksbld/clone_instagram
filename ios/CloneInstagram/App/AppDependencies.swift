@@ -19,6 +19,9 @@ struct AppDependencies {
     let comments: any CommentService
     /// Nombre de commentaires des posts, partagé par le feed, le détail et la feuille de commentaires.
     let commentCounts: CommentCountStore
+    /// Activité (notifications in-app, ADR-026) et pastille du cœur, partagée par l'accueil et l'Activité.
+    let activity: any ActivityService
+    let activityBadge: ActivityBadge
     /// Publications en cours, persistées (ADR-008).
     let publishQueue: PublishQueue
     /// Préchargement des photos du feed (Nuke).
@@ -48,6 +51,7 @@ struct AppDependencies {
         let uploads = UploadManager(media: APIMediaService(client: client), uploader: BackgroundFileUploader.shared)
         let posts = APIPostService(client: client)
         let social = APISocialService(client: client)
+        let activity = APIActivityService(client: client)
         return AppDependencies(
             auth: auth,
             identity: APIIdentityService(client: client),
@@ -61,6 +65,8 @@ struct AppDependencies {
             postDeletions: PostDeletionStore(service: posts),
             comments: APICommentService(client: client),
             commentCounts: CommentCountStore(),
+            activity: activity,
+            activityBadge: ActivityBadge(service: activity),
             publishQueue: PublishQueue(
                 store: FilePendingPostStore.applicationSupport,
                 uploads: uploads,
@@ -98,6 +104,8 @@ extension AppDependencies {
             postDeletions: PostDeletionStore(service: posts),
             comments: UnavailableCommentService(),
             commentCounts: CommentCountStore(),
+            activity: UnavailableActivityService(),
+            activityBadge: ActivityBadge(service: UnavailableActivityService()),
             publishQueue: PublishQueue(
                 store: FilePendingPostStore.applicationSupport,
                 uploads: UnavailableUploadService(),

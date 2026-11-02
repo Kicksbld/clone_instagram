@@ -1,4 +1,6 @@
 import { buildApp } from '../../src/app.ts';
+import { GetActivity } from '../../src/modules/activity/application/use-cases/get-activity.ts';
+import { MarkActivityRead } from '../../src/modules/activity/application/use-cases/mark-activity-read.ts';
 import { GetPlan } from '../../src/modules/billing/application/use-cases/get-plan.ts';
 import { RefreshSubscription } from '../../src/modules/billing/application/use-cases/refresh-subscription.ts';
 import { CreateComment } from '../../src/modules/engagement/application/use-cases/create-comment.ts';
@@ -58,6 +60,11 @@ import { InMemoryComments } from './in-memory-comments.ts';
 import { InMemoryFeedReader } from './in-memory-feed.ts';
 import { InMemoryLikes } from './in-memory-likes.ts';
 import { InMemoryMediaRepository } from './in-memory-media-repository.ts';
+import {
+  InMemoryActivity,
+  InMemoryNotificationDispatcher,
+  InMemoryNotifications,
+} from './in-memory-notifications.ts';
 import { InMemoryPosts } from './in-memory-posts.ts';
 import { InMemoryProfileRepository } from './in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from './in-memory-relationship-reader.ts';
@@ -83,11 +90,14 @@ export function buildTestApp() {
   const jobs = new InMemoryJobQueue();
   const relationships = new InMemoryRelationshipReader();
   const graph = new InMemorySocialGraph(profiles, relationships);
+  const notifications = new InMemoryNotifications(relationships);
+  const notificationDispatcher = new InMemoryNotificationDispatcher();
   const followTransaction = new InMemoryUnitOfWork({
     accounts: graph,
     relationships,
     follows: graph,
     counters: graph,
+    notifications,
   });
   const blocks = new InMemoryBlocks(relationships);
   const blockTransaction = new InMemoryUnitOfWork({
@@ -96,6 +106,7 @@ export function buildTestApp() {
     blocks,
     follows: graph,
     counters: graph,
+    notifications,
   });
   const posts = new InMemoryPosts(profiles, media);
   const createPostTransaction = new InMemoryUnitOfWork({
@@ -110,6 +121,7 @@ export function buildTestApp() {
     relationships,
     posts: likes,
     likes,
+    notifications,
   });
   const comments = new InMemoryComments(profiles, posts, relationships);
   const commentTransaction = new InMemoryUnitOfWork({
@@ -118,7 +130,16 @@ export function buildTestApp() {
     posts: likes,
     comments,
     reader: comments,
+    notifications,
   });
+  const activity = new InMemoryActivity(
+    notifications,
+    profiles,
+    media,
+    posts,
+    comments,
+    relationships,
+  );
   const reports = new InMemoryReports(profiles, likes, comments);
   const clock = { now: () => TEST_NOW };
   const subscriptions = new InMemorySubscriptions();
@@ -160,7 +181,7 @@ export function buildTestApp() {
         getMedia: new GetMedia(media),
       },
       social: {
-        followUser: new FollowUser(followTransaction),
+        followUser: new FollowUser(followTransaction, notificationDispatcher),
         unfollowUser: new UnfollowUser(followTransaction),
         listFollowers: new ListFollowers(graph, relationships, graph),
         listFollowing: new ListFollowing(graph, relationships, graph),
@@ -184,12 +205,13 @@ export function buildTestApp() {
         getFeed: new GetFeed(new InMemoryFeedReader(posts, relationships)),
       },
       engagement: {
-        likePost: new LikePost(likeTransaction),
+        likePost: new LikePost(likeTransaction, notificationDispatcher),
         unlikePost: new UnlikePost(likeTransaction),
         createComment: new CreateComment(
           commentTransaction,
           sequentialIds('0199a1b2-0000-7000-b100-'),
           clock,
+          notificationDispatcher,
         ),
         listComments: new ListComments(relationships, likes, comments),
         listReplies: new ListReplies(relationships, comments, comments),
@@ -211,6 +233,10 @@ export function buildTestApp() {
           reports,
           sequentialIds('0199a1b2-0000-7000-c100-'),
         ),
+      },
+      activity: {
+        getActivity: new GetActivity(activity),
+        markActivityRead: new MarkActivityRead(activity),
       },
       admin: {
         getAdminSession: new GetAdminSession(adminRoles),
@@ -242,6 +268,8 @@ export function buildTestApp() {
     relationships,
     posts,
     comments,
+    notifications,
+    notificationDispatcher,
     subscriptions,
     subscriptionProvider,
     analytics,

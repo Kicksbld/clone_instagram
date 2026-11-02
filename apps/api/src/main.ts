@@ -3,6 +3,13 @@ import { createDatabase, type Executor } from '@clone/db';
 import { StorageClient } from '@supabase/storage-js';
 
 import { buildApp } from './app.ts';
+import { GetActivity } from './modules/activity/application/use-cases/get-activity.ts';
+import { MarkActivityRead } from './modules/activity/application/use-cases/mark-activity-read.ts';
+import {
+  DrizzleActivityReader,
+  DrizzleActivityRepository,
+} from './modules/activity/infrastructure/persistence/drizzle-activity.ts';
+import { DrizzleNotificationWriter } from './modules/activity/infrastructure/persistence/drizzle-notification-writer.ts';
 import { GetPlan } from './modules/billing/application/use-cases/get-plan.ts';
 import { RefreshSubscription } from './modules/billing/application/use-cases/refresh-subscription.ts';
 import { DrizzleSubscriptionRepository } from './modules/billing/infrastructure/persistence/drizzle-subscription-repository.ts';
@@ -86,6 +93,7 @@ import {
 } from './shared/infrastructure/analytics/posthog-analytics-tracker.ts';
 import { createJwtVerifier, supabaseJwks } from './shared/infrastructure/auth/token-verifier.ts';
 import { loadConfig } from './shared/infrastructure/config.ts';
+import { noopNotificationDispatcher } from './shared/infrastructure/notifications/noop-notification-dispatcher.ts';
 import { publicMediaUrls } from './shared/infrastructure/http/public-media-urls.ts';
 import { BullMqJobQueue } from './shared/infrastructure/jobs/bullmq-job-queue.ts';
 import { DrizzleAccountStatusReader } from './shared/infrastructure/persistence/drizzle-account-status-reader.ts';
@@ -112,6 +120,8 @@ const posthog = config.POSTHOG_PROJECT_API_KEY
     })
   : null;
 const analytics = posthog ?? noopAnalyticsTracker;
+// Notifications diffusées après la transaction (ADR-026) : rien en temps réel avant T19.
+const notificationDispatcher = noopNotificationDispatcher;
 
 const profiles = new DrizzleProfileRepository(database.db);
 const media = new DrizzleMediaRepository(database.db);
@@ -127,6 +137,7 @@ const followTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => (
   relationships: new DrizzleRelationshipReader(tx),
   follows: new DrizzleFollowRepository(tx),
   counters: new DrizzleFollowCounters(tx),
+  notifications: new DrizzleNotificationWriter(tx),
 }));
 const blockTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   accounts: new DrizzleAccountReader(tx),
@@ -134,6 +145,7 @@ const blockTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   blocks: new DrizzleBlockRepository(tx),
   follows: new DrizzleFollowRepository(tx),
   counters: new DrizzleFollowCounters(tx),
+  notifications: new DrizzleNotificationWriter(tx),
 }));
 const postReader = new DrizzlePostReader(database.db);
 const createPostTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
@@ -151,6 +163,7 @@ const likeTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   relationships: new DrizzleRelationshipReader(tx),
   posts: new DrizzleLikeablePostReader(tx),
   likes: new DrizzleLikeRepository(tx),
+  notifications: new DrizzleNotificationWriter(tx),
 }));
 const commentTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   accounts: new DrizzleAccountReader(tx),
@@ -158,6 +171,7 @@ const commentTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => 
   posts: new DrizzleLikeablePostReader(tx),
   comments: new DrizzleCommentRepository(tx),
   reader: new DrizzleCommentReader(tx),
+  notifications: new DrizzleNotificationWriter(tx),
 }));
 const commentReader = new DrizzleCommentReader(database.db);
 const subscriptions = new DrizzleSubscriptionRepository(database.db);
@@ -214,7 +228,7 @@ const app = buildApp({
       getMedia: new GetMedia(media),
     },
     social: {
-      followUser: new FollowUser(followTransaction),
+      followUser: new FollowUser(followTransaction, notificationDispatcher),
       unfollowUser: new UnfollowUser(followTransaction),
       listFollowers: new ListFollowers(accounts, relationships, socialGraph),
       listFollowing: new ListFollowing(accounts, relationships, socialGraph),
@@ -233,9 +247,14 @@ const app = buildApp({
       getFeed: new GetFeed(new DrizzleFeedReader(database.db)),
     },
     engagement: {
-      likePost: new LikePost(likeTransaction),
+      likePost: new LikePost(likeTransaction, notificationDispatcher),
       unlikePost: new UnlikePost(likeTransaction),
-      createComment: new CreateComment(commentTransaction, uuidV7Generator, systemClock),
+      createComment: new CreateComment(
+        commentTransaction,
+        uuidV7Generator,
+        systemClock,
+        notificationDispatcher,
+      ),
       listComments: new ListComments(
         relationships,
         new DrizzleLikeablePostReader(database.db),
@@ -267,6 +286,10 @@ const app = buildApp({
         new DrizzleReportRepository(database.db),
         uuidV7Generator,
       ),
+    },
+    activity: {
+      getActivity: new GetActivity(new DrizzleActivityReader(database.db)),
+      markActivityRead: new MarkActivityRead(new DrizzleActivityRepository(database.db)),
     },
     admin: {
       getAdminSession: new GetAdminSession(adminRoles),

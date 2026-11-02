@@ -78,6 +78,8 @@ tags:
     description: Abonnement Clone Plus, vérifié par l'API auprès de RevenueCat (ADR-012)
   - name: moderation
     description: Signalements de contenus et de comptes
+  - name: activity
+    description: Activité de l'utilisateur authentifié (notifications in-app, ADR-026)
   - name: admin
     description: Administration depuis le backoffice (ADR-011) ; rôle `admin` requis, chaque action écrite dans le journal d'audit
 paths:
@@ -893,6 +895,43 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '429':
           $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/activity:
+    get:
+      operationId: getActivity
+      tags: [activity]
+      summary: Mon Activité
+      description: |
+        Notifications reçues, regroupées à la lecture (ADR-026) : les J'aime d'un même post forment un seul groupe (« léa et 1 autre ont aimé votre publication ») ; chaque commentaire, réponse ou abonnement forme son propre groupe. Groupes du plus récent au plus ancien (date de leur notification la plus récente), par pages de 20.
+        Visibilité (ADR-006) : notifications des acteurs bloqués dans un sens ou dans l'autre ou non actifs absentes, ainsi que celles d'un post ou d'un commentaire supprimé ou devenu invisible.
+        `unreadCount` : nombre de groupes contenant au moins une notification non lue (pastille du cœur), le même sur chaque page.
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page de l'Activité.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/activity/read:
+    post:
+      operationId: markActivityRead
+      tags: [activity]
+      summary: Tout marquer comme lu
+      description: Marque comme lues toutes les notifications reçues ; `unreadCount` revient à 0. Idempotent.
+      responses:
+        '204':
+          description: Notifications marquées comme lues.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalError'
   /v1/media/uploads:
@@ -1847,6 +1886,90 @@ components:
         nextCursor:
           type: string
           description: Curseur de la page suivante ; absent sur la dernière page.
+    ActivityType:
+      type: string
+      description: |
+        Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné).
+        Liste ouverte : d'autres types arrivent avec les tranches suivantes ; le client ignore un groupe d'un type qu'il ne connaît pas (ADR-019).
+      examples: [like]
+    ActivityActor:
+      type: object
+      description: Compte à l'origine de la notification la plus récente du groupe.
+      required: [id, username]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          $ref: '#/components/schemas/Username'
+        avatar:
+          $ref: '#/components/schemas/ImageVariants'
+          description: Photo de profil ; absente si aucune photo.
+    ActivityPost:
+      type: object
+      description: Post visé, avec la miniature de sa première image.
+      required: [id, thumbnail]
+      properties:
+        id:
+          type: string
+          format: uuid
+        thumbnail:
+          $ref: '#/components/schemas/ImageVariants'
+    ActivityComment:
+      type: object
+      description: Commentaire ou réponse qui a créé la notification.
+      required: [id, body]
+      properties:
+        id:
+          type: string
+          format: uuid
+        body:
+          $ref: '#/components/schemas/CommentBody'
+    ActivityGroup:
+      type: object
+      description: Groupe de notifications de même type sur la même cible, vu par son destinataire.
+      required: [id, type, actor, actorCount, createdAt, read]
+      properties:
+        id:
+          type: string
+          description: Identifiant opaque et stable du groupe.
+        type:
+          $ref: '#/components/schemas/ActivityType'
+        actor:
+          $ref: '#/components/schemas/ActivityActor'
+        actorCount:
+          type: integer
+          minimum: 1
+          description: Nombre de comptes du groupe, acteur le plus récent compris (« léa et 1 autre » → 2).
+        createdAt:
+          type: string
+          format: date-time
+          description: Date de la notification la plus récente du groupe.
+        read:
+          type: boolean
+          description: '`false` si le groupe contient au moins une notification non lue.'
+        post:
+          $ref: '#/components/schemas/ActivityPost'
+          description: Post visé (`like`, `comment`, `comment_reply`) ; absent pour `follow`.
+        comment:
+          $ref: '#/components/schemas/ActivityComment'
+          description: Commentaire ou réponse (`comment`, `comment_reply`) ; absent sinon.
+    ActivityPage:
+      type: object
+      required: [items, unreadCount]
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/ActivityGroup'
+        nextCursor:
+          type: string
+          description: Curseur de la page suivante ; absent sur la dernière page.
+        unreadCount:
+          type: integer
+          minimum: 0
+          description: Nombre de groupes contenant au moins une notification non lue.
     ProblemDetails:
       type: object
       description: Erreur au format Problem Details (RFC 9457).

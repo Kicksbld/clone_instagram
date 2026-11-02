@@ -25,8 +25,11 @@ export function encodeCursor(cursor: Cursor): string {
   return Buffer.from(payload, 'utf8').toString('base64url');
 }
 
-/** Décode un curseur reçu du client ; lève `InvalidCursorError` s'il est mal formé (→ 400). */
-export function decodeCursor(raw: string): Cursor {
+/**
+ * Décode un curseur reçu du client ; lève `InvalidCursorError` s'il est mal formé (→ 400).
+ * `isValidId` vérifie le second membre : un UUID par défaut, une clé de groupe pour l'Activité.
+ */
+export function decodeCursor(raw: string, isValidId: (id: string) => boolean = validate): Cursor {
   if (raw.length === 0 || raw.length > MAX_CURSOR_LENGTH) throw new InvalidCursorError();
 
   const bytes = Buffer.from(raw, 'base64url');
@@ -48,7 +51,7 @@ export function decodeCursor(raw: string): Cursor {
   if (Number.isNaN(createdAt.getTime()) || createdAt.toISOString() !== iso) {
     throw new InvalidCursorError();
   }
-  if (!validate(id)) throw new InvalidCursorError();
+  if (!isValidId(id)) throw new InvalidCursorError();
 
   return { createdAt, id };
 }

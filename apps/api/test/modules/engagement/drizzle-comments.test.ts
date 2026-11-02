@@ -4,6 +4,7 @@ import { blocks, comments, newId, posts, profiles, type Executor } from '@clone/
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
+import { DrizzleNotificationWriter } from '../../../src/modules/activity/infrastructure/persistence/drizzle-notification-writer.ts';
 import { CreateComment } from '../../../src/modules/engagement/application/use-cases/create-comment.ts';
 import { DeleteComment } from '../../../src/modules/engagement/application/use-cases/delete-comment.ts';
 import { ListComments } from '../../../src/modules/engagement/application/use-cases/list-comments.ts';
@@ -20,6 +21,7 @@ import { DrizzleRelationshipReader } from '../../../src/shared/infrastructure/pe
 import { DrizzleUnitOfWork } from '../../../src/shared/infrastructure/persistence/drizzle-unit-of-work.ts';
 import { systemClock } from '../../../src/shared/infrastructure/system-clock.ts';
 import { uuidV7Generator } from '../../../src/shared/infrastructure/uuid-v7-generator.ts';
+import { noopNotificationDispatcher } from '../../../src/shared/infrastructure/notifications/noop-notification-dispatcher.ts';
 import { connectTestDatabase } from '../../support/database.ts';
 
 const database = connectTestDatabase();
@@ -32,8 +34,14 @@ const transaction = new DrizzleUnitOfWork(db, (tx: Executor) => ({
   posts: new DrizzleLikeablePostReader(tx),
   comments: new DrizzleCommentRepository(tx),
   reader: new DrizzleCommentReader(tx),
+  notifications: new DrizzleNotificationWriter(tx),
 }));
-const create = new CreateComment(transaction, uuidV7Generator, systemClock);
+const create = new CreateComment(
+  transaction,
+  uuidV7Generator,
+  systemClock,
+  noopNotificationDispatcher,
+);
 const remove = new DeleteComment(transaction);
 const listComments = new ListComments(relationships, new DrizzleLikeablePostReader(db), reader);
 const listReplies = new ListReplies(relationships, new DrizzleCommentRepository(db), reader);

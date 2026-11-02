@@ -78,7 +78,10 @@ struct RootView: View {
         case let .paywall(profile):
             paywall(for: profile, onClose: viewModel.closePaywall)
         case let .home(profile):
-            HomeView(publishQueue: dependencies.publishQueue) { openSearch in
+            HomeView(
+                publishQueue: dependencies.publishQueue,
+                unreadActivityCount: dependencies.activityBadge.unreadCount
+            ) { openSearch in
                 FeedView(
                     viewModel: FeedViewModel(
                         viewerId: profile.id,
@@ -160,10 +163,20 @@ struct RootView: View {
                     viewModel: CreatePostViewModel(authorId: profile.id, publisher: dependencies.publishQueue),
                     onClose: close
                 )
+            } activity: {
+                ActivityView(
+                    viewModel: ActivityViewModel(service: dependencies.activity, badge: dependencies.activityBadge)
+                )
             }
             // Reprise des publications interrompues (fermeture de l'app) ; compteurs rechargés après chaque
             // post publié (un post supprimé disparaît tout de suite : `PostDeletionStore`).
             .task(id: profile.id) { dependencies.publishQueue.resume(for: profile.id) }
+            // Pastille du cœur (ADR-026) : relue au lancement et à chaque retour au premier plan.
+            .task(id: profile.id) { await dependencies.activityBadge.refresh() }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task { await dependencies.activityBadge.refresh() }
+            }
             // Compteurs rechargés aussi après un blocage (abonnements supprimés dans les deux sens).
             .onChange(of: postsRevision + dependencies.blocks.revision) {
                 Task { await refreshProfile() }
@@ -236,8 +249,8 @@ struct RootView: View {
         }
     }
 
-    /// Les publications en attente, les likes, les suppressions, les abonnements, les compteurs de commentaires
-    /// et les blocages de la session ne sont jamais repris pour un autre compte.
+    /// Les publications en attente, les likes, les suppressions, les abonnements, les compteurs de commentaires,
+    /// les blocages et la pastille de l'Activité de la session ne sont jamais repris pour un autre compte.
     private func signOut() {
         dependencies.publishQueue.discardAll()
         dependencies.likes.reset()
@@ -245,6 +258,7 @@ struct RootView: View {
         dependencies.follows.reset()
         dependencies.commentCounts.reset()
         dependencies.blocks.reset()
+        dependencies.activityBadge.reset()
         Task { await viewModel.signOut() }
     }
 }
