@@ -175,7 +175,9 @@ struct RootView: View {
                 )
             } activity: {
                 ActivityView(
-                    viewModel: ActivityViewModel(service: dependencies.activity, badge: dependencies.activityBadge)
+                    viewModel: ActivityViewModel(
+                        service: dependencies.activity, social: dependencies.social, badge: dependencies.activityBadge
+                    )
                 )
             }
             // Reprise des publications interrompues (fermeture de l'app) ; compteurs rechargés après chaque

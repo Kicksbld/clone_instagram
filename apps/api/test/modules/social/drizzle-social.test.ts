@@ -141,9 +141,9 @@ describe('DrizzleSocialGraphReader — listes', () => {
 
     expect(page.next).toBeNull();
     expect(page.items.map((u) => [u.id, u.relationship])).toEqual([
-      [viewer, { following: false, followedBy: false }],
-      [y, { following: true, followedBy: false }],
-      [x, { following: false, followedBy: true }],
+      [viewer, { following: false, followedBy: false, requested: false }],
+      [y, { following: true, followedBy: false, requested: false }],
+      [x, { following: false, followedBy: true, requested: false }],
     ]);
 
     const following = await graph.listFollowing({
@@ -251,7 +251,11 @@ describe('DrizzleSocialGraphReader — recherche', () => {
       containsFollowed,
       containsPopular,
     ]);
-    expect(results[2]?.relationship).toEqual({ following: true, followedBy: false });
+    expect(results[2]?.relationship).toEqual({
+      following: true,
+      followedBy: false,
+      requested: false,
+    });
   });
 
   it('`_` et `%` cherchés littéralement', async () => {

@@ -17,7 +17,13 @@ struct FollowStoreTests {
     }
 
     private func follow(_ following: Bool = true, source: FollowSource = .profile) async -> FollowOutcome? {
-        await follows.setFollowing(following, userId: profile.id, current: FollowState(shown), source: source)
+        await follows.setFollowing(
+            following,
+            userId: profile.id,
+            current: FollowState(shown),
+            isPrivate: profile.isPrivate,
+            source: source
+        )
     }
 
     @Test func `suivre : optimiste pendant l'appel, puis état de l'API`() async {
@@ -41,12 +47,6 @@ struct FollowStoreTests {
         #expect(outcome == .reverted(message: "Impossible de suivre ce compte. Vérifiez votre connexion et réessayez."))
         #expect(shown == profile)
         #expect(analytics.events.isEmpty)
-    }
-
-    @Test func `compte privé → message dédié`() async {
-        social.followResults = [.failure(.accountPrivate)]
-
-        #expect(await follow() == .reverted(message: "Ce compte est privé : il ne peut pas encore être suivi."))
     }
 
     @Test func `compte devenu invisible (404) → userGone`() async {
@@ -78,7 +78,7 @@ struct FollowStoreTests {
             #expect(follows.displayed(profile).followerCount == 5)
         }
 
-        _ = await follows.setFollowing(true, userId: user.id, current: FollowState(user), source: .list)
+        _ = await follows.setFollowing(true, userId: user.id, current: FollowState(user), isPrivate: false, source: .list)
 
         #expect(follows.displayed(profile) == profile)
     }
@@ -90,7 +90,13 @@ struct FollowStoreTests {
         var visibleDuringCall: Bool?
         social.duringFollow = { visibleDuringCall = follows.displayed(followed).canViewContent }
 
-        _ = await follows.setFollowing(false, userId: followed.id, current: FollowState(followed), source: .profile)
+        _ = await follows.setFollowing(
+            false,
+            userId: followed.id,
+            current: FollowState(followed),
+            isPrivate: true,
+            source: .profile
+        )
 
         #expect(visibleDuringCall == false)
         #expect(follows.displayed(followed).canViewContent)
@@ -142,5 +148,77 @@ struct FollowStoreTests {
 
         #expect(shown == profile)
         #expect(follows.followingCountDelta == 0)
+    }
+
+    // MARK: - Demandes d'abonnement (T20)
+
+    @Test func `compte privé : « Demandé » tout de suite, sans abonné de plus ni accès aux contenus`() async {
+        let privateProfile = UserProfile.fixture(isPrivate: true, canViewContent: false)
+        follows.record(privateProfile)
+        social.followResults = [.success(FollowStatus(isFollowing: false, followerCount: 4, isRequested: true))]
+        var duringCall: UserProfile?
+        social.duringFollow = { duringCall = follows.displayed(privateProfile) }
+
+        let outcome = await follows.setFollowing(
+            true,
+            userId: privateProfile.id,
+            current: FollowState(privateProfile),
+            isPrivate: true,
+            source: .profile
+        )
+
+        #expect(duringCall?.isRequested == true)
+        #expect(duringCall?.isFollowing == false)
+        #expect(duringCall?.followerCount == 4)
+        #expect(outcome == .confirmed)
+        let shown = follows.displayed(privateProfile)
+        #expect(shown.isRequested && !shown.isFollowing && !shown.canViewContent)
+        #expect(follows.followingCountDelta == 0)
+        // Une demande n'est pas un abonnement (ADR-013) : aucun événement.
+        #expect(analytics.events.isEmpty)
+    }
+
+    @Test func `annuler une demande : « Suivre » tout de suite, rétabli « Demandé » si l'API échoue`() async {
+        let requested = UserProfile.fixture(isPrivate: true, canViewContent: false, isRequested: true)
+        follows.record(requested)
+        social.followResults = [.failure(.unreachable)]
+        var duringCall: Bool?
+        social.duringFollow = { duringCall = follows.displayed(requested).isRequested }
+
+        let outcome = await follows.setFollowing(
+            false,
+            userId: requested.id,
+            current: FollowState(requested),
+            isPrivate: true,
+            source: .profile
+        )
+
+        #expect(duringCall == false)
+        #expect(social.unfollows == [requested.id])
+        #expect(outcome == .reverted(message: "Impossible de ne plus suivre ce compte. Vérifiez votre connexion et réessayez."))
+        #expect(follows.displayed(requested).isRequested)
+    }
+
+    @Test func `compte devenu public entre-temps : l'état de l'API (abonné) remplace « Demandé »`() async {
+        let privateProfile = UserProfile.fixture(isPrivate: true, canViewContent: false)
+        social.followResults = [.success(FollowStatus(isFollowing: true, followerCount: 5))]
+
+        _ = await follows.setFollowing(
+            true,
+            userId: privateProfile.id,
+            current: FollowState(privateProfile),
+            isPrivate: true,
+            source: .profile
+        )
+
+        let shown = follows.displayed(privateProfile)
+        #expect(shown.isFollowing && !shown.isRequested)
+        #expect(shown.followerCount == 5)
+    }
+
+    @Test func `liste reçue de l'API : l'état « Demandé » est repris`() {
+        follows.record([.fixture(id: profile.id, isPrivate: true, isRequested: true)])
+
+        #expect(follows.displayed(profile).isRequested)
     }
 }

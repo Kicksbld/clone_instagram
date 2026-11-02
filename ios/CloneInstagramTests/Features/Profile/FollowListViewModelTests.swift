@@ -119,17 +119,89 @@ struct FollowListViewModelTests {
         let viewModel = makeViewModel()
         await viewModel.load()
 
-        _ = await follows.setFollowing(true, userId: "id-1", current: FollowState(user(1)), source: .profile)
+        _ = await follows.setFollowing(true, userId: "id-1", current: FollowState(user(1)), isPrivate: false, source: .profile)
 
         #expect(viewModel.users.first?.isFollowing == true)
     }
 
-    @Test func `pas de bouton sur moi ni sur un compte privé non suivi`() {
+    @Test func `bouton Suivre sur tout compte sauf moi, compte privé compris (demande)`() {
         let viewModel = makeViewModel()
 
         #expect(viewModel.canFollow(user(1)))
-        #expect(!viewModel.canFollow(user(1, isPrivate: true)))
+        #expect(viewModel.canFollow(user(1, isPrivate: true)))
         #expect(viewModel.canFollow(user(1, isPrivate: true, isFollowing: true)))
         #expect(!viewModel.canFollow(.fixture(id: Self.viewerId)))
+    }
+
+    // MARK: - Retirer un abonné (T20)
+
+    private func myFollowers() -> FollowListViewModel {
+        FollowListViewModel(kind: .followers, userId: Self.viewerId, viewerId: Self.viewerId, social: social, follows: follows)
+    }
+
+    @Test func `bouton Supprimer seulement dans la liste de mes propres abonnés`() {
+        #expect(myFollowers().canRemoveFollower(user(1)))
+        #expect(!makeViewModel().canRemoveFollower(user(1)))
+        let following = FollowListViewModel(
+            kind: .following, userId: Self.viewerId, viewerId: Self.viewerId, social: social, follows: follows
+        )
+        #expect(!following.canRemoveFollower(user(1)))
+    }
+
+    @Test func `retirer un abonné : la ligne disparaît tout de suite`() async {
+        social.listResults = [.success(UserPage(items: [user(1), user(2)], nextCursor: nil))]
+        let viewModel = myFollowers()
+        await viewModel.load()
+        var duringCall: [String]?
+        social.duringFollowRequest = { duringCall = viewModel.users.map(\.id) }
+
+        await viewModel.removeFollower(user(1))
+
+        #expect(duringCall == ["id-2"])
+        #expect(social.removedFollowers == ["id-1"])
+        #expect(viewModel.users.map(\.id) == ["id-2"])
+        #expect(viewModel.actionErrorMessage == nil)
+    }
+
+    @Test func `retrait en échec : la ligne revient avec un message`() async {
+        social.listResults = [.success(UserPage(items: [user(1)], nextCursor: nil))]
+        social.followRequestErrors = [.unreachable]
+        let viewModel = myFollowers()
+        await viewModel.load()
+
+        await viewModel.removeFollower(user(1))
+
+        #expect(viewModel.users.map(\.id) == ["id-1"])
+        #expect(viewModel.actionErrorMessage == "Impossible de supprimer cet abonné. Vérifiez votre connexion et réessayez.")
+    }
+
+    @Test func `compte devenu invisible (404) : la ligne ne revient pas`() async {
+        social.listResults = [.success(UserPage(items: [user(1)], nextCursor: nil))]
+        social.followRequestErrors = [.userNotFound]
+        let viewModel = myFollowers()
+        await viewModel.load()
+
+        await viewModel.removeFollower(user(1))
+
+        #expect(viewModel.users.isEmpty)
+        #expect(viewModel.actionErrorMessage == nil)
+    }
+
+    @Test func `compte privé dans une liste : « Demandé » puis annulation`() async {
+        social.listResults = [.success(UserPage(items: [user(1, isPrivate: true)], nextCursor: nil))]
+        social.followResults = [
+            .success(FollowStatus(isFollowing: false, followerCount: 0, isRequested: true)),
+            .success(FollowStatus(isFollowing: false, followerCount: 0)),
+        ]
+        let viewModel = makeViewModel()
+        await viewModel.load()
+
+        await viewModel.setFollowing(true, for: user(1, isPrivate: true))
+        #expect(viewModel.users.first?.isRequested == true)
+        #expect(viewModel.users.first?.isFollowing == false)
+
+        await viewModel.setFollowing(false, for: user(1, isPrivate: true))
+        #expect(viewModel.users.first?.isRequested == false)
+        #expect(social.unfollows == ["id-1"])
     }
 }

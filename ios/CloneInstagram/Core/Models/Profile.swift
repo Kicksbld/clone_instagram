@@ -63,6 +63,8 @@ struct UserProfile: Equatable, Identifiable {
     /// Je peux voir ses contenus ; `false` pour un compte privé que je ne suis pas.
     /// Masqué tout de suite quand je ne suis plus un compte privé (`FollowStore`).
     var canViewContent: Bool
+    /// J'ai demandé à suivre ce compte privé, demande en attente (« Demandé ») ; sans accès à ses contenus.
+    var isRequested = false
 }
 
 /// Disponibilité d'un username (ADR-018).

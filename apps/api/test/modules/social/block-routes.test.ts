@@ -86,7 +86,7 @@ describe('GET /v1/me/blocks', () => {
           username: 'lea',
           fullName: 'Léa',
           isPrivate: false,
-          relationship: { following: false, followedBy: false },
+          relationship: { following: false, followedBy: false, requested: false },
         },
       ],
     });

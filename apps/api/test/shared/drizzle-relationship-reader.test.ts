@@ -39,6 +39,7 @@ describe('DrizzleRelationshipReader', () => {
     await expect(reader.between(viewer, owner)).resolves.toEqual({
       viewerFollowsOwner: false,
       ownerFollowsViewer: false,
+      viewerRequestedOwner: false,
       blocked: false,
       viewerIsCloseFriend: false,
     });

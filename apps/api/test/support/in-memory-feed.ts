@@ -27,6 +27,7 @@ export class InMemoryFeedReader implements FeedReader {
           canViewContent(viewerId, author, {
             viewerFollowsOwner: this.relationships.isFollowing(viewerId, author.id),
             ownerFollowsViewer: this.relationships.isFollowing(author.id, viewerId),
+            viewerRequestedOwner: this.relationships.hasRequested(viewerId, author.id),
             blocked: this.relationships.isBlockedEitherWay(viewerId, author.id),
             viewerIsCloseFriend: false,
           }),

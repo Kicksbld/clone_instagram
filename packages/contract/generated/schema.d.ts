@@ -113,7 +113,7 @@ export interface paths {
         head?: never;
         /**
          * Modifier mes paramètres
-         * @description Passe mon compte en privé ou en public. Passer en privé conserve mes abonnés ; seuls eux voient ensuite mes contenus (ADR-006).
+         * @description Passe mon compte en privé ou en public. Passer en privé conserve mes abonnés ; seuls eux voient ensuite mes contenus (ADR-006). Passer en public accepte toutes les demandes d'abonnement en attente, dans la même transaction (compteurs compris).
          */
         patch: operations["updateSettings"];
         trace?: never;
@@ -233,14 +233,15 @@ export interface paths {
         get?: never;
         /**
          * Suivre un utilisateur
-         * @description Idempotent : suivre un compte déjà suivi renvoie `200` sans changer les compteurs. Refusé vers un compte privé non suivi (`403 account_private`, demandes d'abonnement en P1).
+         * @description Compte public : abonnement direct (`following: true`). Compte privé non suivi : crée une demande d'abonnement (`requested: true`), sans aucun accès à ses contenus tant qu'elle n'est pas acceptée ; le compte privé est notifié (`follow_request`).
+         *     Idempotent : suivre un compte déjà suivi, ou redemander un compte déjà demandé, renvoie `200` sans rien changer.
          *     Compte inexistant, bloqué dans un sens ou dans l'autre, ou non actif : `404 user_not_found` (ADR-006).
          */
         put: operations["followUser"];
         post?: never;
         /**
          * Ne plus suivre un utilisateur
-         * @description Idempotent : sans abonnement, renvoie `200` sans changer les compteurs. Possible vers un compte privé. Compte inexistant ou invisible : `404 user_not_found`.
+         * @description Supprime mon abonnement, ou annule ma demande d'abonnement en attente (sa notification est retirée). Idempotent : sans abonnement ni demande, renvoie `200` sans changer les compteurs. Possible vers un compte privé. Compte inexistant ou invisible : `404 user_not_found`.
          */
         delete: operations["unfollowUser"];
         options?: never;
@@ -268,6 +269,89 @@ export interface paths {
          * @description Idempotent : débloquer un compte non bloqué renvoie `204` sans effet. Les abonnements supprimés au blocage ne sont pas rétablis. Compte inexistant : `404 user_not_found`.
          */
         delete: operations["unblockUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/users/{id}/follower": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Retirer un de mes abonnés
+         * @description Ce compte ne me suit plus (compteurs mis à jour, notification `follow` retirée) ; il n'est pas prévenu. Idempotent : un compte qui ne me suit pas renvoie `204` sans effet.
+         *     Compte inexistant, bloqué dans un sens ou dans l'autre, ou non actif : `404 user_not_found` (ADR-006).
+         */
+        delete: operations["removeFollower"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/follow-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Demandes d'abonnement reçues
+         * @description Comptes qui ont demandé à me suivre, demande la plus récente en premier, par pages de 20. Les comptes bloqués dans un sens ou dans l'autre et les comptes non actifs n'apparaissent pas (ADR-006).
+         */
+        get: operations["listFollowRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/follow-requests/{requesterId}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accepter une demande d'abonnement
+         * @description Le demandeur devient mon abonné (compteurs dans la même transaction) et la demande est supprimée. Je suis notifié de ce nouvel abonné (`follow`), le demandeur de l'acceptation (`follow_accepted`). Sans corps.
+         *     Demande inexistante (annulée entre-temps, déjà acceptée ou refusée) ou demandeur invisible : `404 follow_request_not_found`.
+         */
+        post: operations["acceptFollowRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/follow-requests/{requesterId}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refuser une demande d'abonnement
+         * @description Supprime la demande, sans prévenir le demandeur (il peut redemander). Sans corps.
+         *     Demande inexistante (annulée entre-temps, déjà acceptée ou refusée) : `404 follow_request_not_found`.
+         */
+        post: operations["declineFollowRequest"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -970,13 +1054,15 @@ export interface components {
             /** @description Photo de profil ; absente si aucune photo. */
             avatar?: components["schemas"]["ImageVariants"];
             relationship: components["schemas"]["Relationship"];
-            /** @description L'appelant peut voir les contenus (posts) ; `false` pour un compte privé qu'il ne suit pas (ADR-006). */
+            /** @description L'appelant peut voir les contenus (posts) ; `false` pour un compte privé qu'il ne suit pas, même avec une demande d'abonnement en attente (ADR-006). */
             canViewContent: boolean;
         };
-        /** @description Relation entre l'appelant et le profil ; les deux valeurs sont `false` sur son propre profil. */
+        /** @description Relation entre l'appelant et le profil ; toutes les valeurs sont `false` sur son propre profil. */
         Relationship: {
             /** @description L'appelant suit ce profil. */
             following: boolean;
+            /** @description L'appelant a demandé à suivre ce profil (compte privé) et la demande est en attente ; bouton « Demandé ». Jamais `true` en même temps que `following`. */
+            requested: boolean;
             /** @description Ce profil suit l'appelant. */
             followedBy: boolean;
         };
@@ -1003,6 +1089,8 @@ export interface components {
         FollowStatus: {
             /** @description L'appelant suit ce compte. */
             following: boolean;
+            /** @description L'appelant a une demande d'abonnement en attente vers ce compte privé (aucun accès à ses contenus). */
+            requested: boolean;
             followerCount: number;
         };
         /** @description URL publiques des variantes WebP d'une image (ADR-008). */
@@ -1166,7 +1254,7 @@ export interface components {
             nextCursor?: string;
         };
         /**
-         * @description Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné).
+         * @description Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné), `follow_request` (demande d'abonnement reçue, retirée quand elle est annulée, acceptée ou refusée), `follow_accepted` (un compte privé a accepté ma demande).
          *     Liste ouverte : d'autres types arrivent avec les tranches suivantes ; le client ignore un groupe d'un type qu'il ne connaît pas (ADR-019).
          * @example like
          */
@@ -1206,7 +1294,7 @@ export interface components {
             createdAt: string;
             /** @description `false` si le groupe contient au moins une notification non lue. */
             read: boolean;
-            /** @description Post visé (`like`, `comment`, `comment_reply`) ; absent pour `follow`. */
+            /** @description Post visé (`like`, `comment`, `comment_reply`) ; absent pour `follow`, `follow_request` et `follow_accepted`. */
             post?: components["schemas"]["ActivityPost"];
             /** @description Commentaire ou réponse (`comment`, `comment_reply`) ; absent sinon. */
             comment?: components["schemas"]["ActivityComment"];
@@ -1468,6 +1556,15 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
+        /** @description Demande d'abonnement inexistante ou demandeur invisible (`follow_request_not_found`). */
+        FollowRequestNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
         /** @description Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`). */
         PostNotFound: {
             headers: {
@@ -1547,6 +1644,8 @@ export interface components {
         UserId: string;
         /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
         Cursor: string;
+        /** @description Identifiant du compte qui a demandé à me suivre. */
+        RequesterId: string;
         MediaId: string;
         PostId: string;
         CommentId: string;
@@ -1919,7 +2018,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description J'ai suivi ce compte. */
+            /** @description J'ai suivi ce compte, ou demandé à le suivre. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1930,15 +2029,6 @@ export interface operations {
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
-            /** @description Compte privé (`account_private`). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
             /** @description Compte introuvable ou invisible (`user_not_found`), ou onboarding non terminé (`profile_not_found`). */
             404: {
                 headers: {
@@ -1963,7 +2053,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Je ne suis plus ce compte. */
+            /** @description Je ne suis plus ce compte, et je n'ai plus de demande en attente. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2034,6 +2124,107 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["UserNotFound"];
             422: components["responses"]["CannotBlockSelf"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    removeFollower: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ce compte ne me suit plus. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["UserNotFound"];
+            422: components["responses"]["CannotFollowSelf"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listFollowRequests: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de demandes d'abonnement. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    acceptFollowRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du compte qui a demandé à me suivre. */
+                requesterId: components["parameters"]["RequesterId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Demande acceptée. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["FollowRequestNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    declineFollowRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du compte qui a demandé à me suivre. */
+                requesterId: components["parameters"]["RequesterId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Demande refusée. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["FollowRequestNotFound"];
             500: components["responses"]["InternalError"];
         };
     };

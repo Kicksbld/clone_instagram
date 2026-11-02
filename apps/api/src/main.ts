@@ -72,11 +72,15 @@ import {
   DrizzlePostReader,
   DrizzlePostRepository,
 } from './modules/posts/infrastructure/persistence/drizzle-post-repository.ts';
+import { AcceptFollowRequest } from './modules/social/application/use-cases/accept-follow-request.ts';
 import { BlockUser } from './modules/social/application/use-cases/block-user.ts';
+import { DeclineFollowRequest } from './modules/social/application/use-cases/decline-follow-request.ts';
 import { FollowUser } from './modules/social/application/use-cases/follow-user.ts';
 import { ListBlocks } from './modules/social/application/use-cases/list-blocks.ts';
+import { ListFollowRequests } from './modules/social/application/use-cases/list-follow-requests.ts';
 import { ListFollowers } from './modules/social/application/use-cases/list-followers.ts';
 import { ListFollowing } from './modules/social/application/use-cases/list-following.ts';
+import { RemoveFollower } from './modules/social/application/use-cases/remove-follower.ts';
 import { SearchUsers } from './modules/social/application/use-cases/search-users.ts';
 import { UnblockUser } from './modules/social/application/use-cases/unblock-user.ts';
 import { UnfollowUser } from './modules/social/application/use-cases/unfollow-user.ts';
@@ -86,6 +90,8 @@ import {
   DrizzleFollowCounters,
   DrizzleFollowRepository,
 } from './modules/social/infrastructure/persistence/drizzle-follow-repository.ts';
+import { SocialFollowRequestAccepter } from './modules/social/infrastructure/follow-request-accepter.ts';
+import { DrizzleFollowRequestRepository } from './modules/social/infrastructure/persistence/drizzle-follow-request-repository.ts';
 import { DrizzleSocialGraphReader } from './modules/social/infrastructure/persistence/drizzle-social-graph-reader.ts';
 import {
   noopAnalyticsTracker,
@@ -139,12 +145,23 @@ const avatarTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => (
   profiles: new DrizzleProfileRepository(tx),
   media: new DrizzleMediaRepository(tx),
 }));
+// Passage en public : profil et acceptation des demandes d'abonnement dans une transaction (T20).
+const settingsTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  profiles: new DrizzleProfileRepository(tx),
+  followRequests: new SocialFollowRequestAccepter({
+    follows: new DrizzleFollowRepository(tx),
+    requests: new DrizzleFollowRequestRepository(tx),
+    counters: new DrizzleFollowCounters(tx),
+    notifications: new DrizzleNotificationWriter(tx),
+  }),
+}));
 const accounts = new DrizzleAccountReader(database.db);
 const socialGraph = new DrizzleSocialGraphReader(database.db);
 const followTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   accounts: new DrizzleAccountReader(tx),
   relationships: new DrizzleRelationshipReader(tx),
   follows: new DrizzleFollowRepository(tx),
+  requests: new DrizzleFollowRequestRepository(tx),
   counters: new DrizzleFollowCounters(tx),
   notifications: new DrizzleNotificationWriter(tx),
 }));
@@ -153,6 +170,7 @@ const blockTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   relationships: new DrizzleRelationshipReader(tx),
   blocks: new DrizzleBlockRepository(tx),
   follows: new DrizzleFollowRepository(tx),
+  requests: new DrizzleFollowRequestRepository(tx),
   counters: new DrizzleFollowCounters(tx),
   notifications: new DrizzleNotificationWriter(tx),
 }));
@@ -224,7 +242,7 @@ const app = buildApp({
     identity: {
       getMe: new GetMe(profiles),
       updateMe: new UpdateMe(profiles, avatarTransaction),
-      updateSettings: new UpdateSettings(profiles),
+      updateSettings: new UpdateSettings(settingsTransaction, notificationDispatcher),
       removeAvatar: new RemoveAvatar(avatarTransaction),
       deleteMe: new DeleteMe(profiles, authAccounts, jobs, realtime),
       completeOnboarding: new CompleteOnboarding(profiles, systemClock, analytics),
@@ -246,6 +264,10 @@ const app = buildApp({
       blockUser: new BlockUser(blockTransaction),
       unblockUser: new UnblockUser(accounts, new DrizzleBlockRepository(database.db)),
       listBlocks: new ListBlocks(socialGraph),
+      removeFollower: new RemoveFollower(followTransaction),
+      listFollowRequests: new ListFollowRequests(socialGraph),
+      acceptFollowRequest: new AcceptFollowRequest(followTransaction, notificationDispatcher),
+      declineFollowRequest: new DeclineFollowRequest(followTransaction),
     },
     posts: {
       createPost: new CreatePost(createPostTransaction, uuidV7Generator, systemClock, analytics),

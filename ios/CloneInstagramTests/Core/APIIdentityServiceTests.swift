@@ -158,7 +158,7 @@ struct APIIdentityServiceTests {
     private static let userProfileJSON = """
     {"id":"0199a1b2-5eed-7000-8000-000000000003","username":"chloe.petit","fullName":"Chloé Petit",\
     "bio":"Voyages","isPrivate":true,"followerCount":2,"followingCount":1,"postCount":0,\
-    "relationship":{"following":false,"followedBy":true},"canViewContent":false}
+    "relationship":{"following":false,"followedBy":true,"requested":false},"canViewContent":false}
     """
 
     @Test func `GET /users/{username} converti en modèle de l'app`() async throws {

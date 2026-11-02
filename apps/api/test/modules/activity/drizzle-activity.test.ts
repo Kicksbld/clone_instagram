@@ -36,6 +36,7 @@ import {
   DrizzleFollowCounters,
   DrizzleFollowRepository,
 } from '../../../src/modules/social/infrastructure/persistence/drizzle-follow-repository.ts';
+import { DrizzleFollowRequestRepository } from '../../../src/modules/social/infrastructure/persistence/drizzle-follow-request-repository.ts';
 import { DrizzleRelationshipReader } from '../../../src/shared/infrastructure/persistence/drizzle-relationship-reader.ts';
 import { DrizzleUnitOfWork } from '../../../src/shared/infrastructure/persistence/drizzle-unit-of-work.ts';
 import { systemClock } from '../../../src/shared/infrastructure/system-clock.ts';
@@ -77,6 +78,7 @@ const follow = new FollowUser(
     accounts: new DrizzleAccountReader(tx),
     relationships: new DrizzleRelationshipReader(tx),
     follows: new DrizzleFollowRepository(tx),
+    requests: new DrizzleFollowRequestRepository(tx),
     counters: new DrizzleFollowCounters(tx),
     notifications: new DrizzleNotificationWriter(tx),
   })),

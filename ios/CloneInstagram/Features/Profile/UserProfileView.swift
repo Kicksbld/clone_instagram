@@ -125,9 +125,17 @@ struct UserProfileView: View {
     }
 
     private func followButton(_ profile: UserProfile) -> some View {
-        FollowButton(isFollowing: profile.isFollowing, followsMe: profile.followsMe, isFullWidth: true) {
+        FollowButton(
+            isFollowing: profile.isFollowing,
+            followsMe: profile.followsMe,
+            isRequested: profile.isRequested,
+            isFullWidth: true
+        ) {
             if profile.isFollowing {
                 isConfirmingUnfollow = true
+            } else if profile.isRequested {
+                // « Demandé » : un appui annule la demande, comme Instagram.
+                Task { await viewModel.unfollow() }
             } else {
                 Task { await viewModel.follow() }
             }
@@ -138,7 +146,7 @@ struct UserProfileView: View {
             }
         } message: {
             if profile.isPrivate {
-                Text("Ce compte est privé : vous ne pourrez plus voir ses publications, ni le suivre à nouveau pour l'instant.")
+                Text("Ce compte est privé : pour revoir ses publications, vous devrez à nouveau demander à le suivre.")
             }
         }
     }

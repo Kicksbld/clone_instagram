@@ -18,6 +18,11 @@ export interface VisibilitySubject {
 export interface Relationship {
   viewerFollowsOwner: boolean;
   ownerFollowsViewer: boolean;
+  /**
+   * L'appelant a une demande d'abonnement en attente vers le propriétaire (T20). Elle ne donne aucun
+   * accès aux contenus : aucune règle ci-dessous ne la lit.
+   */
+  viewerRequestedOwner: boolean;
   /** Blocage dans un sens ou dans l'autre. */
   blocked: boolean;
   /** L'appelant est dans les amis proches du propriétaire (P1). */
@@ -35,6 +40,7 @@ export interface StorySubject {
 export const SELF_RELATIONSHIP: Relationship = {
   viewerFollowsOwner: false,
   ownerFollowsViewer: false,
+  viewerRequestedOwner: false,
   blocked: false,
   viewerIsCloseFriend: false,
 };

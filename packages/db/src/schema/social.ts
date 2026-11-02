@@ -51,5 +51,30 @@ export const blocks = pgTable(
   ],
 ).enableRLS(); // RLS sans policy : refus total hors de l'API (ADR-004).
 
+/**
+ * Demandes d'abonnement (module `social`, T20) : `requester_id` demande à suivre le compte privé
+ * `target_id`. Aucun accès aux contenus tant qu'elle n'est pas acceptée (ADR-006).
+ */
+export const followRequests = pgTable(
+  'follow_requests',
+  {
+    requesterId: uuid('requester_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    targetId: uuid('target_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ name: 'follow_requests_pkey', columns: [table.requesterId, table.targetId] }),
+    // Demandes reçues, la plus récente en premier (curseur `(created_at, requester_id)`).
+    index('follow_requests_target_created_idx').on(table.targetId, table.createdAt.desc()),
+    // On ne peut pas se demander soi-même (ADR-006).
+    check('follow_requests_not_self', sql`${table.requesterId} <> ${table.targetId}`),
+  ],
+).enableRLS(); // RLS sans policy : refus total hors de l'API (ADR-004).
+
 export type FollowRow = typeof follows.$inferSelect;
 export type BlockRow = typeof blocks.$inferSelect;
+export type FollowRequestRow = typeof followRequests.$inferSelect;

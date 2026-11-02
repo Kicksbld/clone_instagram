@@ -1,8 +1,9 @@
 import NukeUI
 import SwiftUI
 
-/// Activité (wireframe, comme Instagram) : notifications regroupées par période ; un appui ouvre le post
-/// ou le profil. Ouvrir l'écran marque tout comme lu.
+/// Activité (wireframe, comme Instagram) : demandes d'abonnement en tête, avec Accepter / Refuser, puis
+/// notifications regroupées par période ; un appui ouvre le post ou le profil. Ouvrir l'écran marque tout
+/// comme lu.
 struct ActivityView: View {
     @State private var viewModel: ActivityViewModel
 
@@ -15,6 +16,21 @@ struct ActivityView: View {
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.inline)
             .task { await viewModel.appear() }
+            .alert(
+                "Action impossible",
+                isPresented: Binding(
+                    get: { viewModel.requestErrorMessage != nil },
+                    set: {
+                        if !$0 {
+                            viewModel.requestErrorMessage = nil
+                        }
+                    }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(viewModel.requestErrorMessage ?? "")
+            }
     }
 
     @ViewBuilder
@@ -35,7 +51,7 @@ struct ActivityView: View {
             ContentUnavailableView {
                 Label("Aucune activité", systemImage: "heart")
             } description: {
-                Text("Quand quelqu'un aime ou commente vos publications, ou commence à vous suivre, vous le verrez ici.")
+                Text("Quand quelqu'un aime ou commente vos publications, ou demande à vous suivre, vous le verrez ici.")
             }
             .refreshable { await viewModel.load() }
         case .loaded:
@@ -45,6 +61,9 @@ struct ActivityView: View {
 
     private var list: some View {
         List {
+            if viewModel.showsFollowRequests {
+                followRequestsSection
+            }
             ForEach(viewModel.sections) { section in
                 Section(section.period.title) {
                     ForEach(section.groups) { group in
@@ -64,6 +83,41 @@ struct ActivityView: View {
         }
         .listStyle(.plain)
         .refreshable { await viewModel.load() }
+    }
+
+    /// Demandes d'abonnement reçues, en tête de l'Activité comme Instagram.
+    private var followRequestsSection: some View {
+        Section(viewModel.followRequestsTitle) {
+            if viewModel.requestsLoadFailed {
+                Button("Impossible de charger les demandes. Réessayer") {
+                    Task { await viewModel.loadRequests() }
+                }
+            }
+            ForEach(viewModel.followRequests) { requester in
+                followRequestRow(requester)
+            }
+            if viewModel.isLoadingMoreRequests {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+            } else if viewModel.hasMoreRequests {
+                Button("Voir plus") { Task { await viewModel.loadMoreRequests() } }
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    /// Une demande : le profil du demandeur (appui), Accepter et Refuser (style `bordered` : les boutons gardent
+    /// leur geste dans la ligne qui ouvre le profil).
+    private func followRequestRow(_ requester: UserSummary) -> some View {
+        NavigationLink(value: ProfileRoute(username: requester.username)) {
+            UserRow(user: requester) {
+                Button("Accepter") { Task { await viewModel.respond(.accept, to: requester) } }
+                    .buttonStyle(.borderedProminent)
+                Button("Refuser") { Task { await viewModel.respond(.decline, to: requester) } }
+                    .buttonStyle(.bordered)
+            }
+            .controlSize(.small)
+        }
     }
 
     /// Destinations fournies par le routeur racine (`PostRoute`, `ProfileRoute`) : une feature n'en importe

@@ -143,7 +143,8 @@ extension UserProfile {
         isPrivate: Bool = false,
         isFollowing: Bool = false,
         followsMe: Bool = false,
-        canViewContent: Bool = true
+        canViewContent: Bool = true,
+        isRequested: Bool = false
     ) -> UserProfile {
         UserProfile(
             id: "0199a1b2-5eed-7000-8000-000000000001",
@@ -157,7 +158,8 @@ extension UserProfile {
             avatar: nil,
             isFollowing: isFollowing,
             followsMe: followsMe,
-            canViewContent: canViewContent
+            canViewContent: canViewContent,
+            isRequested: isRequested
         )
     }
 }

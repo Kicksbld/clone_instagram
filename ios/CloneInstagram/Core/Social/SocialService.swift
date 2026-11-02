@@ -5,8 +5,8 @@ import OpenAPIRuntime
 enum SocialServiceError: Error, Equatable {
     /// Compte inexistant ou invisible pour moi (`404 user_not_found`, ADR-006).
     case userNotFound
-    /// Compte privé : il ne peut pas encore être suivi (`403 account_private`, demandes en P1).
-    case accountPrivate
+    /// Demande d'abonnement annulée, déjà traitée ou dont le demandeur est invisible (`404 follow_request_not_found`).
+    case followRequestNotFound
     /// `422 cannot_follow_self`.
     case cannotFollowSelf
     /// `422 cannot_block_self`.
@@ -25,13 +25,21 @@ enum SocialServiceError: Error, Equatable {
     case unexpectedResponse(statusCode: Int)
 }
 
-/// Abonnements, listes d'abonnés, recherche d'utilisateurs et blocages (ADR-006) ; partagé par les
-/// features Profile, Search et Settings.
+/// Abonnements, demandes d'abonnement, listes d'abonnés, recherche d'utilisateurs et blocages (ADR-006) ;
+/// partagé par les features Profile, Search, Settings et Activity.
 protocol SocialService: Sendable {
-    /// `PUT /v1/users/{id}/follow`.
+    /// `PUT /v1/users/{id}/follow` : abonnement direct, ou demande vers un compte privé (`isRequested`).
     func follow(userId: String) async throws(SocialServiceError) -> FollowStatus
-    /// `DELETE /v1/users/{id}/follow`.
+    /// `DELETE /v1/users/{id}/follow` : ne plus suivre, ou annuler sa demande.
     func unfollow(userId: String) async throws(SocialServiceError) -> FollowStatus
+    /// `DELETE /v1/users/{id}/follower` : retirer un de mes abonnés ; idempotent.
+    func removeFollower(userId: String) async throws(SocialServiceError)
+    /// `GET /v1/me/follow-requests` ; `cursor` = `nextCursor` de la page précédente.
+    func listFollowRequests(cursor: String?) async throws(SocialServiceError) -> UserPage
+    /// `POST /v1/follow-requests/{requesterId}/accept`.
+    func acceptFollowRequest(from requesterId: String) async throws(SocialServiceError)
+    /// `POST /v1/follow-requests/{requesterId}/decline`.
+    func declineFollowRequest(from requesterId: String) async throws(SocialServiceError)
     /// `GET /v1/users/{id}/followers` ou `/following` ; `cursor` = `nextCursor` de la page précédente.
     func list(_ kind: FollowListKind, of userId: String, cursor: String?) async throws(SocialServiceError) -> UserPage
     /// `GET /v1/search/users?q=`.
@@ -57,8 +65,6 @@ struct APISocialService: SocialService {
             throw Self.error(400) { try response.body.applicationProblemJson }
         case let .unauthorized(response):
             throw Self.error(401) { try response.body.applicationProblemJson }
-        case let .forbidden(response):
-            throw Self.error(403) { try response.body.applicationProblemJson }
         case let .notFound(response):
             throw Self.error(404) { try response.body.applicationProblemJson }
         case let .unprocessableContent(response):
@@ -83,6 +89,78 @@ struct APISocialService: SocialService {
             throw Self.error(404) { try response.body.applicationProblemJson }
         case let .unprocessableContent(response):
             throw Self.error(422) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
+    func removeFollower(userId: String) async throws(SocialServiceError) {
+        let output = try await call { try await client.removeFollower(path: .init(id: userId)) }
+        switch output {
+        case .noContent:
+            return
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .notFound(response):
+            throw Self.error(404) { try response.body.applicationProblemJson }
+        case let .unprocessableContent(response):
+            throw Self.error(422) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
+    func listFollowRequests(cursor: String?) async throws(SocialServiceError) -> UserPage {
+        let output = try await call { try await client.listFollowRequests(query: .init(cursor: cursor)) }
+        switch output {
+        case let .ok(response):
+            return try UserPage(Self.unwrap { try response.body.json })
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
+    func acceptFollowRequest(from requesterId: String) async throws(SocialServiceError) {
+        let output = try await call { try await client.acceptFollowRequest(path: .init(requesterId: requesterId)) }
+        switch output {
+        case .noContent:
+            return
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .notFound(response):
+            throw Self.error(404) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
+    func declineFollowRequest(from requesterId: String) async throws(SocialServiceError) {
+        let output = try await call { try await client.declineFollowRequest(path: .init(requesterId: requesterId)) }
+        switch output {
+        case .noContent:
+            return
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .notFound(response):
+            throw Self.error(404) { try response.body.applicationProblemJson }
         case .internalServerError:
             throw .unexpectedResponse(statusCode: 500)
         case let .undocumented(statusCode, _):
@@ -224,7 +302,7 @@ struct APISocialService: SocialService {
     private static func error(_ status: Int, _ problem: () throws -> Components.Schemas.ProblemDetails) -> SocialServiceError {
         switch (try? problem())?.code {
         case "user_not_found": .userNotFound
-        case "account_private": .accountPrivate
+        case "follow_request_not_found": .followRequestNotFound
         case "cannot_follow_self": .cannotFollowSelf
         case "cannot_block_self": .cannotBlockSelf
         case "profile_not_found": .profileNotFound
@@ -243,6 +321,22 @@ struct UnavailableSocialService: SocialService {
     }
 
     func unfollow(userId _: String) async throws(SocialServiceError) -> FollowStatus {
+        throw .unreachable
+    }
+
+    func removeFollower(userId _: String) async throws(SocialServiceError) {
+        throw .unreachable
+    }
+
+    func listFollowRequests(cursor _: String?) async throws(SocialServiceError) -> UserPage {
+        throw .unreachable
+    }
+
+    func acceptFollowRequest(from _: String) async throws(SocialServiceError) {
+        throw .unreachable
+    }
+
+    func declineFollowRequest(from _: String) async throws(SocialServiceError) {
         throw .unreachable
     }
 
@@ -269,7 +363,7 @@ struct UnavailableSocialService: SocialService {
 
 private extension FollowStatus {
     init(_ dto: Components.Schemas.FollowStatus) {
-        self.init(isFollowing: dto.following, followerCount: dto.followerCount)
+        self.init(isFollowing: dto.following, followerCount: dto.followerCount, isRequested: dto.requested)
     }
 }
 
@@ -288,7 +382,8 @@ private extension UserSummary {
             isPrivate: dto.isPrivate,
             avatar: dto.avatar.flatMap(ImageVariants.init),
             isFollowing: dto.relationship.following,
-            followsMe: dto.relationship.followedBy
+            followsMe: dto.relationship.followedBy,
+            isRequested: dto.relationship.requested
         )
     }
 }

@@ -6,6 +6,7 @@ struct ActivityViewModelTests {
     /// Mercredi 23 septembre 2026, 12 h (UTC).
     private static let now = Date(timeIntervalSince1970: 1_790_164_800)
     private let service = FakeActivityService()
+    private let social = FakeSocialService()
     private let badge: ActivityBadge
 
     init() {
@@ -15,7 +16,7 @@ struct ActivityViewModelTests {
     private func makeViewModel() -> ActivityViewModel {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .gmt
-        return ActivityViewModel(service: service, badge: badge, now: { Self.now }, calendar: calendar)
+        return ActivityViewModel(service: service, social: social, badge: badge, now: { Self.now }, calendar: calendar)
     }
 
     private func daysAgo(_ days: Double) -> Date {
@@ -152,5 +153,127 @@ struct ActivityViewModelTests {
     @Test func `un appui ouvre le post, ou le profil pour un abonnement`() {
         #expect(ActivityViewModel.destination(for: .fixture(id: "a", kind: .like, postId: "p1")) == .post(PostRoute(postId: "p1")))
         #expect(ActivityViewModel.destination(for: .fixture(id: "b", kind: .follow)) == .profile(ProfileRoute(username: "lea")))
+    }
+
+    // MARK: - Demandes d'abonnement (T20)
+
+    private func requester(_ index: Int) -> UserSummary {
+        .fixture(id: "r\(index)", username: "demandeur\(index)")
+    }
+
+    @Test func `demandes en tête : section « Demandes d'abonnement (N) », sans ligne de type demande`() async {
+        let page = ActivityPage(
+            items: [
+                .fixture(id: "follow_request:1", kind: .followRequest, createdAt: daysAgo(0.1)),
+                .fixture(id: "follow_accepted:2", kind: .followAccepted, createdAt: daysAgo(0.2)),
+            ],
+            nextCursor: nil,
+            unreadCount: 2
+        )
+        service.fetchResults = [.success(page)]
+        social.followRequestResults = [.success(UserPage(items: [requester(1), requester(2)], nextCursor: "c1"))]
+        let viewModel = makeViewModel()
+
+        await viewModel.load()
+
+        #expect(viewModel.showsFollowRequests)
+        #expect(viewModel.followRequests.map(\.id) == ["r1", "r2"])
+        #expect(viewModel.followRequestsTitle == "Demandes d'abonnement (2+)")
+        #expect(viewModel.sections.flatMap(\.groups).map(\.id) == ["follow_accepted:2"])
+        #expect(!viewModel.isEmpty)
+
+        social.followRequestResults = [.success(UserPage(items: [requester(3)], nextCursor: nil))]
+        await viewModel.loadMoreRequests()
+        #expect(social.followRequestCursors == [nil, "c1"])
+        #expect(viewModel.followRequestsTitle == "Demandes d'abonnement (3)")
+    }
+
+    @Test func `seules des demandes : l'écran n'est pas vide`() async {
+        service.fetchResults = [.success(ActivityPage(items: [], nextCursor: nil, unreadCount: 0))]
+        social.followRequestResults = [.success(UserPage(items: [requester(1)], nextCursor: nil))]
+        let viewModel = makeViewModel()
+
+        await viewModel.load()
+
+        #expect(!viewModel.isEmpty)
+    }
+
+    @Test func `accepter : la demande disparaît tout de suite, puis l'API confirme`() async {
+        service.fetchResults = [.success(ActivityPage(items: [], nextCursor: nil, unreadCount: 0))]
+        social.followRequestResults = [.success(UserPage(items: [requester(1), requester(2)], nextCursor: nil))]
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        var duringCall: [String]?
+        social.duringFollowRequest = { duringCall = viewModel.followRequests.map(\.id) }
+
+        await viewModel.respond(.accept, to: requester(1))
+
+        #expect(duringCall == ["r2"])
+        #expect(social.acceptedRequests == ["r1"])
+        #expect(viewModel.followRequests.map(\.id) == ["r2"])
+        #expect(viewModel.requestErrorMessage == nil)
+    }
+
+    @Test func `refus en échec : la demande revient avec un message`() async {
+        service.fetchResults = [.success(ActivityPage(items: [], nextCursor: nil, unreadCount: 0))]
+        social.followRequestResults = [.success(UserPage(items: [requester(1)], nextCursor: nil))]
+        social.followRequestErrors = [.unreachable]
+        let viewModel = makeViewModel()
+        await viewModel.load()
+
+        await viewModel.respond(.decline, to: requester(1))
+
+        #expect(social.declinedRequests == ["r1"])
+        #expect(viewModel.followRequests.map(\.id) == ["r1"])
+        #expect(viewModel.requestErrorMessage == "Impossible de refuser cette demande. Vérifiez votre connexion et réessayez.")
+    }
+
+    @Test func `demande annulée entre-temps (404) : elle ne revient pas, sans message`() async {
+        service.fetchResults = [.success(ActivityPage(items: [], nextCursor: nil, unreadCount: 0))]
+        social.followRequestResults = [.success(UserPage(items: [requester(1)], nextCursor: nil))]
+        social.followRequestErrors = [.followRequestNotFound]
+        let viewModel = makeViewModel()
+        await viewModel.load()
+
+        await viewModel.respond(.accept, to: requester(1))
+
+        #expect(viewModel.followRequests.isEmpty)
+        #expect(viewModel.requestErrorMessage == nil)
+    }
+
+    @Test func `deux appuis rapides : un seul appel`() async {
+        service.fetchResults = [.success(ActivityPage(items: [], nextCursor: nil, unreadCount: 0))]
+        social.followRequestResults = [.success(UserPage(items: [requester(1)], nextCursor: nil))]
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        social.duringFollowRequest = { await viewModel.respond(.decline, to: requester(1)) }
+
+        await viewModel.respond(.accept, to: requester(1))
+
+        #expect(social.acceptedRequests == ["r1"])
+        #expect(social.declinedRequests.isEmpty)
+    }
+
+    @Test func `demandes indisponibles : l'Activité s'affiche, la section propose de réessayer`() async {
+        service.fetchResults = [.success(ActivityPage(items: [.fixture(id: "a")], nextCursor: nil, unreadCount: 1))]
+        social.followRequestResults = [.failure(.unreachable)]
+        let viewModel = makeViewModel()
+
+        await viewModel.load()
+
+        #expect(viewModel.state == .loaded)
+        #expect(viewModel.requestsLoadFailed)
+        #expect(viewModel.showsFollowRequests)
+
+        social.followRequestResults = [.success(UserPage(items: [requester(1)], nextCursor: nil))]
+        await viewModel.loadRequests()
+        #expect(!viewModel.requestsLoadFailed)
+        #expect(viewModel.followRequests.map(\.id) == ["r1"])
+    }
+
+    @Test func `phrases des demandes et des acceptations`() {
+        #expect(ActivityViewModel.message(for: .fixture(id: "a", kind: .followAccepted)) == "lea a accepté votre demande d'abonnement.")
+        #expect(ActivityViewModel.message(for: .fixture(id: "b", kind: .followRequest)) == "lea a demandé à vous suivre.")
+        #expect(ActivityViewModel.destination(for: .fixture(id: "a", kind: .followAccepted)) == .profile(ProfileRoute(username: "lea")))
     }
 }

@@ -1,10 +1,13 @@
-import { blocks, follows, type Executor } from '@clone/db';
+import { blocks, followRequests, follows, type Executor } from '@clone/db';
 import { and, eq, or, sql } from 'drizzle-orm';
 
 import type { RelationshipReader } from '../../application/relationship-reader.ts';
 import type { Relationship } from '../../domain/visibility.ts';
 
-/** Relation lue en une requête sur `follows` et `blocks` (index de clé primaire et `(blocked_id)`). */
+/**
+ * Relation lue en une requête sur `follows`, `follow_requests` et `blocks` (index de clé primaire et
+ * `(blocked_id)`).
+ */
 export class DrizzleRelationshipReader implements RelationshipReader {
   constructor(private readonly db: Executor) {}
 
@@ -14,6 +17,12 @@ export class DrizzleRelationshipReader implements RelationshipReader {
         .select({ one: sql`1` })
         .from(follows)
         .where(and(eq(follows.followerId, followerId), eq(follows.followeeId, followeeId)))})`;
+    const requested = sql<boolean>`EXISTS (${this.db
+      .select({ one: sql`1` })
+      .from(followRequests)
+      .where(
+        and(eq(followRequests.requesterId, viewerId), eq(followRequests.targetId, ownerId)),
+      )})`;
     const blocked = sql<boolean>`EXISTS (${this.db
       .select({ one: sql`1` })
       .from(blocks)
@@ -28,6 +37,7 @@ export class DrizzleRelationshipReader implements RelationshipReader {
       .select({
         viewerFollowsOwner: follow(viewerId, ownerId).mapWith(Boolean),
         ownerFollowsViewer: follow(ownerId, viewerId).mapWith(Boolean),
+        viewerRequestedOwner: requested.mapWith(Boolean),
         blocked: blocked.mapWith(Boolean),
       })
       .from(sql`(SELECT 1) AS relation`);

@@ -1,8 +1,9 @@
-import { blocks, follows, media, profiles, type Executor } from '@clone/db';
+import { blocks, followRequests, follows, media, profiles, type Executor } from '@clone/db';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 
 import type {
   BlockedListQuery,
+  FollowRequestListQuery,
   ListQuery,
   SearchQuery,
   SocialGraphReader,
@@ -52,6 +53,37 @@ export class DrizzleSocialGraphReader implements SocialGraphReader {
     return {
       items: page.map(toSummary),
       next: rows.length > limit && last ? { createdAt: last.blockedAt, id: last.id } : null,
+    };
+  }
+
+  async listFollowRequests({
+    viewerId,
+    after,
+    limit,
+  }: FollowRequestListQuery): Promise<Page<UserSummary>> {
+    const rows = await this.db
+      // Date de la demande : premier membre du curseur.
+      .select({ ...this.summaryFields(viewerId), requestedAt: followRequests.createdAt })
+      .from(followRequests)
+      .innerJoin(profiles, eq(profiles.id, followRequests.requesterId))
+      .leftJoin(media, eq(media.id, profiles.avatarMediaId))
+      .where(
+        and(
+          eq(followRequests.targetId, viewerId),
+          this.visibleTo(viewerId),
+          after
+            ? sql`(${followRequests.createdAt}, ${profiles.id}) < (${after.createdAt.toISOString()}::timestamptz, ${after.id}::uuid)`
+            : undefined,
+        ),
+      )
+      .orderBy(desc(followRequests.createdAt), desc(profiles.id))
+      .limit(limit + 1);
+
+    const page = rows.slice(0, limit);
+    const last = page.at(-1);
+    return {
+      items: page.map(toSummary),
+      next: rows.length > limit && last ? { createdAt: last.requestedAt, id: last.id } : null,
     };
   }
 
@@ -124,6 +156,10 @@ export class DrizzleSocialGraphReader implements SocialGraphReader {
       avatarVariants: media.variants,
       following: this.follows(viewerId, profiles.id).mapWith(Boolean),
       followedBy: this.follows(profiles.id, viewerId).mapWith(Boolean),
+      requested:
+        sql<boolean>`EXISTS (SELECT 1 FROM ${followRequests} AS r WHERE r.requester_id = ${viewerId} AND r.target_id = ${profiles.id})`.mapWith(
+          Boolean,
+        ),
     };
   }
 
@@ -152,6 +188,7 @@ function toSummary(row: {
   avatarVariants: UserSummary['avatarVariants'];
   following: boolean;
   followedBy: boolean;
+  requested: boolean;
 }): UserSummary {
   return {
     id: row.id,
@@ -159,6 +196,10 @@ function toSummary(row: {
     fullName: row.fullName,
     isPrivate: row.isPrivate,
     avatarVariants: row.avatarVariants,
-    relationship: { following: row.following, followedBy: row.followedBy },
+    relationship: {
+      following: row.following,
+      followedBy: row.followedBy,
+      requested: row.requested,
+    },
   };
 }

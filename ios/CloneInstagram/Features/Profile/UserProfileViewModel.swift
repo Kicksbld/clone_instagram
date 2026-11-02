@@ -2,7 +2,8 @@ import Foundation
 import Observation
 
 /// Profil d'un autre utilisateur (`GET /v1/users/{username}`) : chargement, introuvable, erreur ;
-/// bouton Suivre optimiste partagé avec les autres écrans (`FollowStore`, ADR-020).
+/// bouton Suivre à trois états (Suivre, Demandé, Suivi(e)), optimiste et partagé avec les autres écrans
+/// (`FollowStore`, ADR-020).
 @Observable
 final class UserProfileViewModel {
     enum State: Equatable {
@@ -16,7 +17,7 @@ final class UserProfileViewModel {
     let username: String
     /// Profil reçu de l'API, affiché avec l'abonnement partagé par `FollowStore`.
     private var loadState: State = .loading
-    /// Échec d'un follow ou d'un unfollow, affiché en alerte ; `nil` une fois l'alerte fermée.
+    /// Échec d'un follow, d'une demande ou de son annulation, affiché en alerte ; `nil` une fois l'alerte fermée.
     var followErrorMessage: String?
 
     private let viewerId: String
@@ -51,9 +52,9 @@ final class UserProfileViewModel {
         profile.id == viewerId
     }
 
-    /// Pas de bouton Suivre sur un compte privé que je ne suis pas (demandes d'abonnement en P1).
+    /// Bouton Suivre sur tout autre compte ; un compte privé reçoit une demande d'abonnement.
     func canFollow(_ profile: UserProfile) -> Bool {
-        !isSelf(profile) && (profile.isFollowing || !profile.isPrivate)
+        !isSelf(profile)
     }
 
     func load() async {
@@ -76,17 +77,19 @@ final class UserProfileViewModel {
         await setFollowing(true)
     }
 
+    /// Ne plus suivre, ou annuler ma demande d'abonnement en attente.
     func unfollow() async {
         await setFollowing(false)
     }
 
     /// Changé tout de suite, sans bloquer le bouton : un nouveau tap pendant l'appel est pris en compte.
     private func setFollowing(_ following: Bool) async {
-        guard case let .loaded(profile) = state, profile.isFollowing != following else { return }
+        guard case let .loaded(profile) = state, FollowState(profile).wantsFollow != following else { return }
         let outcome = await follows.setFollowing(
             following,
             userId: profile.id,
             current: FollowState(profile),
+            isPrivate: profile.isPrivate,
             source: .profile
         )
         switch outcome {

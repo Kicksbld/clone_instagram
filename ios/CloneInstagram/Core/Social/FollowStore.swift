@@ -1,16 +1,42 @@
 import Foundation
 import Observation
 
-/// Abonnement à un compte, tel que l'app le connaît ; `followerCount` est `nil` tant qu'aucun profil ne l'a donné.
+/**
+ Abonnement à un compte, tel que l'app le connaît : abonné, demande en attente (compte privé, « Demandé ») ou
+ rien ; `followerCount` est `nil` tant qu'aucun profil ne l'a donné.
+ */
 struct FollowState: Equatable {
     var isFollowing: Bool
     var followerCount: Int?
+    /// Demande d'abonnement en attente ; jamais en même temps que `isFollowing`.
+    var isRequested = false
 
-    /// Changement optimiste : le nombre d'abonnés, s'il est connu, suit le bouton.
-    mutating func setFollowing(_ following: Bool) {
-        guard isFollowing != following else { return }
-        isFollowing = following
-        followerCount = followerCount.map { max(0, $0 + (following ? 1 : -1)) }
+    init(isFollowing: Bool, followerCount: Int?, isRequested: Bool = false) {
+        self.isFollowing = isFollowing
+        self.followerCount = followerCount
+        self.isRequested = isRequested
+    }
+
+    /// Ce que montre le bouton : « Suivre » (`false`), ou « Demandé » / « Suivi(e) » (`true`).
+    var wantsFollow: Bool {
+        isFollowing || isRequested
+    }
+
+    /**
+     Changement optimiste : suivre un compte privé l'affiche « Demandé » sans toucher au nombre d'abonnés ;
+     un compte public est suivi tout de suite et son nombre d'abonnés, s'il est connu, suit le bouton.
+     */
+    mutating func setWantsFollow(_ wanted: Bool, isPrivate: Bool) {
+        guard wantsFollow != wanted else { return }
+        if wanted, isPrivate {
+            isRequested = true
+            return
+        }
+        if isFollowing != wanted {
+            followerCount = followerCount.map { max(0, $0 + (wanted ? 1 : -1)) }
+        }
+        isFollowing = wanted
+        isRequested = false
     }
 }
 
@@ -25,9 +51,9 @@ enum FollowOutcome: Equatable {
 }
 
 /**
- Abonnements, partagés par tous les écrans (une instance pour l'app, comme les likes) : un compte suivi depuis
- une liste l'est aussi sur son profil, dans la recherche et dans mon compteur « suivi(e)s ». Chaque écran
- affiche ses comptes à travers `displayed(_:)`.
+ Abonnements et demandes d'abonnement, partagés par tous les écrans (une instance pour l'app, comme les likes) :
+ un compte suivi ou demandé depuis une liste l'est aussi sur son profil, dans la recherche et dans mon compteur
+ « suivi(e)s ». Chaque écran affiche ses comptes à travers `displayed(_:)`.
 
  Mise à jour optimiste sur le moteur commun `OptimisticSync` (ADR-020) : le bouton change tout de suite, puis
  prend l'état confirmé par l'API, ou y revient en cas d'échec ; un tap pendant un appel ne change que l'état
@@ -71,7 +97,9 @@ final class FollowStore {
             profile.followerCount = max(0, profile.followerCount + (state.isFollowing ? 1 : -1))
         }
         profile.isFollowing = state.isFollowing
+        profile.isRequested = state.isRequested
         // Compte privé que je ne suis plus : ses contenus disparaissent sans attendre l'API.
+        // Une demande en attente ne donne aucun accès (ADR-006).
         if profile.isPrivate, !state.isFollowing {
             profile.canViewContent = false
         }
@@ -83,6 +111,7 @@ final class FollowStore {
         guard let state = states[user.id] else { return user }
         var user = user
         user.isFollowing = state.isFollowing
+        user.isRequested = state.isRequested
         return user
     }
 
@@ -98,7 +127,7 @@ final class FollowStore {
     /// Profil reçu de l'API : son état devient le dernier connu, sauf pendant un follow en cours.
     func record(_ profile: UserProfile) {
         guard !sync.isSyncing(profile.id) else { return }
-        states[profile.id] = FollowState(isFollowing: profile.isFollowing, followerCount: profile.followerCount)
+        states[profile.id] = FollowState(profile)
     }
 
     /// Comptes reçus de l'API (listes, recherche) : sans nombre d'abonnés, gardé s'il est toujours valable.
@@ -107,7 +136,8 @@ final class FollowStore {
             let known = states[user.id]
             states[user.id] = FollowState(
                 isFollowing: user.isFollowing,
-                followerCount: known?.isFollowing == user.isFollowing ? known?.followerCount : nil
+                followerCount: known?.isFollowing == user.isFollowing ? known?.followerCount : nil,
+                isRequested: user.isRequested
             )
         }
     }
@@ -127,7 +157,8 @@ final class FollowStore {
     // MARK: - Suivre
 
     /**
-     Suivre ou ne plus suivre `userId`, affiché avec l'état `current` s'il n'est pas encore connu.
+     Suivre `userId` (`following` : abonnement, ou demande si le compte est privé), ou ne plus le suivre (abonnement
+     supprimé ou demande annulée), affiché avec l'état `current` s'il n'est pas encore connu.
 
      `nil` si rien n'a été envoyé : état déjà voulu, ou appel déjà en cours (c'est lui qui enverra le nouvel
      état et rendra l'issue à l'écran qui l'a lancé).
@@ -136,25 +167,30 @@ final class FollowStore {
         _ following: Bool,
         userId: String,
         current: FollowState,
+        isPrivate: Bool,
         source: FollowSource
     ) async -> FollowOutcome? {
         let shown = states[userId] ?? current
-        guard shown.isFollowing != following else { return nil }
+        guard shown.wantsFollow != following else { return nil }
         if baselines[userId] == nil {
             baselines[userId] = shown.isFollowing
         }
         var optimistic = shown
-        optimistic.setFollowing(following)
+        optimistic.setWantsFollow(following, isPrivate: isPrivate)
         states[userId] = optimistic
 
         let outcome = await sync.sync(
             userId,
             to: following,
             confirmed: shown,
-            intentOf: \.isFollowing
+            intentOf: \.wantsFollow
         ) { wanted throws(SocialServiceError) -> FollowState in
             let status = try await wanted ? service.follow(userId: userId) : service.unfollow(userId: userId)
-            return FollowState(isFollowing: status.isFollowing, followerCount: status.followerCount)
+            return FollowState(
+                isFollowing: status.isFollowing,
+                followerCount: status.followerCount,
+                isRequested: status.isRequested
+            )
         }
         switch outcome {
         case .pending:
@@ -178,8 +214,6 @@ final class FollowStore {
     /// Message compréhensible, sans détail technique (ADR-014).
     static func message(for error: SocialServiceError, following: Bool) -> String {
         switch error {
-        case .accountPrivate:
-            "Ce compte est privé : il ne peut pas encore être suivi."
         case .unauthenticated:
             "Votre session a expiré. Reconnectez-vous."
         default:
@@ -193,11 +227,15 @@ final class FollowStore {
 extension FollowState {
     /// État affiché d'un profil, avec son nombre d'abonnés.
     init(_ profile: UserProfile) {
-        self.init(isFollowing: profile.isFollowing, followerCount: profile.followerCount)
+        self.init(
+            isFollowing: profile.isFollowing,
+            followerCount: profile.followerCount,
+            isRequested: profile.isRequested
+        )
     }
 
     /// État affiché d'une ligne de liste, sans nombre d'abonnés.
     init(_ user: UserSummary) {
-        self.init(isFollowing: user.isFollowing, followerCount: nil)
+        self.init(isFollowing: user.isFollowing, followerCount: nil, isRequested: user.isRequested)
     }
 }

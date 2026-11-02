@@ -11,6 +11,8 @@ struct UserSummary: Equatable, Identifiable {
     var isFollowing: Bool
     /// Ce compte me suit.
     let followsMe: Bool
+    /// J'ai demandé à suivre ce compte privé et la demande est en attente (« Demandé »).
+    var isRequested = false
 }
 
 /// Une page d'une liste paginée par curseur (ADR-007) ; `nextCursor` est `nil` sur la dernière page.
@@ -23,6 +25,8 @@ struct UserPage: Equatable {
 struct FollowStatus: Equatable {
     let isFollowing: Bool
     let followerCount: Int
+    /// Demande d'abonnement en attente vers ce compte privé (aucun accès à ses contenus).
+    var isRequested = false
 }
 
 /// Liste d'un compte : ses abonnés ou ses abonnements.

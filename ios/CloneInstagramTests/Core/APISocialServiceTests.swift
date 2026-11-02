@@ -6,7 +6,7 @@ struct APISocialServiceTests {
     private static let userId = "0199a1b2-5eed-7000-8000-000000000001"
     private static let summaryJSON = """
     {"id":"0199a1b2-5eed-7000-8000-000000000002","username":"hugo.bernard","fullName":"Hugo Bernard",\
-    "isPrivate":false,"relationship":{"following":true,"followedBy":false}}
+    "isPrivate":false,"relationship":{"following":true,"followedBy":false,"requested":false}}
     """
 
     private func makeService(_ reply: StubTransport.Reply) throws -> APISocialService {
@@ -26,16 +26,23 @@ struct APISocialServiceTests {
     }
 
     @Test func `PUT follow converti en FollowStatus`() async throws {
-        let service = try makeService(json(#"{"following":true,"followerCount":12}"#))
+        let service = try makeService(json(#"{"following":true,"requested":false,"followerCount":12}"#))
 
         let status = try await service.follow(userId: Self.userId)
 
         #expect(status == FollowStatus(isFollowing: true, followerCount: 12))
     }
 
+    @Test func `PUT follow vers un compte privé : demande en attente`() async throws {
+        let service = try makeService(json(#"{"following":false,"requested":true,"followerCount":3}"#))
+
+        let status = try await service.follow(userId: Self.userId)
+
+        #expect(status == FollowStatus(isFollowing: false, followerCount: 3, isRequested: true))
+    }
+
     @Test(arguments: [
-        (403, "account_private", SocialServiceError.accountPrivate),
-        (404, "user_not_found", .userNotFound),
+        (404, "user_not_found", SocialServiceError.userNotFound),
         (404, "profile_not_found", .profileNotFound),
         (422, "cannot_follow_self", .cannotFollowSelf),
         (401, "unauthenticated", .unauthenticated),
@@ -47,7 +54,7 @@ struct APISocialServiceTests {
     }
 
     @Test func `DELETE follow converti en FollowStatus`() async throws {
-        let service = try makeService(json(#"{"following":false,"followerCount":11}"#))
+        let service = try makeService(json(#"{"following":false,"requested":false,"followerCount":11}"#))
 
         let status = try await service.unfollow(userId: Self.userId)
 

@@ -16,6 +16,13 @@ export interface BlockedListQuery {
   limit: number;
 }
 
+export interface FollowRequestListQuery {
+  /** Destinataire des demandes. */
+  viewerId: string;
+  after: PageCursor | null;
+  limit: number;
+}
+
 export interface SearchQuery {
   viewerId: string;
   /** Texte normalisé (`normalizeSearchQuery`). */
@@ -33,6 +40,11 @@ export interface SocialGraphReader {
   listFollowing(query: ListQuery): Promise<Page<UserSummary>>;
   /** Comptes actifs bloqués par l'appelant ; curseur `(blocks.created_at, id du profil)`. */
   listBlocked(query: BlockedListQuery): Promise<Page<UserSummary>>;
+  /**
+   * Comptes qui ont demandé à suivre l'appelant (actifs, sans blocage) ; curseur
+   * `(follow_requests.created_at, id du profil)`, demande la plus récente en premier.
+   */
+  listFollowRequests(query: FollowRequestListQuery): Promise<Page<UserSummary>>;
   /** Tri : username exact, username qui commence par la requête, comptes suivis, similarité, abonnés. */
   search(query: SearchQuery): Promise<UserSummary[]>;
 }
