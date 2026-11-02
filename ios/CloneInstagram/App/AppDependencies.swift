@@ -49,7 +49,12 @@ struct AppDependencies {
             accessToken: { await auth.accessToken() },
             onAccountSuspended: { await suspension.report() }
         )
-        let uploads = UploadManager(media: APIMediaService(client: client), uploader: BackgroundFileUploader.shared)
+        let mediaEvents = MediaProcessingEvents()
+        let uploads = UploadManager(
+            media: APIMediaService(client: client),
+            uploader: BackgroundFileUploader.shared,
+            processingEvents: mediaEvents
+        )
         let posts = APIPostService(client: client)
         let social = APISocialService(client: client)
         let activity = APIActivityService(client: client)
@@ -64,7 +69,8 @@ struct AppDependencies {
                 makeTransport: { URLSessionRealtimeTransport(url: url) },
                 accessToken: { await auth.accessToken() },
                 badge: badge,
-                onSuspended: { suspension.report() }
+                onSuspended: { suspension.report() },
+                mediaEvents: mediaEvents
             )
         }
         return AppDependencies(

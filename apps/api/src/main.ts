@@ -50,6 +50,10 @@ import { CompleteUpload } from './modules/media/application/use-cases/complete-u
 import { GetMedia } from './modules/media/application/use-cases/get-media.ts';
 import { RequestUpload } from './modules/media/application/use-cases/request-upload.ts';
 import { DrizzleMediaRepository } from './modules/media/infrastructure/persistence/drizzle-media-repository.ts';
+import {
+  MediaCompletionEvents,
+  MediaQueueEvents,
+} from './modules/media/infrastructure/queue-events/media-queue-events.ts';
 import { SupabaseMediaStorage } from './modules/media/infrastructure/storage/supabase-media-storage.ts';
 import { CreateReport } from './modules/moderation/application/use-cases/create-report.ts';
 import { GetReportForAdmin } from './modules/moderation/application/use-cases/get-report-for-admin.ts';
@@ -346,6 +350,18 @@ const app = buildApp({
     mediaUrls: publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL),
   },
 });
+
+const mediaEvents = new MediaQueueEvents(
+  config.REDIS_URL,
+  new MediaCompletionEvents(media, publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL), realtime),
+  (error) => {
+    app.log.warn({ error }, 'Media completion notification failed');
+  },
+);
+app.addHook('onClose', async () => {
+  await mediaEvents.close();
+});
+await mediaEvents.ready();
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
   app.log.info({ signal }, 'Arrêt de l’API');

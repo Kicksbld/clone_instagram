@@ -18345,6 +18345,97 @@
           }
         }
       },
+      "MediaReady": {
+        "type": "object",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "media.ready"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "mediaId",
+              "variants"
+            ],
+            "properties": {
+              "mediaId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "variants": {
+                "type": "object",
+                "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                "required": [
+                  "thumb",
+                  "medium",
+                  "large"
+                ],
+                "properties": {
+                  "thumb": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "150 px de large."
+                  },
+                  "medium": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "640 px de large."
+                  },
+                  "large": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "1080 px de large."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "MediaFailed": {
+        "type": "object",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "media.failed"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "mediaId",
+              "reason"
+            ],
+            "properties": {
+              "mediaId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "reason": {
+                "type": "string",
+                "description": "- `invalid_image` : le fichier n'est pas une image JPEG ou PNG ;\n- `file_too_large` : plus de 20 Mo ;\n- `processing_error` : échec du traitement après ses tentatives.\n",
+                "enum": [
+                  "invalid_image",
+                  "file_too_large",
+                  "processing_error"
+                ]
+              }
+            }
+          }
+        }
+      },
       "RealtimeEvent": {
         "oneOf": [
           {
@@ -18387,13 +18478,106 @@
                 }
               }
             }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "media.ready"
+                ]
+              },
+              "data": {
+                "type": "object",
+                "required": [
+                  "mediaId",
+                  "variants"
+                ],
+                "properties": {
+                  "mediaId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "variants": {
+                    "type": "object",
+                    "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                    "required": [
+                      "thumb",
+                      "medium",
+                      "large"
+                    ],
+                    "properties": {
+                      "thumb": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "150 px de large."
+                      },
+                      "medium": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "640 px de large."
+                      },
+                      "large": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "1080 px de large."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "media.failed"
+                ]
+              },
+              "data": {
+                "type": "object",
+                "required": [
+                  "mediaId",
+                  "reason"
+                ],
+                "properties": {
+                  "mediaId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "description": "- `invalid_image` : le fichier n'est pas une image JPEG ou PNG ;\n- `file_too_large` : plus de 20 Mo ;\n- `processing_error` : échec du traitement après ses tentatives.\n",
+                    "enum": [
+                      "invalid_image",
+                      "file_too_large",
+                      "processing_error"
+                    ]
+                  }
+                }
+              }
+            }
           }
         ],
         "discriminator": {
           "propertyName": "type",
           "mapping": {
             "auth.ok": "#/components/schemas/RealtimeAuthOK",
-            "activity.created": "#/components/schemas/ActivityCreated"
+            "activity.created": "#/components/schemas/ActivityCreated",
+            "media.ready": "#/components/schemas/MediaReady",
+            "media.failed": "#/components/schemas/MediaFailed"
           }
         }
       },
