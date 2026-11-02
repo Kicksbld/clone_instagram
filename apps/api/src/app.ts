@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 
 import {
+  type ActivityUseCases,
+  registerActivityRoutes,
+} from './modules/activity/infrastructure/http/activity-routes.ts';
+import {
   type BillingUseCases,
   registerBillingRoutes,
 } from './modules/billing/infrastructure/http/billing-routes.ts';
@@ -67,6 +71,8 @@ export interface AppDependencies {
   engagement: EngagementUseCases;
   billing: BillingUseCases;
   moderation: ModerationUseCases;
+  /** Activité : notifications in-app regroupées (ADR-026). */
+  activity: ActivityUseCases;
   /** Backoffice (ADR-011) : routes `/v1/admin/…`, rôle `admin` vérifié par chaque use case. */
   admin: AdminUsersUseCases;
   /** Backoffice : file des signalements et leur traitement (T15). */
@@ -114,6 +120,7 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
     registerEngagementRoutes(v1, dependencies.engagement, dependencies.mediaUrls);
     registerBillingRoutes(v1, dependencies.billing);
     registerModerationRoutes(v1, dependencies.moderation);
+    registerActivityRoutes(v1, dependencies.activity, dependencies.mediaUrls);
     registerAdminUsersRoutes(v1, dependencies.admin, dependencies.mediaUrls);
     registerAdminReportsRoutes(v1, dependencies.adminReports, dependencies.mediaUrls);
     done();

@@ -14,6 +14,10 @@ import {
   CannotFollowSelfError,
 } from '../../../src/modules/social/domain/errors.ts';
 import { InMemoryUnitOfWork } from '../../support/fakes.ts';
+import {
+  InMemoryNotificationDispatcher,
+  InMemoryNotifications,
+} from '../../support/in-memory-notifications.ts';
 import { InMemoryProfileRepository } from '../../support/in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from '../../support/in-memory-relationship-reader.ts';
 import { InMemorySocialGraph } from '../../support/in-memory-social-graph.ts';
@@ -25,6 +29,8 @@ const THIRD = '0199a1b2-0000-7000-8000-000000000003';
 let profiles: InMemoryProfileRepository;
 let relationships: InMemoryRelationshipReader;
 let graph: InMemorySocialGraph;
+let notifications: InMemoryNotifications;
+let dispatcher: InMemoryNotificationDispatcher;
 let follow: FollowUser;
 let unfollow: UnfollowUser;
 
@@ -32,13 +38,16 @@ beforeEach(() => {
   profiles = new InMemoryProfileRepository();
   relationships = new InMemoryRelationshipReader();
   graph = new InMemorySocialGraph(profiles, relationships);
+  notifications = new InMemoryNotifications(relationships);
+  dispatcher = new InMemoryNotificationDispatcher();
   const transaction = new InMemoryUnitOfWork({
     accounts: graph,
     relationships,
     follows: graph,
     counters: graph,
+    notifications,
   });
-  follow = new FollowUser(transaction);
+  follow = new FollowUser(transaction, dispatcher);
   unfollow = new UnfollowUser(transaction);
   profiles.add({ id: ME, username: 'killian' });
 });
@@ -59,6 +68,17 @@ describe('FollowUser', () => {
     expect(relationships.isFollowing(ME, OTHER)).toBe(true);
     expect(counts(OTHER)).toEqual({ followerCount: 5, followingCount: 0 });
     expect(counts(ME)).toEqual({ followerCount: 0, followingCount: 1 });
+  });
+
+  it('notifie le compte suivi, diffusé après la transaction ; une seule fois', async () => {
+    profiles.add({ id: OTHER, username: 'lea' });
+
+    await follow.execute({ viewerId: ME, userId: OTHER });
+    await follow.execute({ viewerId: ME, userId: OTHER });
+
+    const followed = { recipientId: OTHER, actorId: ME, type: 'follow' };
+    expect(notifications.receivedBy(OTHER)).toEqual([followed]);
+    expect(dispatcher.dispatched).toEqual([expect.objectContaining(followed)]);
   });
 
   it('double follow : sans effet, compteurs inchangés', async () => {
@@ -143,6 +163,17 @@ describe('UnfollowUser', () => {
       followerCount: 0,
     });
     expect(counts(ME)).toEqual({ followerCount: 0, followingCount: 0 });
+  });
+
+  it('retire la notification d’abonnement ; un nouvel abonnement en crée une nouvelle', async () => {
+    profiles.add({ id: OTHER, username: 'lea' });
+    await follow.execute({ viewerId: ME, userId: OTHER });
+
+    await unfollow.execute({ viewerId: ME, userId: OTHER });
+    expect(notifications.rows.size).toBe(0);
+
+    await follow.execute({ viewerId: ME, userId: OTHER });
+    expect(notifications.receivedBy(OTHER)).toHaveLength(1);
   });
 
   it('sans abonnement : sans effet, compteurs inchangés', async () => {

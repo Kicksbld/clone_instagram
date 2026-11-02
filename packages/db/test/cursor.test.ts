@@ -20,6 +20,18 @@ describe('curseur de pagination', () => {
     expect(decodeCursor(encodeCursor(cursor))).toEqual(cursor);
   });
 
+  it('accepte un autre identifiant vérifié par l’appelant (clé de groupe de l’Activité)', () => {
+    const cursor = {
+      createdAt: new Date('2026-09-23T10:15:30.123Z'),
+      id: `comment_reply:${newId()}`,
+    };
+    const raw = encodeCursor(cursor);
+
+    expect(raw.length).toBeLessThanOrEqual(128);
+    expect(decodeCursor(raw, (id) => id.startsWith('comment_reply:'))).toEqual(cursor);
+    expect(() => decodeCursor(raw)).toThrow(InvalidCursorError);
+  });
+
   it('produit une chaîne opaque sûre pour une URL', () => {
     const raw = encodeCursor({ createdAt: new Date(), id: newId() });
     expect(raw).toMatch(/^[A-Za-z0-9_-]+$/);

@@ -511,6 +511,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mon Activité
+         * @description Notifications reçues, regroupées à la lecture (ADR-026) : les J'aime d'un même post forment un seul groupe (« léa et 1 autre ont aimé votre publication ») ; chaque commentaire, réponse ou abonnement forme son propre groupe. Groupes du plus récent au plus ancien (date de leur notification la plus récente), par pages de 20.
+         *     Visibilité (ADR-006) : notifications des acteurs bloqués dans un sens ou dans l'autre ou non actifs absentes, ainsi que celles d'un post ou d'un commentaire supprimé ou devenu invisible.
+         *     `unreadCount` : nombre de groupes contenant au moins une notification non lue (pastille du cœur), le même sur chaque page.
+         */
+        get: operations["getActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/activity/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tout marquer comme lu
+         * @description Marque comme lues toutes les notifications reçues ; `unreadCount` revient à 0. Idempotent.
+         */
+        post: operations["markActivityRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/media/uploads": {
         parameters: {
             query?: never;
@@ -1070,6 +1112,59 @@ export interface components {
             items: components["schemas"]["Comment"][];
             /** @description Curseur de la page suivante ; absent sur la dernière page. */
             nextCursor?: string;
+        };
+        /**
+         * @description Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné).
+         *     Liste ouverte : d'autres types arrivent avec les tranches suivantes ; le client ignore un groupe d'un type qu'il ne connaît pas (ADR-019).
+         * @example like
+         */
+        ActivityType: string;
+        /** @description Compte à l'origine de la notification la plus récente du groupe. */
+        ActivityActor: {
+            /** Format: uuid */
+            id: string;
+            username: components["schemas"]["Username"];
+            /** @description Photo de profil ; absente si aucune photo. */
+            avatar?: components["schemas"]["ImageVariants"];
+        };
+        /** @description Post visé, avec la miniature de sa première image. */
+        ActivityPost: {
+            /** Format: uuid */
+            id: string;
+            thumbnail: components["schemas"]["ImageVariants"];
+        };
+        /** @description Commentaire ou réponse qui a créé la notification. */
+        ActivityComment: {
+            /** Format: uuid */
+            id: string;
+            body: components["schemas"]["CommentBody"];
+        };
+        /** @description Groupe de notifications de même type sur la même cible, vu par son destinataire. */
+        ActivityGroup: {
+            /** @description Identifiant opaque et stable du groupe. */
+            id: string;
+            type: components["schemas"]["ActivityType"];
+            actor: components["schemas"]["ActivityActor"];
+            /** @description Nombre de comptes du groupe, acteur le plus récent compris (« léa et 1 autre » → 2). */
+            actorCount: number;
+            /**
+             * Format: date-time
+             * @description Date de la notification la plus récente du groupe.
+             */
+            createdAt: string;
+            /** @description `false` si le groupe contient au moins une notification non lue. */
+            read: boolean;
+            /** @description Post visé (`like`, `comment`, `comment_reply`) ; absent pour `follow`. */
+            post?: components["schemas"]["ActivityPost"];
+            /** @description Commentaire ou réponse (`comment`, `comment_reply`) ; absent sinon. */
+            comment?: components["schemas"]["ActivityComment"];
+        };
+        ActivityPage: {
+            items: components["schemas"]["ActivityGroup"][];
+            /** @description Curseur de la page suivante ; absent sur la dernière page. */
+            nextCursor?: string;
+            /** @description Nombre de groupes contenant au moins une notification non lue. */
+            unreadCount: number;
         };
         /** @description Erreur au format Problem Details (RFC 9457). */
         ProblemDetails: {
@@ -2326,6 +2421,52 @@ export interface operations {
                 };
             };
             429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getActivity: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de l'Activité. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    markActivityRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notifications marquées comme lues. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
             500: components["responses"]["InternalError"];
         };
     };

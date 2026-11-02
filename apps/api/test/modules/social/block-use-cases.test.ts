@@ -9,6 +9,7 @@ import { ListBlocks } from '../../../src/modules/social/application/use-cases/li
 import { UnblockUser } from '../../../src/modules/social/application/use-cases/unblock-user.ts';
 import { CannotBlockSelfError } from '../../../src/modules/social/domain/errors.ts';
 import { InMemoryUnitOfWork } from '../../support/fakes.ts';
+import { InMemoryNotifications } from '../../support/in-memory-notifications.ts';
 import { InMemoryProfileRepository } from '../../support/in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from '../../support/in-memory-relationship-reader.ts';
 import { InMemoryBlocks, InMemorySocialGraph } from '../../support/in-memory-social-graph.ts';
@@ -20,6 +21,7 @@ const THIRD = '0199a1b2-0000-7000-8000-000000000003';
 let profiles: InMemoryProfileRepository;
 let relationships: InMemoryRelationshipReader;
 let graph: InMemorySocialGraph;
+let notifications: InMemoryNotifications;
 let block: BlockUser;
 let unblock: UnblockUser;
 let listBlocks: ListBlocks;
@@ -29,6 +31,7 @@ beforeEach(() => {
   relationships = new InMemoryRelationshipReader();
   graph = new InMemorySocialGraph(profiles, relationships);
   const blocks = new InMemoryBlocks(relationships);
+  notifications = new InMemoryNotifications(relationships);
   block = new BlockUser(
     new InMemoryUnitOfWork({
       accounts: graph,
@@ -36,6 +39,7 @@ beforeEach(() => {
       blocks,
       follows: graph,
       counters: graph,
+      notifications,
     }),
   );
   unblock = new UnblockUser(graph, blocks);
@@ -67,6 +71,18 @@ describe('BlockUser', () => {
     expect(relationships.isFollowing(OTHER, ME)).toBe(false);
     expect(counts(ME)).toEqual({ followerCount: 0, followingCount: 0 });
     expect(counts(OTHER)).toEqual({ followerCount: 0, followingCount: 0 });
+  });
+
+  it('retire les notifications d’abonnement dans les deux sens : rien ne réapparaît au déblocage', async () => {
+    seedFollow(ME, OTHER);
+    seedFollow(OTHER, ME);
+    await notifications.notify({ recipientId: OTHER, actorId: ME, type: 'follow' });
+    await notifications.notify({ recipientId: ME, actorId: OTHER, type: 'follow' });
+
+    await block.execute({ viewerId: ME, userId: OTHER });
+    await unblock.execute({ viewerId: ME, userId: OTHER });
+
+    expect(notifications.rows.size).toBe(0);
   });
 
   it('abonnement dans un seul sens : seuls ses compteurs baissent', async () => {

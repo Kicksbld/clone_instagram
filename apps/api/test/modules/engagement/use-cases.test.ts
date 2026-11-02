@@ -7,6 +7,10 @@ import { PostNotFoundError } from '../../../src/modules/posts/domain/errors.ts';
 import { InMemoryUnitOfWork } from '../../support/fakes.ts';
 import { InMemoryLikes } from '../../support/in-memory-likes.ts';
 import { InMemoryMediaRepository } from '../../support/in-memory-media-repository.ts';
+import {
+  InMemoryNotificationDispatcher,
+  InMemoryNotifications,
+} from '../../support/in-memory-notifications.ts';
 import { InMemoryPosts } from '../../support/in-memory-posts.ts';
 import { InMemoryProfileRepository } from '../../support/in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from '../../support/in-memory-relationship-reader.ts';
@@ -19,6 +23,8 @@ const POST = '0199a1b2-0000-7000-a000-000000000001';
 let profiles: InMemoryProfileRepository;
 let relationships: InMemoryRelationshipReader;
 let posts: InMemoryPosts;
+let notifications: InMemoryNotifications;
+let dispatcher: InMemoryNotificationDispatcher;
 let like: LikePost;
 let unlike: UnlikePost;
 
@@ -28,13 +34,16 @@ beforeEach(() => {
   const media = new InMemoryMediaRepository();
   posts = new InMemoryPosts(profiles, media);
   const likes = new InMemoryLikes(posts);
+  notifications = new InMemoryNotifications(relationships);
+  dispatcher = new InMemoryNotificationDispatcher();
   const transaction = new InMemoryUnitOfWork({
     accounts: new InMemorySocialGraph(profiles, relationships),
     relationships,
     posts: likes,
     likes,
+    notifications,
   });
-  like = new LikePost(transaction);
+  like = new LikePost(transaction, dispatcher);
   unlike = new UnlikePost(transaction);
   profiles.add({ id: ME, username: 'killian' });
   profiles.add({ id: AUTHOR, username: 'lea' });
@@ -64,6 +73,22 @@ describe('LikePost', () => {
     expect(posts.likes.has(`${ME}:${POST}`)).toBe(true);
   });
 
+  it('notifie l’auteur du post, puis diffuse la notification après la transaction', async () => {
+    await like.execute(input);
+
+    const liked = { recipientId: AUTHOR, actorId: ME, type: 'like', postId: POST };
+    expect(notifications.receivedBy(AUTHOR)).toEqual([liked]);
+    expect(dispatcher.dispatched).toEqual([expect.objectContaining(liked)]);
+  });
+
+  it('double like : une seule notification, une seule diffusion', async () => {
+    await like.execute(input);
+    await like.execute(input);
+
+    expect(notifications.rows.size).toBe(1);
+    expect(dispatcher.dispatched).toHaveLength(1);
+  });
+
   it('double like : sans effet, compteur augmenté une seule fois', async () => {
     await like.execute(input);
 
@@ -71,10 +96,12 @@ describe('LikePost', () => {
     expect(likeCount()).toBe(1);
   });
 
-  it('aimer son propre post est permis', async () => {
+  it('aimer son propre post est permis, sans notification vers soi-même', async () => {
     givenPost(ME);
 
     await expect(like.execute(input)).resolves.toEqual({ liked: true, likeCount: 1 });
+    expect(notifications.rows.size).toBe(0);
+    expect(dispatcher.dispatched).toEqual([]);
   });
 
   it('post d’un compte privé suivi : permis', async () => {
@@ -134,6 +161,15 @@ describe('UnlikePost', () => {
 
     await expect(unlike.execute(input)).resolves.toEqual({ liked: false, likeCount: 0 });
     expect(posts.likes.size).toBe(0);
+  });
+
+  it('retire la notification du J’aime ; remis, il ne crée pas de doublon', async () => {
+    await like.execute(input);
+    await unlike.execute(input);
+    expect(notifications.rows.size).toBe(0);
+
+    await like.execute(input);
+    expect(notifications.receivedBy(AUTHOR)).toHaveLength(1);
   });
 
   it('sans like : sans effet, compteur inchangé', async () => {

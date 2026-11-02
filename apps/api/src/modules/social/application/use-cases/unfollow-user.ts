@@ -16,17 +16,19 @@ export class UnfollowUser {
     const { viewerId, userId } = input;
     if (viewerId === userId) return Promise.reject(new CannotFollowSelfError());
 
-    return this.transaction.run(async ({ accounts, relationships, follows, counters }) => {
-      const target = await accounts.findById(userId);
-      if (!target) throw new UserNotFoundError();
-      const relation = await relationships.between(viewerId, target.id);
-      if (!canViewProfile(viewerId, target, relation)) throw new UserNotFoundError();
+    return this.transaction.run(
+      async ({ accounts, relationships, follows, counters, notifications }) => {
+        const target = await accounts.findById(userId);
+        if (!target) throw new UserNotFoundError();
+        const relation = await relationships.between(viewerId, target.id);
+        if (!canViewProfile(viewerId, target, relation)) throw new UserNotFoundError();
 
-      const removed = await follows.remove(viewerId, target.id);
-      const followerCount = removed
-        ? await counters.apply(viewerId, target.id, -1)
-        : target.followerCount;
-      return { following: false, followerCount };
-    });
+        if (!(await follows.remove(viewerId, target.id))) {
+          return { following: false, followerCount: target.followerCount };
+        }
+        await notifications.retract({ recipientId: target.id, actorId: viewerId, type: 'follow' });
+        return { following: false, followerCount: await counters.apply(viewerId, target.id, -1) };
+      },
+    );
   }
 }

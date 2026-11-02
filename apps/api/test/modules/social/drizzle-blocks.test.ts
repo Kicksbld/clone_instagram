@@ -14,6 +14,7 @@ import {
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
+import { DrizzleNotificationWriter } from '../../../src/modules/activity/infrastructure/persistence/drizzle-notification-writer.ts';
 import { DrizzleCommentReader } from '../../../src/modules/engagement/infrastructure/persistence/drizzle-comments.ts';
 import { DrizzleFeedReader } from '../../../src/modules/feed/infrastructure/persistence/drizzle-feed-reader.ts';
 import { BlockUser } from '../../../src/modules/social/application/use-cases/block-user.ts';
@@ -44,6 +45,7 @@ const blockUser = new BlockUser(
     blocks: new DrizzleBlockRepository(tx),
     follows: new DrizzleFollowRepository(tx),
     counters: new DrizzleFollowCounters(tx),
+    notifications: new DrizzleNotificationWriter(tx),
   })),
 );
 const created: string[] = [];

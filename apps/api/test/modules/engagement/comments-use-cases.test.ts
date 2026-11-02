@@ -16,6 +16,10 @@ import { InMemoryUnitOfWork, sequentialIds } from '../../support/fakes.ts';
 import { InMemoryComments } from '../../support/in-memory-comments.ts';
 import { InMemoryLikes } from '../../support/in-memory-likes.ts';
 import { InMemoryMediaRepository } from '../../support/in-memory-media-repository.ts';
+import {
+  InMemoryNotificationDispatcher,
+  InMemoryNotifications,
+} from '../../support/in-memory-notifications.ts';
 import { InMemoryPosts } from '../../support/in-memory-posts.ts';
 import { InMemoryProfileRepository } from '../../support/in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from '../../support/in-memory-relationship-reader.ts';
@@ -31,6 +35,8 @@ let profiles: InMemoryProfileRepository;
 let relationships: InMemoryRelationshipReader;
 let posts: InMemoryPosts;
 let comments: InMemoryComments;
+let notifications: InMemoryNotifications;
+let dispatcher: InMemoryNotificationDispatcher;
 let create: CreateComment;
 let listComments: ListComments;
 let listReplies: ListReplies;
@@ -43,17 +49,25 @@ beforeEach(() => {
   posts = new InMemoryPosts(profiles, new InMemoryMediaRepository());
   const likes = new InMemoryLikes(posts);
   comments = new InMemoryComments(profiles, posts, relationships);
+  notifications = new InMemoryNotifications(relationships);
+  dispatcher = new InMemoryNotificationDispatcher();
   const transaction = new InMemoryUnitOfWork({
     accounts: new InMemorySocialGraph(profiles, relationships),
     relationships,
     posts: likes,
     comments,
     reader: comments,
+    notifications,
   });
   // Une milliseconde de plus à chaque commentaire : ordre chronologique explicite.
   tick = Date.parse('2026-09-25T12:00:00.000Z');
   const clock = { now: () => new Date((tick += 1)) };
-  create = new CreateComment(transaction, sequentialIds('0199a1b2-0000-7000-b100-'), clock);
+  create = new CreateComment(
+    transaction,
+    sequentialIds('0199a1b2-0000-7000-b100-'),
+    clock,
+    dispatcher,
+  );
   listComments = new ListComments(relationships, likes, comments);
   listReplies = new ListReplies(relationships, comments, comments);
   remove = new DeleteComment(transaction);
@@ -119,6 +133,41 @@ describe('CreateComment', () => {
     expect(reply.parentId).toBe(parent.id);
     expect(comments.rows.get(parent.id)?.replyCount).toBe(1);
     expect(commentCount()).toBe(2);
+  });
+
+  it('commentaire : notifie l’auteur du post, diffusé après la transaction', async () => {
+    const created = await comment(ME);
+
+    const notified = {
+      recipientId: AUTHOR,
+      actorId: ME,
+      type: 'comment',
+      postId: POST,
+      commentId: created.id,
+    };
+    expect(notifications.receivedBy(AUTHOR)).toEqual([notified]);
+    expect(dispatcher.dispatched).toEqual([expect.objectContaining(notified)]);
+  });
+
+  it('réponse : notifie l’auteur du commentaire parent, pas celui du post', async () => {
+    const parent = await comment(OTHER);
+
+    const reply = await comment(ME, 'Merci', parent.id);
+
+    expect(notifications.receivedBy(OTHER)).toEqual([
+      { recipientId: OTHER, actorId: ME, type: 'comment_reply', postId: POST, commentId: reply.id },
+    ]);
+    expect(notifications.receivedBy(AUTHOR)).toEqual([
+      expect.objectContaining({ actorId: OTHER, type: 'comment' }),
+    ]);
+  });
+
+  it('commenter son propre post ou répondre à soi-même : aucune notification', async () => {
+    const own = await create.execute({ authorId: AUTHOR, postId: POST, body: 'Moi' });
+    await comment(AUTHOR, 'Encore moi', own.id);
+
+    expect(notifications.rows.size).toBe(0);
+    expect(dispatcher.dispatched).toEqual([]);
   });
 
   it('réponse à une réponse → reply_to_reply', async () => {
@@ -292,6 +341,24 @@ describe('DeleteComment', () => {
     await remove.execute({ viewerId: AUTHOR, commentId: created.id });
 
     expect(commentCount()).toBe(0);
+  });
+
+  it('retire la notification du commentaire supprimé', async () => {
+    const created = await comment(ME);
+
+    await remove.execute({ viewerId: ME, commentId: created.id });
+
+    expect(notifications.rows.size).toBe(0);
+  });
+
+  it('retire la notification de la réponse supprimée, pas celle du commentaire parent', async () => {
+    const parent = await comment(OTHER);
+    const reply = await comment(ME, 'Un', parent.id);
+
+    await remove.execute({ viewerId: ME, commentId: reply.id });
+
+    expect(notifications.receivedBy(OTHER)).toEqual([]);
+    expect(notifications.receivedBy(AUTHOR)).toHaveLength(1);
   });
 
   it('supprimer un commentaire supprime ses réponses : comment_count −(1 + réponses)', async () => {

@@ -1,4 +1,5 @@
 import type { Clock } from '../../../../shared/application/clock.ts';
+import type { NotificationDispatcher } from '../../../../shared/application/notification-dispatcher.ts';
 import type { IdGenerator } from '../../../../shared/application/id-generator.ts';
 import type { UnitOfWork } from '../../../../shared/application/unit-of-work.ts';
 import { type CommentView, normalizeCommentBody, viewOf } from '../../domain/comment.ts';
@@ -15,22 +16,27 @@ export interface CreateCommentInput {
 
 /**
  * Commenter un post visible, ou répondre à un commentaire de premier niveau de ce post (un seul
- * niveau). Dans une transaction : commentaire, `comment_count` du post et `reply_count` du parent.
+ * niveau). Dans une transaction : commentaire, `comment_count` du post, `reply_count` du parent et
+ * notification (ADR-026) de l'auteur du post (`comment`) ou du commentaire parent (`comment_reply`),
+ * diffusée après la transaction.
  */
 export class CreateComment {
   constructor(
     private readonly transaction: UnitOfWork<CommentTransaction>,
     private readonly ids: IdGenerator,
     private readonly clock: Clock,
+    private readonly notifications: NotificationDispatcher,
   ) {}
 
   async execute(input: CreateCommentInput): Promise<CommentView> {
     const body = normalizeCommentBody(input.body);
 
-    return this.transaction.run(async (scope) => {
+    const { view, notification } = await this.transaction.run(async (scope) => {
       const post = await requireEngageablePost(scope, input.authorId, input.postId);
 
       const parentId = input.parentId ?? null;
+      // Destinataire de la notification : auteur du commentaire parent, sinon auteur du post.
+      let recipientId = post.author.id;
       if (parentId) {
         const parent = await scope.comments.findTarget(parentId);
         if (
@@ -41,6 +47,7 @@ export class CreateComment {
           throw new CommentNotFoundError();
         }
         if (parent.parentId) throw new ReplyToReplyError();
+        recipientId = parent.author.id;
       }
 
       const id = this.ids.next();
@@ -54,10 +61,19 @@ export class CreateComment {
       });
       await scope.comments.applyCommentCount(post.id, 1);
       if (parentId) await scope.comments.applyReplyCount(parentId, 1);
+      const notification = await scope.notifications.notify({
+        recipientId,
+        actorId: input.authorId,
+        type: parentId ? 'comment_reply' : 'comment',
+        postId: post.id,
+        commentId: id,
+      });
 
       const comment = await scope.reader.findById(id);
       if (!comment) throw new Error(`Commentaire créé introuvable : ${id}`);
-      return viewOf(comment, input.authorId);
+      return { view: viewOf(comment, input.authorId), notification };
     });
+    if (notification) this.notifications.dispatch([notification]);
+    return view;
   }
 }

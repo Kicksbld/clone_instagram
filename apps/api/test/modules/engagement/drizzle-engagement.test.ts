@@ -13,6 +13,7 @@ import {
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
+import { DrizzleNotificationWriter } from '../../../src/modules/activity/infrastructure/persistence/drizzle-notification-writer.ts';
 import { LikePost } from '../../../src/modules/engagement/application/use-cases/like-post.ts';
 import { UnlikePost } from '../../../src/modules/engagement/application/use-cases/unlike-post.ts';
 import {
@@ -25,6 +26,7 @@ import { DrizzlePostReader } from '../../../src/modules/posts/infrastructure/per
 import { DrizzleAccountReader } from '../../../src/modules/social/infrastructure/persistence/drizzle-account-reader.ts';
 import { DrizzleRelationshipReader } from '../../../src/shared/infrastructure/persistence/drizzle-relationship-reader.ts';
 import { DrizzleUnitOfWork } from '../../../src/shared/infrastructure/persistence/drizzle-unit-of-work.ts';
+import { noopNotificationDispatcher } from '../../../src/shared/infrastructure/notifications/noop-notification-dispatcher.ts';
 import { connectTestDatabase } from '../../support/database.ts';
 
 const database = connectTestDatabase();
@@ -37,8 +39,9 @@ const transaction = new DrizzleUnitOfWork(db, (tx: Executor) => ({
   relationships: new DrizzleRelationshipReader(tx),
   posts: new DrizzleLikeablePostReader(tx),
   likes: new DrizzleLikeRepository(tx),
+  notifications: new DrizzleNotificationWriter(tx),
 }));
-const like = new LikePost(transaction);
+const like = new LikePost(transaction, noopNotificationDispatcher);
 const unlike = new UnlikePost(transaction);
 const created: string[] = [];
 
