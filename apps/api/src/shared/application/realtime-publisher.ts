@@ -3,11 +3,23 @@ export type RealtimeEvent =
   | { type: 'activity.created'; data: { unreadCount: number } }
   | {
       type: 'media.ready';
-      data: { mediaId: string; variants: { thumb: string; medium: string; large: string } };
+      data: {
+        mediaId: string;
+        variants:
+          { thumb: string; medium: string; large: string } | { hls: string; thumbnail: string };
+      };
     }
   | {
       type: 'media.failed';
-      data: { mediaId: string; reason: 'invalid_image' | 'file_too_large' | 'processing_error' };
+      data: {
+        mediaId: string;
+        reason:
+          | 'invalid_image'
+          | 'file_too_large'
+          | 'processing_error'
+          | 'invalid_video'
+          | 'video_too_long';
+      };
     };
 export interface RealtimePublisher {
   publish(userIds: string[], event: RealtimeEvent): void;

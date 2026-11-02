@@ -115,8 +115,8 @@ file_size_limit = "50MiB"
 # worker sur le fichier réel ; à élargir avec les vidéos (P1).
 [storage.buckets.uploads]
 public = false
-file_size_limit = "20MiB"
-allowed_mime_types = ["image/jpeg", "image/png"]
+file_size_limit = "50MiB"
+allowed_mime_types = ["image/jpeg", "image/png", "video/mp4"]
 
 # Variantes lues directement par l'app : posts, reels, stories, avatars (public, chemins UUID).
 [storage.buckets.media-public]

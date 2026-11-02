@@ -1,9 +1,10 @@
-import type { ImageVariantPaths } from '../../../shared/domain/image-variants.ts';
+import type { MediaVariantPaths } from '../../../shared/domain/image-variants.ts';
 
 export type MediaKind = 'image' | 'video';
 export type MediaPurpose = 'post' | 'story' | 'avatar' | 'message' | 'instant';
 export type MediaStatus = 'pending_upload' | 'uploaded' | 'processing' | 'ready' | 'failed';
-export type MediaFailureReason = 'invalid_image' | 'file_too_large' | 'processing_error';
+export type MediaFailureReason =
+  'invalid_image' | 'file_too_large' | 'processing_error' | 'invalid_video' | 'video_too_long';
 
 /** Média uploadé (ADR-008). Le statut ne change que par les transitions de `packages/db`. */
 export interface Media {
@@ -16,7 +17,8 @@ export interface Media {
   originalPath: string;
   mimeType: string;
   sizeBytes: number;
-  variants: ImageVariantPaths | null;
+  variants: MediaVariantPaths | null;
+  durationMs?: number | null;
   failureReason: MediaFailureReason | null;
   attachedAt: Date | null;
 }

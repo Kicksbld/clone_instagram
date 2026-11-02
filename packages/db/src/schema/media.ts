@@ -30,6 +30,12 @@ export const STORAGE_BUCKETS = {
   private: 'media-private',
 } as const;
 
+export interface VideoVariantPaths {
+  hls: string;
+  thumbnail: string;
+}
+export type MediaVariantPaths = ImageVariantPaths | VideoVariantPaths;
+
 export const MEDIA_KINDS = ['image', 'video'] as const;
 export const MEDIA_PURPOSES = ['post', 'story', 'avatar', 'message', 'instant'] as const;
 export const MEDIA_STATUSES = [
@@ -41,6 +47,8 @@ export const MEDIA_STATUSES = [
 ] as const;
 export const MEDIA_FAILURE_REASONS = [
   'invalid_image',
+  'invalid_video',
+  'video_too_long',
   'file_too_large',
   'processing_error',
 ] as const;
@@ -70,7 +78,7 @@ export const media = pgTable(
     width: integer('width'),
     height: integer('height'),
     durationMs: integer('duration_ms'),
-    variants: jsonb('variants').$type<ImageVariantPaths>(),
+    variants: jsonb('variants').$type<MediaVariantPaths>(),
     failureReason: text('failure_reason', { enum: MEDIA_FAILURE_REASONS }),
     createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
     processedAt: timestamp('processed_at', { withTimezone: true, precision: 3 }),
@@ -97,7 +105,7 @@ export const media = pgTable(
     ),
     check(
       'media_failure_reason',
-      sql`${table.failureReason} IS NULL OR (${table.status} = 'failed' AND ${table.failureReason} IN ('invalid_image', 'file_too_large', 'processing_error'))`,
+      sql`${table.failureReason} IS NULL OR (${table.status} = 'failed' AND ${table.failureReason} IN ('invalid_image', 'file_too_large', 'processing_error', 'invalid_video', 'video_too_long'))`,
     ),
     check('media_size_positive', sql`${table.sizeBytes} > 0`),
     check(

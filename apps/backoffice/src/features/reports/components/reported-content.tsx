@@ -22,8 +22,8 @@ export function ReportedContent({ report }: { report: AdminReportDetail }) {
             {post.media.map((item) => (
               // eslint-disable-next-line @next/next/no-img-element -- variantes déjà redimensionnées par le worker, hôte Storage différent selon l'environnement (ADR-009)
               <img
-                key={item.variants.medium}
-                src={item.variants.medium}
+                key={'medium' in item.variants ? item.variants.medium : item.variants.thumbnail}
+                src={'medium' in item.variants ? item.variants.medium : item.variants.thumbnail}
                 alt=""
                 width={item.width}
                 height={item.height}

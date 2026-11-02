@@ -87,4 +87,20 @@ export function registerPostsRoutes(
       };
     },
   );
+  app.get<{ Params: { id: string }; Querystring: { cursor?: string } }>(
+    '/v1/users/:id/reels',
+    { schema: routeSchemaFor('listUserReels') },
+    async (request): Promise<components['schemas']['PostPage']> => {
+      const page = await useCases.listUserPosts.execute({
+        viewerId: authenticatedUserId(request),
+        userId: request.params.id,
+        kind: 'reel',
+        after: parseCursor(request.query.cursor),
+      });
+      return {
+        items: page.items.map(toPost),
+        ...(page.next && { nextCursor: encodeCursor(page.next) }),
+      };
+    },
+  );
 }

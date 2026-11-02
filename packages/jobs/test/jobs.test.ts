@@ -13,8 +13,8 @@ import {
 } from '../src/index.ts';
 
 describe('contrat des jobs', () => {
-  it('déclare les files media et maintenance', () => {
-    expect(Object.values(QUEUE_NAMES)).toEqual(['media', 'maintenance']);
+  it('déclare les files media, media-video et maintenance', () => {
+    expect(Object.values(QUEUE_NAMES)).toEqual(['media', 'media-video', 'maintenance']);
   });
 
   it('impose 3 tentatives avec un délai croissant', () => {

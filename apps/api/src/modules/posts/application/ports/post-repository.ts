@@ -30,6 +30,7 @@ export interface PostRepository {
 }
 
 export interface AuthorPostsQuery {
+  kind?: PostKind;
   /** Appelant, pour `viewerHasLiked`. */
   viewerId: string;
   authorId: string;

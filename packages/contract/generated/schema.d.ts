@@ -418,6 +418,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/users/{id}/reels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reels d'un utilisateur
+         * @description Reels non supprimés de cet utilisateur, du plus récent au plus ancien, par pages de 12 (grille du profil). Réservé à qui peut voir ses contenus (compte public, soi-même ou abonné) ; sinon `404 user_not_found` (ADR-006).
+         */
+        get: operations["listUserReels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/posts": {
         parameters: {
             query?: never;
@@ -430,7 +450,7 @@ export interface paths {
         /**
          * Publier un post
          * @description Crée un post à partir de médias `ready`, à moi, de `purpose` `post`, jamais utilisés (ADR-008) ; ils sont rattachés au post dans l'ordre de `mediaIds`.
-         *     De 1 à 10 images (carrousel) ; les reels arrivent en P1. Limité à 20 posts par heure (`429 rate_limited`).
+         *     De 1 à 10 images (carrousel), ou exactement une vidéo prête pour un reel. Un média de type incompatible renvoie `422 media_kind_mismatch`. Limité à 20 posts par heure (`429 rate_limited`).
          */
         post: operations["createPost"];
         delete?: never;
@@ -675,7 +695,7 @@ export interface paths {
          * Demander une intention d'upload
          * @description Crée le média en `pending_upload` et renvoie une URL d'upload présignée (ADR-008).
          *     Le fichier est envoyé directement à `uploadUrl` par un `PUT` du contenu brut, avec le `Content-Type` déclaré, avant `expiresAt` ;
-         *     l'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus, pour une photo de profil (`avatar`) ou un post (`post`).
+         *     l'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus pour `avatar` ou `post` ; vidéo MP4 de 50 Mo au plus pour `post`.
          *     Limité à 30 demandes par heure (`429 rate_limited`, ADR-005).
          */
         post: operations["requestMediaUpload"];
@@ -954,7 +974,7 @@ export interface components {
             data: {
                 /** Format: uuid */
                 mediaId: string;
-                variants: components["schemas"]["ImageVariants"];
+                variants: components["schemas"]["ImageVariants"] | components["schemas"]["VideoVariants"];
             };
         };
         MediaFailed: {
@@ -1135,11 +1155,18 @@ export interface components {
              */
             large: string;
         };
+        /** @description URL publiques de la playlist HLS maître et de la miniature WebP. */
+        VideoVariants: {
+            /** Format: uri */
+            hls: string;
+            /** Format: uri */
+            thumbnail: string;
+        };
         /**
-         * @description `video` arrive avec les reels (P1).
+         * @description Image ou vidéo MP4 de reel.
          * @enum {string}
          */
-        MediaKind: "image";
+        MediaKind: "image" | "video";
         /**
          * @description Usage prévu du média ; il ne peut être rattaché qu'à cet usage (ADR-008).
          * @enum {string}
@@ -1152,16 +1179,18 @@ export interface components {
         MediaStatus: "pending_upload" | "uploaded" | "processing" | "ready" | "failed";
         /**
          * @description - `invalid_image` : le fichier n'est pas une image JPEG ou PNG ;
-         *     - `file_too_large` : plus de 20 Mo ;
+         *     - `file_too_large` : plus de 20 Mo (image) ou 50 Mo (vidéo) ;
          *     - `processing_error` : échec du traitement après ses tentatives.
+         *     - `invalid_video` : fichier illisible ou sans flux vidéo ;
+         *     - `video_too_long` : durée supérieure à 60,5 secondes.
          * @enum {string}
          */
-        MediaFailureReason: "invalid_image" | "file_too_large" | "processing_error";
+        MediaFailureReason: "invalid_image" | "file_too_large" | "processing_error" | "invalid_video" | "video_too_long";
         MediaUploadRequest: {
             kind: components["schemas"]["MediaKind"];
             purpose: components["schemas"]["MediaPurpose"];
             /** @enum {string} */
-            mimeType: "image/jpeg" | "image/png";
+            mimeType: "image/jpeg" | "image/png" | "video/mp4";
             /** @description Taille déclarée du fichier ; le worker revérifie le fichier réel. */
             sizeBytes: number;
         };
@@ -1184,15 +1213,15 @@ export interface components {
             purpose: components["schemas"]["MediaPurpose"];
             status: components["schemas"]["MediaStatus"];
             /** @description Présentes quand le média est `ready`. */
-            variants?: components["schemas"]["ImageVariants"];
+            variants?: components["schemas"]["ImageVariants"] | components["schemas"]["VideoVariants"];
             /** @description Présent quand le média est `failed`. */
             failureReason?: components["schemas"]["MediaFailureReason"];
         };
         /**
-         * @description `reel` arrive en P1.
+         * @description Post photo ou reel vidéo.
          * @enum {string}
          */
-        PostKind: "post";
+        PostKind: "post" | "reel";
         /** @description Légende, 2 200 caractères au plus ; chaîne vide si aucune légende. */
         Caption: string;
         CreatePostRequest: {
@@ -1209,11 +1238,13 @@ export interface components {
             /** @description Photo de profil ; absente si aucune photo. */
             avatar?: components["schemas"]["ImageVariants"];
         };
-        /** @description Une image d'un post ; `width` et `height` (en pixels) donnent son ratio d'affichage. */
+        /** @description Un média de post ; `width` et `height` (en pixels) donnent son ratio d'affichage. */
         PostMedia: {
-            variants: components["schemas"]["ImageVariants"];
+            variants: components["schemas"]["ImageVariants"] | components["schemas"]["VideoVariants"];
             width: number;
             height: number;
+            /** @description Durée du reel en millisecondes ; absente pour une image. */
+            durationMs?: number;
         };
         Post: {
             /** Format: uuid */
@@ -2325,6 +2356,35 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Une page de posts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["UserNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listUserReels: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de reels. */
             200: {
                 headers: {
                     [name: string]: unknown;

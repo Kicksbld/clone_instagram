@@ -30,7 +30,7 @@ protocol MediaUploading: Sendable {
     /// Intention d'upload → envoi du fichier préparé → `complete` ; renvoie l'identifiant du média.
     func send(_ image: PreparedImage, purpose: MediaPurpose) async throws(UploadError) -> String
     /// Attend que le worker ait traité le média (`ready`), ou lève le refus.
-    func waitUntilProcessed(mediaId: String) async throws(UploadError)
+    func waitUntilProcessed(mediaId: String, isVideo: Bool) async throws(UploadError)
 }
 
 /**
@@ -66,7 +66,8 @@ struct UploadManager: UploadService, MediaUploading {
     }
 
     func send(_ image: PreparedImage, purpose: MediaPurpose) async throws(UploadError) -> String {
-        guard image.sizeBytes <= Self.maxSizeBytes else { throw .rejected(.fileTooLarge) }
+        guard image.sizeBytes <= (image.mimeType == "video/mp4" ? 50 * 1024 * 1024 : Self.maxSizeBytes)
+        else { throw .rejected(.fileTooLarge) }
         do {
             let intent = try await media.requestUpload(purpose: purpose, mimeType: image.mimeType, sizeBytes: image.sizeBytes)
             do {
@@ -86,21 +87,21 @@ struct UploadManager: UploadService, MediaUploading {
     }
 
     /// Attend le temps réel ; REST rattrape les événements perdus (ADR-022).
-    func waitUntilProcessed(mediaId: String) async throws(UploadError) {
+    func waitUntilProcessed(mediaId: String, isVideo: Bool) async throws(UploadError) {
         if let processingEvents {
-            try await waitForEvents(mediaId: mediaId, events: processingEvents)
+            try await waitForEvents(mediaId: mediaId, events: processingEvents, isVideo: isVideo)
             return
         }
         var waited = Duration.zero
         do {
             while true {
                 switch try await media.fetchStatus(mediaId: mediaId) {
-                case .ready:
+                case .ready, .videoReady:
                     return
                 case let .failed(reason):
                     throw UploadError.rejected(reason)
                 case .pendingUpload, .uploaded, .processing:
-                    guard waited < timeout else { throw UploadError.timedOut }
+                    guard waited < (isVideo ? .seconds(600) : timeout) else { throw UploadError.timedOut }
                     try await sleep(pollInterval)
                     waited += pollInterval
                 }
@@ -114,9 +115,9 @@ struct UploadManager: UploadService, MediaUploading {
         }
     }
 
-    private func waitForEvents(mediaId: String, events: MediaProcessingEvents) async throws(UploadError) {
+    private func waitForEvents(mediaId: String, events: MediaProcessingEvents, isVideo: Bool) async throws(UploadError) {
         // Register before the initial read so a completion during that request cannot be lost.
-        let subscription = events.signals(mediaId: mediaId)
+        let subscription = events.signals(mediaId: mediaId, initialDelay: isVideo ? .seconds(120) : .seconds(20))
         defer { events.stop(subscription.id) }
         do {
             var status: MediaStatus = .processing
@@ -126,7 +127,7 @@ struct UploadManager: UploadService, MediaUploading {
                 // Offline: keep waiting; foreground, reconnection or the timer will retry.
             }
             switch status {
-            case .ready: return
+            case .ready, .videoReady: return
             case let .failed(reason): throw UploadError.rejected(reason)
             default: break
             }
@@ -144,7 +145,7 @@ struct UploadManager: UploadService, MediaUploading {
                     }
                 }
                 switch status {
-                case .ready: return
+                case .ready, .videoReady: return
                 case let .failed(reason): throw UploadError.rejected(reason)
                 default: break
                 }
@@ -174,9 +175,11 @@ extension UploadError {
     static func message(for error: UploadError) -> String {
         switch error {
         case .unreadableImage: "Cette photo n'a pas pu être lue. Choisissez-en une autre."
+        case .rejected(.invalidVideo): "Cette vidéo est illisible. Choisissez-en une autre."
+        case .rejected(.videoTooLong): "La vidéo dépasse 60 secondes. Choisissez-en une autre."
         case .rejected(.invalidImage): "Ce fichier n'est pas une photo valide. Choisissez-en une autre."
-        case .rejected(.fileTooLarge): "Cette photo est trop lourde. Choisissez-en une autre."
-        case .rejected(.processingError): "La photo n'a pas pu être traitée. Réessayez."
+        case .rejected(.fileTooLarge): "Ce fichier est trop lourd. Choisissez-en une autre."
+        case .rejected(.processingError): "Le fichier n'a pas pu être traité. Réessayez."
         case .transferFailed: "L'envoi de la photo a échoué. Vérifiez votre connexion et réessayez."
         case .timedOut: "Le traitement de la photo prend trop de temps. Réessayez."
         case .unreachable: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
@@ -184,5 +187,11 @@ extension UploadError {
         case .rateLimited: "Trop de photos envoyées. Réessayez plus tard."
         case .unexpected: "Une erreur est survenue. Réessayez."
         }
+    }
+}
+
+extension MediaUploading {
+    func waitUntilProcessed(mediaId: String) async throws(UploadError) {
+        try await waitUntilProcessed(mediaId: mediaId, isVideo: false)
     }
 }

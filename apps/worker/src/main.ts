@@ -3,16 +3,17 @@ import { createDatabase } from '@clone/db';
 import {
   DEFAULT_JOB_OPTIONS,
   PROCESS_IMAGE,
+  PROCESS_VIDEO,
   PURGE_ACCOUNT,
   PURGE_CONTENT_FILES,
   PURGE_ORPHAN_MEDIA,
   QUEUE_NAMES,
 } from '@clone/jobs';
-import { StorageClient } from '@supabase/storage-js';
 import { Queue, Worker } from 'bullmq';
 import { pino } from 'pino';
 
 import { loadConfig } from './config.ts';
+import { processVideo } from './jobs/process-video.ts';
 import { processImage } from './jobs/process-image.ts';
 import { purgeAccount } from './jobs/purge-account.ts';
 import { purgeContentFiles } from './jobs/purge-content-files.ts';
@@ -24,12 +25,10 @@ import { SupabaseWorkerStorage } from './storage.ts';
 const config = loadConfig(process.env);
 const logger = pino({ level: config.LOG_LEVEL });
 const database = createDatabase(config.DATABASE_URL);
-const storage = new SupabaseWorkerStorage(
-  new StorageClient(new URL('/storage/v1', config.SUPABASE_URL).toString(), {
-    apikey: config.SUPABASE_SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${config.SUPABASE_SERVICE_ROLE_KEY}`,
-  }),
-);
+const storage = new SupabaseWorkerStorage(new URL('/storage/v1', config.SUPABASE_URL).toString(), {
+  apikey: config.SUPABASE_SERVICE_ROLE_KEY,
+  Authorization: `Bearer ${config.SUPABASE_SERVICE_ROLE_KEY}`,
+});
 
 // `maxRetriesPerRequest: null` est exigé par BullMQ pour les connexions bloquantes des workers.
 // `family: 0` : résolution IPv4 et IPv6 (le réseau privé Railway est en IPv6).
@@ -50,6 +49,7 @@ const persons =
 const processor = createProcessor(
   new Map([
     [PROCESS_IMAGE.name, processImage(dependencies)],
+    [PROCESS_VIDEO.name, processVideo(dependencies)],
     [PURGE_ORPHAN_MEDIA.name, purgeOrphanMedia(dependencies)],
     [PURGE_ACCOUNT.name, purgeAccount({ ...dependencies, customers, persons })],
     [PURGE_CONTENT_FILES.name, purgeContentFiles(dependencies)],
@@ -58,7 +58,7 @@ const processor = createProcessor(
 const queueNames = Object.values(QUEUE_NAMES);
 
 const workers = queueNames.map((queueName) => {
-  const worker = new Worker(queueName, processor, { connection });
+  const worker = new Worker(queueName, processor, { connection, concurrency: 1 });
   worker.on('failed', (job, error) => {
     logger.error(
       { queue: queueName, jobId: job?.id, jobName: job?.name, err: error },

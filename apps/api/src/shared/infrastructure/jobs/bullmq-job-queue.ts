@@ -1,6 +1,8 @@
 import {
   DEFAULT_JOB_OPTIONS,
   PROCESS_IMAGE,
+  PROCESS_VIDEO,
+  processVideoJobId,
   processImageJobId,
   PURGE_ACCOUNT,
   purgeAccountJobId,
@@ -13,14 +15,23 @@ import type { JobQueue } from '../../application/job-queue.ts';
 
 /** Adapter BullMQ du port `JobQueue` (ADR-015) : payloads validés par leur schéma avant l'envoi. */
 export class BullMqJobQueue implements JobQueue {
+  private readonly video: Queue;
   private readonly media: Queue;
   private readonly maintenance: Queue;
 
   constructor(redisUrl: string) {
     // `family: 0` : Redis joignable en IPv4 ou IPv6 (réseau privé Railway, ADR-009).
     const connection = { url: redisUrl, family: 0 };
+    this.video = new Queue(PROCESS_VIDEO.queue, { connection });
     this.media = new Queue(PROCESS_IMAGE.queue, { connection });
     this.maintenance = new Queue(PURGE_ACCOUNT.queue, { connection });
+  }
+
+  async enqueueVideoProcessing(mediaId: string): Promise<void> {
+    await this.video.add(PROCESS_VIDEO.name, PROCESS_VIDEO.payload.parse({ mediaId }), {
+      ...DEFAULT_JOB_OPTIONS,
+      jobId: processVideoJobId(mediaId),
+    });
   }
 
   async enqueueImageProcessing(mediaId: string): Promise<void> {
@@ -49,6 +60,6 @@ export class BullMqJobQueue implements JobQueue {
   }
 
   async close(): Promise<void> {
-    await Promise.all([this.media.close(), this.maintenance.close()]);
+    await Promise.all([this.video.close(), this.media.close(), this.maintenance.close()]);
   }
 }

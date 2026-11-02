@@ -4,7 +4,7 @@ import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import type { Database, Executor } from './client.ts';
 import {
   media,
-  type ImageVariantPaths,
+  type MediaVariantPaths,
   type MediaFailureReason,
   type MediaPurpose,
   type MediaRow,
@@ -55,13 +55,14 @@ export function markProcessing(db: Executor, id: string): Promise<boolean> {
 export function markReady(
   db: Executor,
   id: string,
-  result: { variants: ImageVariantPaths; width: number; height: number },
+  result: { variants: MediaVariantPaths; width: number; height: number; durationMs?: number },
 ): Promise<boolean> {
   return transition(db, id, 'processing', {
     status: 'ready',
     variants: result.variants,
     width: result.width,
     height: result.height,
+    durationMs: result.durationMs ?? null,
     processedAt: sql`now()`,
   });
 }
@@ -123,7 +124,7 @@ function purgeable(): SQL | undefined {
 export interface PurgeableMedia {
   id: string;
   originalPath: string;
-  variants: ImageVariantPaths | null;
+  variants: MediaVariantPaths | null;
 }
 
 /** Médias à purger (`purge-orphan-media`), les plus anciens d'abord. */
@@ -146,14 +147,15 @@ export async function deletePurgeableMedia(db: Executor, id: string): Promise<bo
 }
 
 export interface OwnerMediaFiles {
+  id: string;
   originalPath: string;
-  variants: ImageVariantPaths | null;
+  variants: MediaVariantPaths | null;
 }
 
 /** Fichiers de tous les médias d'un propriétaire, quel que soit leur état (`purge-account`, T13). */
 export function listOwnerMediaFiles(db: Executor, ownerId: string): Promise<OwnerMediaFiles[]> {
   return db
-    .select({ originalPath: media.originalPath, variants: media.variants })
+    .select({ id: media.id, originalPath: media.originalPath, variants: media.variants })
     .from(media)
     .where(eq(media.ownerId, ownerId));
 }

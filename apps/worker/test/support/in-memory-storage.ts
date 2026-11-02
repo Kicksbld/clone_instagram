@@ -2,6 +2,9 @@ import type { WorkerStorage } from '../../src/storage.ts';
 
 /** Storage en mémoire : fichiers indexés par `bucket/chemin`. */
 export class InMemoryStorage implements WorkerStorage {
+  withSignal(): WorkerStorage {
+    return this;
+  }
   readonly files = new Map<string, { data: Buffer; contentType: string }>();
   /** Nombre d'écritures, pour vérifier qu'un job rejoué ne duplique rien. */
   uploads = 0;
@@ -17,6 +20,12 @@ export class InMemoryStorage implements WorkerStorage {
 
   get(bucket: string, path: string): Buffer | undefined {
     return this.files.get(`${bucket}/${path}`)?.data;
+  }
+
+  removeDirectory(bucket: string, prefix: string): Promise<void> {
+    for (const path of this.files.keys())
+      if (path.startsWith(`${bucket}/${prefix}/`)) this.files.delete(path);
+    return Promise.resolve();
   }
 
   download(bucket: string, path: string): Promise<Buffer | null> {

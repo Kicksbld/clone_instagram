@@ -9,6 +9,9 @@ export {
 } from './maintenance.ts';
 export {
   PROCESS_IMAGE,
+  PROCESS_VIDEO,
+  processVideoJobId,
+  type ProcessVideoResult,
   processImageJobId,
   type ProcessImagePayload,
   type ProcessImageResult,

@@ -180,7 +180,7 @@ struct UnavailableUploadService: UploadService, MediaUploading {
         throw .unreachable
     }
 
-    func waitUntilProcessed(mediaId _: String) async throws(UploadError) {
+    func waitUntilProcessed(mediaId _: String, isVideo _: Bool) async throws(UploadError) {
         throw .unreachable
     }
 }

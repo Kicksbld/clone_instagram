@@ -7,6 +7,8 @@ import SwiftUI
  */
 struct CreatePostView: View {
     @State private var viewModel: CreatePostViewModel
+    @State private var videoSelection: PhotosPickerItem?
+    @State private var isShowingCamera = false
     @State private var selection: PhotosPickerItem?
     @State private var multipleSelection: [PhotosPickerItem] = []
     @State private var isSelectingMultiple = false
@@ -21,15 +23,32 @@ struct CreatePostView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                cropArea
-                if viewModel.photos.count > 1 {
-                    SelectedPhotosStrip(viewModel: viewModel)
+                Picker("Type de publication", selection: Binding(get: { viewModel.isReel }, set: { viewModel.isReel = $0 })) {
+                    Text("Post").tag(false)
+                    Text("Reel").tag(true)
+                }.pickerStyle(.segmented).padding()
+                if viewModel.isReel {
+                    VStack(spacing: 16) {
+                        if viewModel.isLoadingVideo {
+                            ProgressView("Chargement de la vidéo…")
+                        }
+                        Text(viewModel.videoURL == nil ? "Choisissez ou filmez une vidéo de 60 secondes au plus." : "Vidéo sélectionnée")
+                        PhotosPicker("Choisir une vidéo", selection: $videoSelection, matching: .videos)
+                        if SystemVideoCamera.isAvailable {
+                            Button("Filmer une vidéo") { isShowingCamera = true }
+                        }
+                    }.padding().frame(maxHeight: .infinity)
+                } else {
+                    cropArea
+                    if viewModel.photos.count > 1 {
+                        SelectedPhotosStrip(viewModel: viewModel)
+                    }
+                    pickerHeader
+                    picker
+                        .photosPickerStyle(.inline)
+                        .photosPickerDisabledCapabilities(.selectionActions)
+                        .photosPickerAccessoryVisibility(.hidden, edges: .all)
                 }
-                pickerHeader
-                picker
-                    .photosPickerStyle(.inline)
-                    .photosPickerDisabledCapabilities(.selectionActions)
-                    .photosPickerAccessoryVisibility(.hidden, edges: .all)
             }
             .navigationTitle("Nouvelle publication")
             .navigationBarTitleDisplayMode(.inline)
@@ -44,6 +63,20 @@ struct CreatePostView: View {
             }
             .navigationDestination(isPresented: $isShowingCaption) {
                 CaptionView(viewModel: viewModel, onShared: onClose)
+            }
+            .sheet(isPresented: $isShowingCamera) {
+                SystemVideoCamera { url in
+                    isShowingCamera = false
+                    if let url {
+                        viewModel.selectVideo(url)
+                    }
+                }
+            }
+            .onChange(of: videoSelection) { _, item in
+                guard let item else { return }
+                Task {
+                    await viewModel.loadVideo { try await item.loadTransferable(type: SelectedVideo.self)?.url }
+                }
             }
             .task { await preselectLatestPhoto() }
             .onChange(of: selection) { _, item in
@@ -297,8 +330,13 @@ private struct CaptionView: View {
         @Bindable var viewModel = viewModel
         Form {
             Section {
-                previews
-                    .listRowInsets(EdgeInsets())
+                Group {
+                    if viewModel.isReel {
+                        Text("Reel · 60 secondes au plus")
+                    } else {
+                        previews
+                    }
+                }.listRowInsets(EdgeInsets())
                 TextField("Ajouter une légende…", text: $viewModel.caption, axis: .vertical)
                     .lineLimit(3 ... 12)
             }

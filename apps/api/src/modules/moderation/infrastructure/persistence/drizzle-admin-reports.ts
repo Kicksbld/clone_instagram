@@ -1,3 +1,4 @@
+import { previewVariants } from '../../../../shared/domain/image-variants.ts';
 import { comments, media, postMedia, posts, profiles, reports, type Executor } from '@clone/db';
 import {
   aliasedTable,
@@ -235,10 +236,15 @@ export class DrizzleAdminReportReader implements AdminReportReader {
       caption: row.caption,
       createdAt: row.createdAt,
       removed: row.deletedAt !== null,
-      author: { id: row.authorId, username: row.username, avatarVariants: row.avatarVariants },
-      media: mediaRows.flatMap(({ variants, width, height }) =>
-        variants && width !== null && height !== null ? [{ variants, width, height }] : [],
-      ),
+      author: {
+        id: row.authorId,
+        username: row.username,
+        avatarVariants: previewVariants(row.avatarVariants),
+      },
+      media: mediaRows.flatMap(({ variants: paths, width, height }) => {
+        const variants = previewVariants(paths);
+        return variants && width !== null && height !== null ? [{ variants, width, height }] : [];
+      }),
     };
   }
 
@@ -269,7 +275,11 @@ export class DrizzleAdminReportReader implements AdminReportReader {
       createdAt: row.createdAt,
       // Un commentaire d'un post supprimé n'est plus visible nulle part.
       removed: row.deletedAt !== null || row.postDeletedAt !== null,
-      author: { id: row.authorId, username: row.username, avatarVariants: row.avatarVariants },
+      author: {
+        id: row.authorId,
+        username: row.username,
+        avatarVariants: previewVariants(row.avatarVariants),
+      },
     };
   }
 }

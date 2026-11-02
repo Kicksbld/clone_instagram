@@ -129,9 +129,9 @@ describe('CreatePost sur Postgres', () => {
       mediaIds: photos,
     });
 
-    expect(post.media.map((item) => item.variants.large)).toEqual(
-      photos.map((id) => `${id}/large.webp`),
-    );
+    expect(
+      post.media.map((item) => ('large' in item.variants ? item.variants.large : undefined)),
+    ).toEqual(photos.map((id) => `${id}/large.webp`));
   });
 
   it('média déjà utilisé : refus, rien n’est écrit', async () => {

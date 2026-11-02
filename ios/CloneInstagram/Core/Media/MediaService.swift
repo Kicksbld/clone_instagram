@@ -11,6 +11,8 @@ nonisolated enum MediaPurpose: Equatable {
 /// Motif d'échec du traitement d'un média par le worker.
 nonisolated enum MediaFailureReason: Equatable {
     /// Le fichier n'est pas une image JPEG ou PNG.
+    case invalidVideo
+    case videoTooLong
     case invalidImage
     /// Plus de 20 Mo.
     case fileTooLarge
@@ -24,6 +26,7 @@ nonisolated enum MediaStatus: Equatable {
     case uploaded
     case processing
     case ready(ImageVariants)
+    case videoReady
     case failed(MediaFailureReason)
 }
 
@@ -69,7 +72,7 @@ struct APIMediaService: MediaService {
             throw .invalidInput
         }
         let body = Components.Schemas.MediaUploadRequest(
-            kind: .image,
+            kind: mimeType == .videoMp4 ? .video : .image,
             purpose: Components.Schemas.MediaPurpose(purpose),
             mimeType: mimeType,
             sizeBytes: sizeBytes
@@ -182,7 +185,11 @@ private extension MediaStatus {
         case .processing:
             self = .processing
         case .ready:
-            guard let variants = dto.variants.flatMap(ImageVariants.init) else {
+            if let variants = dto.variants, case .VideoVariants = variants {
+                self = .videoReady
+                return
+            }
+            guard let payload = dto.variants, case let .ImageVariants(image) = payload, let variants = ImageVariants(image) else {
                 throw .unexpectedResponse(statusCode: 200)
             }
             self = .ready(variants)
@@ -195,6 +202,8 @@ private extension MediaStatus {
 private extension MediaFailureReason {
     init(_ reason: Components.Schemas.MediaFailureReason?) {
         switch reason {
+        case .invalidVideo: self = .invalidVideo
+        case .videoTooLong: self = .videoTooLong
         case .invalidImage: self = .invalidImage
         case .fileTooLarge: self = .fileTooLarge
         case .processingError, nil: self = .processingError

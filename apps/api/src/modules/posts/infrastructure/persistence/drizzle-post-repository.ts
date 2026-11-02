@@ -83,12 +83,22 @@ export class DrizzlePostReader implements PostReader {
     return post ?? null;
   }
 
-  async listByAuthor({ viewerId, authorId, after, limit }: AuthorPostsQuery): Promise<Page<Post>> {
+  async listByAuthor({
+    viewerId,
+    authorId,
+    after,
+    limit,
+    kind,
+  }: AuthorPostsQuery): Promise<Page<Post>> {
     // Une ligne de plus pour savoir s'il existe une page suivante.
     const rows = await selectPosts(
       this.db,
       viewerId,
-      and(eq(posts.authorId, authorId), postsBefore(after)),
+      and(
+        eq(posts.authorId, authorId),
+        kind ? eq(posts.kind, kind) : undefined,
+        postsBefore(after),
+      ),
       limit + 1,
     );
     return pageOf(rows, limit);
@@ -154,6 +164,7 @@ export async function selectPosts(
       variants: media.variants,
       width: media.width,
       height: media.height,
+      durationMs: media.durationMs,
     })
     .from(postMedia)
     .innerJoin(media, eq(media.id, postMedia.mediaId))
@@ -172,7 +183,12 @@ export async function selectPosts(
       throw new Error(`Média de post incomplet (post ${row.postId})`);
     }
     const items = mediaByPost.get(row.postId) ?? [];
-    items.push({ variants: row.variants, width: row.width, height: row.height });
+    items.push({
+      variants: row.variants,
+      width: row.width,
+      height: row.height,
+      ...(row.durationMs !== null && { durationMs: row.durationMs }),
+    });
     mediaByPost.set(row.postId, items);
   }
 
@@ -189,7 +205,8 @@ export async function selectPosts(
       username: row.username,
       status: row.status,
       isPrivate: row.isPrivate,
-      avatarVariants: row.avatarVariants,
+      avatarVariants:
+        row.avatarVariants && 'thumb' in row.avatarVariants ? row.avatarVariants : null,
     },
     media: mediaByPost.get(row.id) ?? [],
   }));

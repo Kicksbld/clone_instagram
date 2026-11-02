@@ -35,10 +35,7 @@ export function purgeOrphanMedia({
       const candidates = await findPurgeableMedia(db, BATCH_SIZE);
       for (const media of candidates) {
         await storage.remove(STORAGE_BUCKETS.uploads, [media.originalPath]);
-        if (media.variants) {
-          const { thumb, medium, large } = media.variants;
-          await storage.remove(STORAGE_BUCKETS.public, [thumb, medium, large]);
-        }
+        await storage.removeDirectory(STORAGE_BUCKETS.public, media.id);
         if (await deletePurgeableMedia(db, media.id)) purged++;
       }
       if (candidates.length < BATCH_SIZE) break;

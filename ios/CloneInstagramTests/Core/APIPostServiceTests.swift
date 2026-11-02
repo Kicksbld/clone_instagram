@@ -10,6 +10,20 @@ struct APIPostServiceTests {
     "width":1080,"height":1440}],"likeCount":3,"viewerHasLiked":true,"commentCount":4,"createdAt":"2026-09-25T12:00:00.000Z"}
     """
 
+    @Test func `reel converti avec HLS et durée`() async throws {
+        let body = Self.postJSON.replacingOccurrences(of: "\"kind\":\"post\"", with: "\"kind\":\"reel\"")
+            .replacingOccurrences(
+                of: "\"thumb\":\"http://s/t.webp\",\"medium\":\"http://s/m.webp\",\"large\":\"http://s/l.webp\"",
+                with: "\"hls\":\"http://s/master.m3u8\",\"thumbnail\":\"http://s/t.webp\""
+            )
+            .replacingOccurrences(of: "\"width\":1080", with: "\"durationMs\":20000,\"width\":1080")
+        let service = try makeService(json(body))
+        let post = try await service.fetchPost(id: "reel")
+        #expect(post.kind == .reel)
+        #expect(post.media.first?.hls == URL(string: "http://s/master.m3u8"))
+        #expect(post.media.first?.durationMs == 20000)
+    }
+
     private func makeService(_ reply: StubTransport.Reply) throws -> APIPostService {
         let configuration = try APIConfiguration(rawBaseURL: "http://localhost:3000")
         return APIPostService(

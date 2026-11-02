@@ -7,3 +7,19 @@ export interface ImageVariantPaths {
   medium: string;
   large: string;
 }
+
+export interface VideoVariantPaths {
+  hls: string;
+  thumbnail: string;
+}
+export type MediaVariantPaths = ImageVariantPaths | VideoVariantPaths;
+
+/** Static preview used by activity and moderation before their video viewers arrive. */
+export function previewVariants(
+  paths: MediaVariantPaths | null | undefined,
+): ImageVariantPaths | null {
+  if (!paths) return null;
+  return 'hls' in paths
+    ? { thumb: paths.thumbnail, medium: paths.thumbnail, large: paths.thumbnail }
+    : paths;
+}

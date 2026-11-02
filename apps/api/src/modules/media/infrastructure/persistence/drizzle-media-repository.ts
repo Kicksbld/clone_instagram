@@ -22,6 +22,7 @@ function toMedia(row: MediaRow): Media {
     mimeType: row.mimeType,
     sizeBytes: row.sizeBytes,
     variants: row.variants,
+    ...(row.durationMs !== null && { durationMs: row.durationMs }),
     failureReason: row.failureReason,
     attachedAt: row.attachedAt,
   };

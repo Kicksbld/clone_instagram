@@ -1,0 +1,2 @@
+ALTER TABLE "media" DROP CONSTRAINT "media_failure_reason";--> statement-breakpoint
+ALTER TABLE "media" ADD CONSTRAINT "media_failure_reason" CHECK ("media"."failure_reason" IS NULL OR ("media"."status" = 'failed' AND "media"."failure_reason" IN ('invalid_image', 'file_too_large', 'processing_error', 'invalid_video', 'video_too_long')));

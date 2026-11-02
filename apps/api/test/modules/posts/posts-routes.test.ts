@@ -123,7 +123,7 @@ describe('POST /v1/posts', () => {
   });
 
   it.each([
-    ['un reel (P1)', { kind: 'reel', mediaIds: [PHOTO] }],
+    ['un type inconnu', { kind: 'story', mediaIds: [PHOTO] }],
     [
       '11 médias',
       {

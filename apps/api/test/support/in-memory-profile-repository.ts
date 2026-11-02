@@ -60,7 +60,10 @@ export class InMemoryProfileRepository
     const variants = avatarMediaId ? this.media?.rows.get(avatarMediaId)?.variants : null;
     return {
       ...profile,
-      avatar: avatarMediaId && variants ? { mediaId: avatarMediaId, variants } : null,
+      avatar:
+        avatarMediaId && variants && 'thumb' in variants
+          ? { mediaId: avatarMediaId, variants }
+          : null,
     };
   }
 

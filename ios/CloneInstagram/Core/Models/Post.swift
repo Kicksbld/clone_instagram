@@ -1,7 +1,10 @@
 import Foundation
 
 /// Post publié, vu par moi (ADR-006) : auteur, images dans l'ordre d'affichage, légende, likes, commentaires.
+nonisolated enum PostKind: String, Codable { case post, reel }
+
 struct Post: Equatable, Identifiable {
+    var kind: PostKind = .post
     let id: String
     let caption: String
     let author: PostAuthor
@@ -31,6 +34,9 @@ struct PostMediaItem: Equatable {
     let variants: ImageVariants
     let width: Int
     let height: Int
+
+    var hls: URL?
+    var durationMs: Int?
 
     /// Largeur / hauteur.
     var aspectRatio: Double {

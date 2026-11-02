@@ -35,7 +35,7 @@ struct EditProfileViewModelTests {
 
         await viewModel.changePhoto(Data("photo".utf8))
 
-        #expect(viewModel.errorMessage == "Cette photo est trop lourde. Choisissez-en une autre.")
+        #expect(viewModel.errorMessage == "Ce fichier est trop lourd. Choisissez-en une autre.")
         #expect(viewModel.profile.avatar == nil)
         #expect(viewModel.pendingPhoto == nil)
         #expect(updated.profiles.isEmpty)

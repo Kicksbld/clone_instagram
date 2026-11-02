@@ -32,7 +32,7 @@ function inContract<T extends string>(value: string, allowed: readonly T[]): T {
 function toMediaResponse(media: Media, urls: PublicMediaUrls): MediaResponse {
   return {
     id: media.id,
-    kind: inContract(media.kind, ['image'] as const),
+    kind: inContract(media.kind, ['image', 'video'] as const),
     purpose: inContract(media.purpose, ['avatar', 'post'] as const),
     status: media.status,
     ...(media.status === 'ready' && media.variants && { variants: urls.of(media.variants) }),

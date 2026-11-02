@@ -4,6 +4,7 @@ import SwiftUI
 /// Grille des publications d'un profil, comme Instagram : 3 colonnes, vignettes 3:4 recadrées au centre,
 /// un toucher ouvre le post. Rechargée quand `reloadToken` change (post publié ou supprimé).
 struct ProfilePostsGrid: View {
+    @State private var selectedReel: Post?
     @State private var viewModel: ProfilePostsViewModel
     var reloadToken = 0
 
@@ -17,6 +18,11 @@ struct ProfilePostsGrid: View {
     var body: some View {
         content
             .task(id: reloadToken) { await viewModel.load() }
+            .fullScreenCover(item: $selectedReel) { post in
+                if let media = post.cover {
+                    ReelPlayerView(media: media)
+                }
+            }
     }
 
     @ViewBuilder
@@ -46,8 +52,14 @@ struct ProfilePostsGrid: View {
     private var grid: some View {
         LazyVGrid(columns: columns, spacing: 1) {
             ForEach(viewModel.posts) { post in
-                NavigationLink(value: PostRoute(postId: post.id)) {
-                    PostThumbnail(media: post.cover, isCarousel: post.media.count > 1)
+                Group {
+                    if post.kind == .reel {
+                        Button { selectedReel = post } label: { PostThumbnail(media: post.cover, isCarousel: false) }
+                    } else {
+                        NavigationLink(value: PostRoute(postId: post.id)) {
+                            PostThumbnail(media: post.cover, isCarousel: post.media.count > 1)
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(post.caption.isEmpty ? "Publication" : post.caption)
@@ -106,5 +118,32 @@ private struct PostThumbnail: View {
                         .accessibilityHidden(true)
                 }
             }
+    }
+}
+
+struct ProfileContentTabs: View {
+    let posts: ProfilePostsViewModel
+    var reloadToken = 0
+    @State private var reels: ProfilePostsViewModel
+    @State private var showingReels = false
+
+    init(viewModel: ProfilePostsViewModel, reloadToken: Int = 0) {
+        posts = viewModel
+        self.reloadToken = reloadToken
+        _reels = State(initialValue: viewModel.reelsGrid())
+    }
+
+    var body: some View {
+        VStack {
+            Picker("Publications du profil", selection: $showingReels) {
+                Label("Posts", systemImage: "square.grid.3x3").tag(false)
+                Label("Reels", systemImage: "play.rectangle").tag(true)
+            }.pickerStyle(.segmented).padding(.horizontal)
+            if showingReels {
+                ProfilePostsGrid(viewModel: reels, reloadToken: reloadToken)
+            } else {
+                ProfilePostsGrid(viewModel: posts, reloadToken: reloadToken)
+            }
+        }
     }
 }

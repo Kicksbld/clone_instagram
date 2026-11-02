@@ -23,7 +23,7 @@ struct MyProfileView<EditProfile: View, Settings: View>: View {
         ScrollView {
             VStack(spacing: 16) {
                 header
-                ProfilePostsGrid(viewModel: posts, reloadToken: postsReloadToken)
+                ProfileContentTabs(viewModel: posts, reloadToken: postsReloadToken)
             }
         }
         .refreshable { await onRefresh() }
