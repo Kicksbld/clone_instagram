@@ -2,7 +2,7 @@
 
 Comment passer du cahier des charges au code, avec Claude Code, sans perdre le contrôle. Ce document est la méthode ; les plans de phase et les tranches sont des issues GitHub ([`docs/agents/issue-tracker.md`](agents/issue-tracker.md)). Règle de fond : [ADR-001](adr/ADR-001-decoupage-phases-tranches-verticales.md).
 
-La méthode s'appuie sur les skills de Matt Pocock (`/grill-with-docs`, `/to-spec`, `/to-tickets`, `/implement`, `/tdd`, `/code-review`, `/pr`, `/retro`…), configurés pour ce dépôt dans [`docs/agents/`](agents/). Leur fonctionnement est décrit dans chaque skill ; ce document dit **quand** les appeler et ce qui est propre au projet.
+La méthode s'appuie sur les skills de Matt Pocock (`/grill-with-docs`, `/to-spec`, `/to-tickets`, `/implement`, `/tdd`, `/code-review`, `/pr`, `/retro`…), versionnés dans [`.claude/skills/`](../.claude/skills/README.md) (disponibles aussi en session cloud) et configurés pour ce dépôt dans [`docs/agents/`](agents/). Leur fonctionnement est décrit dans chaque skill ; ce document dit **quand** les appeler et ce qui est propre au projet.
 
 ## 1. Les documents
 
