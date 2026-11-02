@@ -7,7 +7,7 @@ export class UnauthenticatedError extends Error {
 
 export interface TokenVerifier {
   /** Identifiant Supabase Auth de l'utilisateur ; lève `UnauthenticatedError` si le JWT est invalide. */
-  verify(token: string): Promise<{ userId: string }>;
+  verify(token: string): Promise<{ userId: string; expiresAt?: number | undefined }>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -25,6 +25,7 @@ export function createJwtVerifier(options: {
   return {
     async verify(token) {
       let subject: string | undefined;
+      let expiresAt: number | undefined;
       try {
         const { payload } = await jwtVerify(token, options.keys, {
           algorithms: ['ES256'],
@@ -33,6 +34,7 @@ export function createJwtVerifier(options: {
           requiredClaims: ['sub', 'exp'],
         });
         subject = payload.sub;
+        expiresAt = payload.exp;
       } catch (error) {
         // Clés injoignables : panne de notre côté (500), pas un jeton invalide.
         if (error instanceof errors.JOSEError && !(error instanceof errors.JWKSTimeout)) {
@@ -43,7 +45,7 @@ export function createJwtVerifier(options: {
       if (!subject || !UUID.test(subject)) {
         throw new UnauthenticatedError('Jeton d’accès sans utilisateur.');
       }
-      return { userId: subject };
+      return { userId: subject, expiresAt };
     },
   };
 }

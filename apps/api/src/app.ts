@@ -1,3 +1,4 @@
+import { RealtimeBroker, registerRealtime } from './shared/infrastructure/realtime/realtime.ts';
 import { randomUUID } from 'node:crypto';
 
 import Fastify from 'fastify';
@@ -61,6 +62,7 @@ import { registerRateLimit } from './shared/infrastructure/http/rate-limit.ts';
 
 /** Dépendances assemblées par `main.ts` (ou par les tests, avec des adapters en mémoire). */
 export interface AppDependencies {
+  realtime: RealtimeBroker;
   tokenVerifier: TokenVerifier;
   accountStatuses: AccountStatusReader;
   identity: IdentityUseCases;
@@ -108,6 +110,13 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
   registerHealthRoutes(app);
   // Avant les routes : le plugin lit leur `config.rateLimit` à leur déclaration.
   registerRateLimit(app);
+
+  registerRealtime(
+    app,
+    dependencies.tokenVerifier,
+    dependencies.accountStatuses,
+    dependencies.realtime,
+  );
 
   // Routes `/v1` : toutes authentifiées (ADR-003).
   void app.register((v1, _options, done) => {

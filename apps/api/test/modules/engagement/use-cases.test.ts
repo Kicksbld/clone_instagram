@@ -81,6 +81,28 @@ describe('LikePost', () => {
     expect(dispatcher.dispatched).toEqual([expect.objectContaining(liked)]);
   });
 
+  it('commit failure never publishes activity', async () => {
+    const likes = new InMemoryLikes(posts);
+    const scope = {
+      accounts: new InMemorySocialGraph(profiles, relationships),
+      relationships,
+      posts: likes,
+      likes,
+      notifications,
+    };
+    const failedCommit = new LikePost(
+      {
+        run: async (work) => {
+          await work(scope);
+          throw new Error('commit failed');
+        },
+      },
+      dispatcher,
+    );
+    await expect(failedCommit.execute(input)).rejects.toThrow('commit failed');
+    expect(dispatcher.dispatched).toEqual([]);
+  });
+
   it('double like : une seule notification, une seule diffusion', async () => {
     await like.execute(input);
     await like.execute(input);

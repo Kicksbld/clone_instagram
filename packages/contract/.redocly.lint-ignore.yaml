@@ -3,3 +3,9 @@
 openapi.yaml:
   operation-4xx-response:
     - '#/paths/~1health/get/responses'
+  # Un upgrade répond 101 ; les unions décrivent les messages du transport, hors corps HTTP.
+  operation-2xx-response:
+    - '#/paths/~1v1~1ws/get/responses'
+  no-unused-components:
+    - '#/components/schemas/RealtimeEvent'
+    - '#/components/schemas/RealtimeClientMessage'

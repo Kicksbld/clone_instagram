@@ -93,7 +93,8 @@ import {
 } from './shared/infrastructure/analytics/posthog-analytics-tracker.ts';
 import { createJwtVerifier, supabaseJwks } from './shared/infrastructure/auth/token-verifier.ts';
 import { loadConfig } from './shared/infrastructure/config.ts';
-import { noopNotificationDispatcher } from './shared/infrastructure/notifications/noop-notification-dispatcher.ts';
+import { RealtimeNotificationDispatcher } from './shared/infrastructure/notifications/realtime-notification-dispatcher.ts';
+import { RealtimeBroker } from './shared/infrastructure/realtime/realtime.ts';
 import { publicMediaUrls } from './shared/infrastructure/http/public-media-urls.ts';
 import { BullMqJobQueue } from './shared/infrastructure/jobs/bullmq-job-queue.ts';
 import { DrizzleAccountStatusReader } from './shared/infrastructure/persistence/drizzle-account-status-reader.ts';
@@ -120,8 +121,16 @@ const posthog = config.POSTHOG_PROJECT_API_KEY
     })
   : null;
 const analytics = posthog ?? noopAnalyticsTracker;
-// Notifications diffusées après la transaction (ADR-026) : rien en temps réel avant T19.
-const notificationDispatcher = noopNotificationDispatcher;
+const realtime = new RealtimeBroker(() => {
+  app.log.warn('Realtime publication failed');
+});
+const notificationDispatcher = new RealtimeNotificationDispatcher(
+  new DrizzleActivityReader(database.db),
+  realtime,
+  () => {
+    app.log.warn('Activity publication failed');
+  },
+);
 
 const profiles = new DrizzleProfileRepository(database.db);
 const media = new DrizzleMediaRepository(database.db);
@@ -206,6 +215,7 @@ const storage = new SupabaseMediaStorage(
 const app = buildApp({
   logLevel: config.LOG_LEVEL,
   dependencies: {
+    realtime,
     tokenVerifier: createJwtVerifier({
       issuer: config.SUPABASE_JWT_ISSUER,
       keys: supabaseJwks(config.SUPABASE_URL),
@@ -216,7 +226,7 @@ const app = buildApp({
       updateMe: new UpdateMe(profiles, avatarTransaction),
       updateSettings: new UpdateSettings(profiles),
       removeAvatar: new RemoveAvatar(avatarTransaction),
-      deleteMe: new DeleteMe(profiles, authAccounts, jobs),
+      deleteMe: new DeleteMe(profiles, authAccounts, jobs, realtime),
       completeOnboarding: new CompleteOnboarding(profiles, systemClock, analytics),
       checkUsernameAvailability: new CheckUsernameAvailability(profiles),
       getProfile: new GetProfile(profiles, relationships),
@@ -295,8 +305,15 @@ const app = buildApp({
       getAdminSession: new GetAdminSession(adminRoles),
       listUsers: new ListUsersForAdmin(adminRoles, new DrizzleAdminUserReader(database.db)),
       getUser: new GetUserForAdmin(adminRoles, profiles, new DrizzleUserReportsReader(database.db)),
-      moderateUser: new ModerateUser(adminRoles, adminTransaction),
-      deleteUser: new DeleteUserAsAdmin(adminRoles, profiles, authAccounts, adminTransaction, jobs),
+      moderateUser: new ModerateUser(adminRoles, adminTransaction, realtime),
+      deleteUser: new DeleteUserAsAdmin(
+        adminRoles,
+        profiles,
+        authAccounts,
+        adminTransaction,
+        jobs,
+        realtime,
+      ),
       getPlan,
     },
     adminReports: {

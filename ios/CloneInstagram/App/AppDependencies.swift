@@ -22,6 +22,7 @@ struct AppDependencies {
     /// Activité (notifications in-app, ADR-026) et pastille du cœur, partagée par l'accueil et l'Activité.
     let activity: any ActivityService
     let activityBadge: ActivityBadge
+    var realtime: RealtimeClient?
     /// Publications en cours, persistées (ADR-008).
     let publishQueue: PublishQueue
     /// Préchargement des photos du feed (Nuke).
@@ -52,6 +53,20 @@ struct AppDependencies {
         let posts = APIPostService(client: client)
         let social = APISocialService(client: client)
         let activity = APIActivityService(client: client)
+        let badge = ActivityBadge(service: activity)
+        var socketURL = URLComponents(url: configuration.baseURL, resolvingAgainstBaseURL: false)
+        socketURL?.scheme = configuration.baseURL.scheme == "https" ? "wss" : "ws"
+        socketURL?.path = "/v1/ws"
+        socketURL?.query = nil
+        socketURL?.fragment = nil
+        let realtime = socketURL?.url.map { url in
+            RealtimeClient(
+                makeTransport: { URLSessionRealtimeTransport(url: url) },
+                accessToken: { await auth.accessToken() },
+                badge: badge,
+                onSuspended: { suspension.report() }
+            )
+        }
         return AppDependencies(
             auth: auth,
             identity: APIIdentityService(client: client),
@@ -66,7 +81,8 @@ struct AppDependencies {
             comments: APICommentService(client: client),
             commentCounts: CommentCountStore(),
             activity: activity,
-            activityBadge: ActivityBadge(service: activity),
+            activityBadge: badge,
+            realtime: realtime,
             publishQueue: PublishQueue(
                 store: FilePendingPostStore.applicationSupport,
                 uploads: uploads,

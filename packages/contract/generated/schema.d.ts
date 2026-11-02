@@ -4,6 +4,31 @@
  */
 
 export interface paths {
+    "/v1/ws": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Connexion temps réel WebSocket (ADR-021)
+         * @description Upgrade WebSocket. Premier message RealtimeAuth obligatoire sous 5 secondes.
+         *     Seuls les messages auth sont acceptés ; renouveler avant expiration du JWT.
+         *     Réponse auth.ok puis événements RealtimeEvent, types inconnus ignorés.
+         *     Fermeture 4401 pour auth absente, invalide, expirée ou compte supprimé ;
+         *     4403 pour compte suspendu ou banni. Ping toutes les 30 secondes, sans pong fermeture.
+         *     Aucun jeton dans l'URL. REST reste la source de vérité.
+         */
+        get: operations["connectRealtime"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -811,6 +836,33 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        RealtimeAuth: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "auth";
+            token: string;
+        };
+        RealtimeAuthOK: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "auth.ok";
+        };
+        ActivityCreated: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "activity.created";
+            data: {
+                unreadCount: number;
+            };
+        };
+        RealtimeEvent: components["schemas"]["RealtimeAuthOK"] | components["schemas"]["ActivityCreated"];
+        RealtimeClientMessage: components["schemas"]["RealtimeAuth"];
         Health: {
             /** @constant */
             status: "ok";
@@ -1506,6 +1558,40 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    connectRealtime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connexion WebSocket établie ; authentification par message. */
+            101: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Upgrade WebSocket invalide. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Upgrade WebSocket absent. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     getHealth: {
         parameters: {
             query?: never;

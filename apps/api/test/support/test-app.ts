@@ -1,3 +1,4 @@
+import { RealtimeBroker } from '../../src/shared/infrastructure/realtime/realtime.ts';
 import { buildApp } from '../../src/app.ts';
 import { GetActivity } from '../../src/modules/activity/application/use-cases/get-activity.ts';
 import { MarkActivityRead } from '../../src/modules/activity/application/use-cases/mark-activity-read.ts';
@@ -159,9 +160,11 @@ export function buildTestApp() {
     comments,
     audit: auditLog,
   });
+  const realtime = new RealtimeBroker(() => undefined);
   const app = buildApp({
     logLevel: 'silent',
     dependencies: {
+      realtime,
       tokenVerifier: testTokenVerifier,
       accountStatuses: profiles,
       identity: {
@@ -169,7 +172,7 @@ export function buildTestApp() {
         updateMe: new UpdateMe(profiles, avatarTransaction),
         updateSettings: new UpdateSettings(profiles),
         removeAvatar: new RemoveAvatar(avatarTransaction),
-        deleteMe: new DeleteMe(profiles, authAccounts, jobs),
+        deleteMe: new DeleteMe(profiles, authAccounts, jobs, realtime),
         completeOnboarding: new CompleteOnboarding(profiles, clock, analytics),
         checkUsernameAvailability: new CheckUsernameAvailability(profiles),
         getProfile: new GetProfile(profiles, relationships),
@@ -242,13 +245,14 @@ export function buildTestApp() {
         getAdminSession: new GetAdminSession(adminRoles),
         listUsers: new ListUsersForAdmin(adminRoles, profiles),
         getUser: new GetUserForAdmin(adminRoles, profiles, userReports),
-        moderateUser: new ModerateUser(adminRoles, adminTransaction),
+        moderateUser: new ModerateUser(adminRoles, adminTransaction, realtime),
         deleteUser: new DeleteUserAsAdmin(
           adminRoles,
           profiles,
           authAccounts,
           adminTransaction,
           jobs,
+          realtime,
         ),
         getPlan,
       },
@@ -262,6 +266,7 @@ export function buildTestApp() {
   });
   return {
     app,
+    realtime,
     profiles,
     media,
     jobs,

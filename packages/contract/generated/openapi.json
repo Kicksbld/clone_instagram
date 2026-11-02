@@ -67,6 +67,145 @@
     }
   ],
   "paths": {
+    "/v1/ws": {
+      "get": {
+        "operationId": "connectRealtime",
+        "tags": [
+          "activity"
+        ],
+        "summary": "Connexion temps réel WebSocket (ADR-021)",
+        "security": [],
+        "description": "Upgrade WebSocket. Premier message RealtimeAuth obligatoire sous 5 secondes.\nSeuls les messages auth sont acceptés ; renouveler avant expiration du JWT.\nRéponse auth.ok puis événements RealtimeEvent, types inconnus ignorés.\nFermeture 4401 pour auth absente, invalide, expirée ou compte supprimé ;\n4403 pour compte suspendu ou banni. Ping toutes les 30 secondes, sans pong fermeture.\nAucun jeton dans l'URL. REST reste la source de vérité.\n",
+        "responses": {
+          "101": {
+            "description": "Connexion WebSocket établie ; authentification par message."
+          },
+          "400": {
+            "description": "Upgrade WebSocket invalide."
+          },
+          "404": {
+            "description": "Upgrade WebSocket absent."
+          },
+          "429": {
+            "description": "Trop de requêtes (`rate_limited`) ; réessayer après `Retry-After` secondes.",
+            "headers": {
+              "Retry-After": {
+                "description": "Délai avant de réessayer, en secondes.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getHealth",
@@ -17083,6 +17222,149 @@
       }
     },
     "schemas": {
+      "RealtimeAuth": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "token"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "auth"
+            ]
+          },
+          "token": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "RealtimeAuthOK": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "auth.ok"
+            ]
+          }
+        }
+      },
+      "ActivityCreated": {
+        "type": "object",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "activity.created"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "unreadCount"
+            ],
+            "properties": {
+              "unreadCount": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      },
+      "RealtimeEvent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "auth.ok"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "activity.created"
+                ]
+              },
+              "data": {
+                "type": "object",
+                "required": [
+                  "unreadCount"
+                ],
+                "properties": {
+                  "unreadCount": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "auth.ok": "#/components/schemas/RealtimeAuthOK",
+            "activity.created": "#/components/schemas/ActivityCreated"
+          }
+        }
+      },
+      "RealtimeClientMessage": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "token"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "auth"
+                ]
+              },
+              "token": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "auth": "#/components/schemas/RealtimeAuth"
+          }
+        }
+      },
       "Health": {
         "type": "object",
         "required": [
