@@ -5,11 +5,19 @@ struct OnboardingFlowView: View {
     @State private var viewModel: OnboardingViewModel
     private let exitTitle: String
     private let onExit: () -> Void
+    private let onProfileCreated: (String?) -> Void
     private let onLogin: () -> Void
 
-    init(viewModel: OnboardingViewModel, exitTitle: String, onExit: @escaping () -> Void, onLogin: @escaping () -> Void) {
+    init(
+        viewModel: OnboardingViewModel,
+        exitTitle: String,
+        onProfileCreated: @escaping (String?) -> Void = { _ in },
+        onExit: @escaping () -> Void,
+        onLogin: @escaping () -> Void
+    ) {
         _viewModel = State(initialValue: viewModel)
         self.exitTitle = exitTitle
+        self.onProfileCreated = onProfileCreated
         self.onExit = onExit
         self.onLogin = onLogin
     }
@@ -26,6 +34,9 @@ struct OnboardingFlowView: View {
                     }
                 }
                 .navigationDestination(for: OnboardingStep.self) { step($0) }
+        }
+        .onChange(of: viewModel.profile?.id, initial: true) { _, id in
+            onProfileCreated(id)
         }
     }
 

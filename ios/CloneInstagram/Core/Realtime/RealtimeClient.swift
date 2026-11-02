@@ -5,6 +5,7 @@ import Foundation
 final class RealtimeClient {
     private let makeTransport: () -> any RealtimeTransport
     private let accessToken: () async -> String?
+    private let mediaEvents: MediaProcessingEvents?
     private let badge: ActivityBadge
     private let onSuspended: () -> Void
     private let sleep: (Duration) async throws -> Void
@@ -19,10 +20,12 @@ final class RealtimeClient {
         accessToken: @escaping () async -> String?,
         badge: ActivityBadge,
         onSuspended: @escaping () -> Void,
+        mediaEvents: MediaProcessingEvents? = nil,
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.makeTransport = makeTransport
         self.accessToken = accessToken
+        self.mediaEvents = mediaEvents
         self.badge = badge
         self.onSuspended = onSuspended
         self.sleep = sleep
@@ -38,6 +41,7 @@ final class RealtimeClient {
         transport?.close()
         transport = nil
         guard id != nil else { return }
+        mediaEvents?.refresh()
         worker = Task { await connect() }
     }
 
@@ -56,9 +60,19 @@ final class RealtimeClient {
                     else { continue }
                     switch event {
                     case .auth_ok:
+                        mediaEvents?.refresh()
                         attempt = 0
                         catchUp?.cancel()
                         catchUp = Task { await badge.refresh() }
+                    case let .media_ready(event):
+                        receiveReady(event)
+                    case let .media_failed(event):
+                        let reason: MediaFailureReason = switch event.data.reason {
+                        case .invalidImage: .invalidImage
+                        case .fileTooLarge: .fileTooLarge
+                        case .processingError: .processingError
+                        }
+                        mediaEvents?.receive(mediaId: event.data.mediaId, status: .failed(reason))
                     case let .activity_created(activity):
                         if activity.data.unreadCount >= 0 {
                             badge.received(unreadCount: activity.data.unreadCount)
@@ -81,6 +95,11 @@ final class RealtimeClient {
             } catch { return }
             attempt += 1
         }
+    }
+
+    private func receiveReady(_ event: Components.Schemas.MediaReady) {
+        guard let variants = ImageVariants(event.data.variants) else { return }
+        mediaEvents?.receive(mediaId: event.data.mediaId, status: .ready(variants))
     }
 
     private func authenticate(_ socket: any RealtimeTransport) async throws {

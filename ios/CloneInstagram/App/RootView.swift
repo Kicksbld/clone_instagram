@@ -5,6 +5,7 @@ struct RootView: View {
     let dependencies: AppDependencies
     @State private var viewModel: RootViewModel
     /// Feuille des commentaires ouverte depuis un post (feed, détail).
+    @State private var onboardingProfileId: String?
     @State private var commentsRoute: CommentsRoute?
     /// Splash animé joué une seule fois, au lancement.
     @State private var isSplashFinished = false
@@ -43,14 +44,6 @@ struct RootView: View {
             }
     }
 
-    private var realtimeSession: String? {
-        guard scenePhase == .active else { return nil }
-        switch viewModel.route {
-        case let .home(profile), let .paywall(profile): return profile.id
-        default: return nil
-        }
-    }
-
     @ViewBuilder
     private var content: some View {
         switch viewModel.route {
@@ -75,6 +68,7 @@ struct RootView: View {
                     onFinished: viewModel.finishOnboarding(with:)
                 ),
                 exitTitle: entry == .newAccount ? "Annuler" : "Se déconnecter",
+                onProfileCreated: { onboardingProfileId = $0 },
                 onExit: {
                     if entry == .newAccount {
                         viewModel.showWelcome()
@@ -273,6 +267,17 @@ struct RootView: View {
         dependencies.blocks.reset()
         dependencies.activityBadge.reset()
         Task { await viewModel.signOut() }
+    }
+}
+
+private extension RootView {
+    var realtimeSession: String? {
+        guard scenePhase == .active else { return nil }
+        switch viewModel.route {
+        case let .home(profile), let .paywall(profile): return profile.id
+        case .onboarding: return onboardingProfileId
+        default: return nil
+        }
     }
 }
 

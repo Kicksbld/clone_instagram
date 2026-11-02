@@ -36,7 +36,7 @@ test('concurrent notifications cannot publish an older count after a newer count
     { countUnread: () => new Promise<number>((resolve) => reads.push(resolve)) },
     {
       publish: (_ids, event) => {
-        counts.push(event.data.unreadCount);
+        if (event.type === 'activity.created') counts.push(event.data.unreadCount);
       },
       disconnect: () => undefined,
     },

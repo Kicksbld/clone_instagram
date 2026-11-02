@@ -35,7 +35,7 @@ protocol MediaUploading: Sendable {
 
 /**
  `UploadManager` (ADR-008) : préparation (HEIC → JPEG sans métadonnées) → intention d'upload → envoi du
- fichier par `URLSession` background → `complete` → attente du traitement par `GET /v1/media/{id}`.
+ fichier par `URLSession` background → `complete` → événement de fin de traitement, avec repli REST.
  La publication d'un post passe par `PublishQueue`, qui persiste chaque étape.
  */
 struct UploadManager: UploadService, MediaUploading {
@@ -44,6 +44,7 @@ struct UploadManager: UploadService, MediaUploading {
     let media: any MediaService
     let uploader: any FileUploader
     var prepare: Prepare = { data throws(ImagePreparationError) in try await ImagePreparer.prepare(data) }
+    var processingEvents: MediaProcessingEvents?
     var pollInterval: Duration = .seconds(1)
     var timeout: Duration = .seconds(60)
     var sleep: @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
@@ -84,8 +85,12 @@ struct UploadManager: UploadService, MediaUploading {
         }
     }
 
-    /// Interroge le statut jusqu'à `ready` ou `failed` (P1 : événement WebSocket à la place).
+    /// Attend le temps réel ; REST rattrape les événements perdus (ADR-022).
     func waitUntilProcessed(mediaId: String) async throws(UploadError) {
+        if let processingEvents {
+            try await waitForEvents(mediaId: mediaId, events: processingEvents)
+            return
+        }
         var waited = Duration.zero
         do {
             while true {
@@ -100,6 +105,51 @@ struct UploadManager: UploadService, MediaUploading {
                     waited += pollInterval
                 }
             }
+        } catch let error as UploadError {
+            throw error
+        } catch let error as MediaServiceError {
+            throw Self.uploadError(error)
+        } catch {
+            throw .unexpected
+        }
+    }
+
+    private func waitForEvents(mediaId: String, events: MediaProcessingEvents) async throws(UploadError) {
+        // Register before the initial read so a completion during that request cannot be lost.
+        let subscription = events.signals(mediaId: mediaId)
+        defer { events.stop(subscription.id) }
+        do {
+            var status: MediaStatus = .processing
+            do {
+                status = try await media.fetchStatus(mediaId: mediaId)
+            } catch .unreachable {
+                // Offline: keep waiting; foreground, reconnection or the timer will retry.
+            }
+            switch status {
+            case .ready: return
+            case let .failed(reason): throw UploadError.rejected(reason)
+            default: break
+            }
+            for await signal in subscription.stream {
+                if Task.isCancelled {
+                    throw UploadError.unexpected
+                }
+                switch signal {
+                case let .status(value): status = value
+                case .refresh:
+                    do {
+                        status = try await media.fetchStatus(mediaId: mediaId)
+                    } catch .unreachable {
+                        continue
+                    }
+                }
+                switch status {
+                case .ready: return
+                case let .failed(reason): throw UploadError.rejected(reason)
+                default: break
+                }
+            }
+            throw UploadError.unexpected
         } catch let error as UploadError {
             throw error
         } catch let error as MediaServiceError {

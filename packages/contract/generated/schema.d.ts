@@ -945,7 +945,31 @@ export interface components {
                 unreadCount: number;
             };
         };
-        RealtimeEvent: components["schemas"]["RealtimeAuthOK"] | components["schemas"]["ActivityCreated"];
+        MediaReady: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "media.ready";
+            data: {
+                /** Format: uuid */
+                mediaId: string;
+                variants: components["schemas"]["ImageVariants"];
+            };
+        };
+        MediaFailed: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "media.failed";
+            data: {
+                /** Format: uuid */
+                mediaId: string;
+                reason: components["schemas"]["MediaFailureReason"];
+            };
+        };
+        RealtimeEvent: components["schemas"]["RealtimeAuthOK"] | components["schemas"]["ActivityCreated"] | components["schemas"]["MediaReady"] | components["schemas"]["MediaFailed"];
         RealtimeClientMessage: components["schemas"]["RealtimeAuth"];
         Health: {
             /** @constant */
