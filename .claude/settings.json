@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "ENABLE_CLAUDEAI_MCP_SERVERS": "false"
+  },
+  "enabledPlugins": {
+    "playground@claude-plugins-official": false,
+    "frontend-design@claude-plugins-official": false,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": false,
+    "clangd-lsp@claude-plugins-official": false
+  }
+}
