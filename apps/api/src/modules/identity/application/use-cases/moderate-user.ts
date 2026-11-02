@@ -1,3 +1,4 @@
+import type { RealtimePublisher } from '../../../../shared/application/realtime-publisher.ts';
 import type { AdminAuditLog } from '../../../../shared/application/admin-audit-log.ts';
 import { type AdminRoles, requireAdmin } from '../../../../shared/application/admin-roles.ts';
 import type { UnitOfWork } from '../../../../shared/application/unit-of-work.ts';
@@ -29,6 +30,7 @@ export class ModerateUser {
   constructor(
     private readonly roles: AdminRoles,
     private readonly transaction: UnitOfWork<ModerationScope>,
+    private readonly realtime?: RealtimePublisher,
   ) {}
 
   async execute(input: {
@@ -41,7 +43,7 @@ export class ModerateUser {
     if (input.adminId === input.userId) throw new CannotModerateSelfError();
     const transition = STATUS_TRANSITIONS[input.action];
 
-    return this.transaction.run(async ({ profiles, audit }) => {
+    const result = await this.transaction.run(async ({ profiles, audit }) => {
       const profile = await profiles.findById(input.userId);
       if (!profile || profile.status === 'deleted') throw new UserNotFoundError();
       if (!canTransition(input.action, profile.status)) throw new InvalidStatusTransitionError();
@@ -60,5 +62,8 @@ export class ModerateUser {
       });
       return { ...profile, status: transition.to };
     });
+    if (result.status === 'suspended' || result.status === 'banned')
+      this.realtime?.disconnect(input.userId, 4403);
+    return result;
   }
 }

@@ -247,3 +247,53 @@ describe('GetUserForAdmin', () => {
     );
   });
 });
+
+it('suspension disconnects realtime only after the transaction commits', async () => {
+  let committed = false;
+  const disconnected: unknown[] = [];
+  const realtime = {
+    publish: () => undefined,
+    disconnect: (id: string, code: number) => {
+      expect(committed).toBe(true);
+      expect(profiles.rows.get(id)?.status).toBe('suspended');
+      expect(audit.entries).toHaveLength(1);
+      disconnected.push({ id, code });
+    },
+  };
+  await new ModerateUser(
+    roles,
+    {
+      run: async (work) => {
+        const result = await transaction.run(work);
+        committed = true;
+        return result;
+      },
+    },
+    realtime,
+  ).execute({ adminId: ADMIN, userId: USER, action: 'suspend', reason: 'Spam' });
+  expect(disconnected).toEqual([{ id: USER, code: 4403 }]);
+});
+
+it('failed moderation commit never disconnects the account', async () => {
+  const disconnected: string[] = [];
+  const realtime = {
+    publish: () => undefined,
+    disconnect: (id: string) => {
+      disconnected.push(id);
+    },
+  };
+  const moderate = new ModerateUser(
+    roles,
+    {
+      run: async (work) => {
+        await transaction.run(work);
+        throw new Error('commit failed');
+      },
+    },
+    realtime,
+  );
+  await expect(
+    moderate.execute({ adminId: ADMIN, userId: USER, action: 'ban', reason: 'Spam' }),
+  ).rejects.toThrow('commit failed');
+  expect(disconnected).toEqual([]);
+});

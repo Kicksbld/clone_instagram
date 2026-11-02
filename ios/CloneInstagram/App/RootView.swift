@@ -30,6 +30,8 @@ struct RootView: View {
                 }
             }
             .task { await viewModel.start() }
+            .task(id: realtimeSession) { dependencies.realtime?.setSession(realtimeSession) }
+            .onDisappear { dependencies.realtime?.setSession(nil) }
             // Compte suspendu ou banni pendant la session (`403 account_suspended`, ADR-005).
             .onChange(of: dependencies.suspension.revision) {
                 Task { await viewModel.accountSuspended() }
@@ -39,6 +41,14 @@ struct RootView: View {
                 guard phase == .active else { return }
                 Task { await viewModel.recheckSuspension() }
             }
+    }
+
+    private var realtimeSession: String? {
+        guard scenePhase == .active else { return nil }
+        switch viewModel.route {
+        case let .home(profile), let .paywall(profile): return profile.id
+        default: return nil
+        }
     }
 
     @ViewBuilder
@@ -252,6 +262,7 @@ struct RootView: View {
     /// Les publications en attente, les likes, les suppressions, les abonnements, les compteurs de commentaires,
     /// les blocages et la pastille de l'Activité de la session ne sont jamais repris pour un autre compte.
     private func signOut() {
+        dependencies.realtime?.setSession(nil)
         dependencies.publishQueue.discardAll()
         dependencies.likes.reset()
         dependencies.postDeletions.reset()

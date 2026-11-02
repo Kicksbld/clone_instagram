@@ -1,3 +1,4 @@
+import type { RealtimePublisher } from '../../../../shared/application/realtime-publisher.ts';
 import type { JobQueue } from '../../../../shared/application/job-queue.ts';
 import { ProfileNotFoundError } from '../../domain/errors.ts';
 import type { AuthAccounts } from '../ports/auth-accounts.ts';
@@ -16,6 +17,7 @@ export class DeleteMe {
     private readonly profiles: ProfileRepository,
     private readonly authAccounts: AuthAccounts,
     private readonly jobs: JobQueue,
+    private readonly realtime?: RealtimePublisher,
   ) {}
 
   async execute(input: { userId: string }): Promise<void> {
@@ -24,6 +26,7 @@ export class DeleteMe {
 
     await this.authAccounts.deleteUser(input.userId);
     await this.profiles.markDeleted(input.userId);
+    this.realtime?.disconnect(input.userId, 4401);
     await this.jobs.enqueueAccountPurge(input.userId);
   }
 }

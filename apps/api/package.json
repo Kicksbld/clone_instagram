@@ -17,6 +17,7 @@
     "@clone/db": "workspace:*",
     "@clone/jobs": "workspace:*",
     "@fastify/rate-limit": "^11.2.0",
+    "@fastify/websocket": "^11.3.6",
     "@supabase/storage-js": "^2.117.2",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
@@ -29,6 +30,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/ws": "^8.18.2",
     "dependency-cruiser": "^18.4.0",
     "tsdown": "^0.23.0"
   }

@@ -36,3 +36,4 @@ Décisions d'architecture du projet, rédigées selon [Agent ADR Architecte.md](
 | [ADR-028](ADR-028-feed-republications-date-activite.md) | Feed avec republications : union des posts et des republications, triée par date d'activité | Proposé |
 | [ADR-029](ADR-029-onglet-amis-reels-interactions-calculees-lecture.md) | Onglet Amis des Reels : interactions des abonnés mutuels calculées à la lecture | Proposé |
 | [ADR-030](ADR-030-activite-type-ouvert-cle-groupe-curseur.md) | Activité : type de notification en liste ouverte, clé de groupe et curseur | Proposé |
+| [ADR-031](ADR-031-temps-reel-activite-cycle-session.md) | Activité temps réel : préserver l'ordre des mises à jour de la pastille | Proposé |

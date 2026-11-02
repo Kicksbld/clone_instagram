@@ -83,6 +83,30 @@ tags:
   - name: admin
     description: Administration depuis le backoffice (ADR-011) ; rôle `admin` requis, chaque action écrite dans le journal d'audit
 paths:
+  /v1/ws:
+    get:
+      operationId: connectRealtime
+      tags: [activity]
+      summary: Connexion temps réel WebSocket (ADR-021)
+      security: []
+      description: |
+        Upgrade WebSocket. Premier message RealtimeAuth obligatoire sous 5 secondes.
+        Seuls les messages auth sont acceptés ; renouveler avant expiration du JWT.
+        Réponse auth.ok puis événements RealtimeEvent, types inconnus ignorés.
+        Fermeture 4401 pour auth absente, invalide, expirée ou compte supprimé ;
+        4403 pour compte suspendu ou banni. Ping toutes les 30 secondes, sans pong fermeture.
+        Aucun jeton dans l'URL. REST reste la source de vérité.
+      responses:
+        '101':
+          description: Connexion WebSocket établie ; authentification par message.
+        '400':
+          description: Upgrade WebSocket invalide.
+        '404':
+          description: Upgrade WebSocket absent.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /health:
     get:
       operationId: getHealth
@@ -1373,6 +1397,54 @@ components:
       bearerFormat: JWT
       description: Access token Supabase Auth.
   schemas:
+    RealtimeAuth:
+      type: object
+      additionalProperties: false
+      required: [type, token]
+      properties:
+        type:
+          type: string
+          enum: [auth]
+        token:
+          type: string
+          minLength: 1
+    RealtimeAuthOK:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [auth.ok]
+    ActivityCreated:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [activity.created]
+        data:
+          type: object
+          required: [unreadCount]
+          properties:
+            unreadCount:
+              type: integer
+              minimum: 0
+    RealtimeEvent:
+      oneOf:
+        - $ref: '#/components/schemas/RealtimeAuthOK'
+        - $ref: '#/components/schemas/ActivityCreated'
+      discriminator:
+        propertyName: type
+        mapping:
+          auth.ok: '#/components/schemas/RealtimeAuthOK'
+          activity.created: '#/components/schemas/ActivityCreated'
+    RealtimeClientMessage:
+      oneOf:
+        - $ref: '#/components/schemas/RealtimeAuth'
+      discriminator:
+        propertyName: type
+        mapping:
+          auth: '#/components/schemas/RealtimeAuth'
     Health:
       type: object
       required: [status]

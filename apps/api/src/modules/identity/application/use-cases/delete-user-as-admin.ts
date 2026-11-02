@@ -1,3 +1,4 @@
+import type { RealtimePublisher } from '../../../../shared/application/realtime-publisher.ts';
 import type { AdminAuditLog } from '../../../../shared/application/admin-audit-log.ts';
 import { type AdminRoles, requireAdmin } from '../../../../shared/application/admin-roles.ts';
 import type { JobQueue } from '../../../../shared/application/job-queue.ts';
@@ -24,6 +25,7 @@ export class DeleteUserAsAdmin {
     private readonly authAccounts: AuthAccounts,
     private readonly transaction: UnitOfWork<AdminDeletionScope>,
     private readonly jobs: JobQueue,
+    private readonly realtime?: RealtimePublisher,
   ) {}
 
   async execute(input: { adminId: string; userId: string; reason: string }): Promise<void> {
@@ -46,6 +48,7 @@ export class DeleteUserAsAdmin {
         },
       });
     });
+    this.realtime?.disconnect(profile.id, 4401);
     await this.jobs.enqueueAccountPurge(profile.id);
   }
 }
