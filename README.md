@@ -115,10 +115,11 @@ Pour montrer les deux variantes avec deux comptes de test : dans l'expérience, 
 **Tests** (en local, pas de CI macOS) :
 
 ```bash
-cd ios
-xcodebuild test -project CloneInstagram.xcodeproj -scheme CloneInstagram \
-  -destination 'platform=iOS Simulator,name=iPhone 17' -skipPackagePluginValidation
+ios/scripts/test.sh                              # suite complète
+ios/scripts/test.sh FeedViewModelTests           # une ou plusieurs suites
 ```
+
+Le script garde un DerivedData stable par worktree (`~/Library/Developer/Xcode/DerivedData/CloneInstagram-<empreinte du chemin>`, modifiable par `CLONE_IOS_DERIVED_DATA`) : seul le code modifié est recompilé d'un run à l'autre. Il n'affiche que les erreurs et le bilan ; journal complet dans `last-test.log` de ce dossier. Simulateur : `CLONE_IOS_DESTINATION` (par défaut `platform=iOS Simulator,name=iPhone 17`).
 
 SwiftLint et SwiftFormat sont lancés à chaque build (et à la main : `swiftlint lint`, `swiftformat --lint .` depuis `ios/`).
 

@@ -49,7 +49,7 @@ pnpm contract:breaking      # aucune rupture de compatibilité avec main (oasdif
 pnpm db:migrate | pnpm db:seed
 ios/scripts/bootstrap.sh    # app iOS : outils Homebrew, puis ios/scripts/sync.sh
 ios/scripts/sync.sh         # après chaque git pull : branche vs main, clés .xcconfig manquantes, xcodegen generate
-xcodebuild test             # app iOS, lancé en local (pas de CI macOS) ; commande complète dans ios/CLAUDE.md
+ios/scripts/test.sh [Suites] # tests iOS en local (pas de CI macOS), build incrémental, sortie résumée ; voir ios/CLAUDE.md
 ```
 
 Outils de qualité et tests par niveau : ADR-014.
@@ -96,6 +96,11 @@ Plans de phase et tranches = issues GitHub (`gh`), tranches en sous-issues avec 
 ### Triage labels
 
 Les cinq labels par défaut (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), plus `phase`. Voir `docs/agents/triage-labels.md`.
+
+### Implémentation et revue
+
+- **`/tdd`** : les endroits testés sont fixés par ADR-014 et validés au plan de phase (routes via `fastify.inject`, adapters Drizzle sur Postgres réel, use cases avec adapters en mémoire, ViewModels et stores iOS avec faux services). Ne pas redemander leur validation au lead dev ; ne demander que pour un endroit hors de cette liste.
+- **`/code-review`** : seulement l'axe **Spec** (un sous-agent : fiche de la tranche + ADR cités). Pas d'axe « Standards » : lint, typecheck, dependency-cruiser, SwiftLint et SwiftFormat le couvrent. À la place, vérifier soi-même, sans sous-agent, la checklist de fin de tranche de [`docs/ia-workflow.md`](docs/ia-workflow.md) § 3.
 
 ### Domain docs
 
