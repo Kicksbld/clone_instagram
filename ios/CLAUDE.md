@@ -52,11 +52,12 @@ Exceptions validées par le lead dev (maquettes dans `ios/design/animations/`) :
 - **Commandes** :
 
 ```bash
-xcodegen generate                                   # depuis ios/
-swiftlint lint && swiftformat --lint .              # aussi lancés à chaque build
-xcodebuild test -project CloneInstagram.xcodeproj -scheme CloneInstagram \
-  -destination 'platform=iOS Simulator,name=iPhone 17' -skipPackagePluginValidation
+ios/scripts/test.sh MaSuiteTests AutreSuiteTests    # pendant une tranche : seulement les suites touchées
+ios/scripts/test.sh                                 # suite complète, une fois en fin de tranche
+swiftlint lint && swiftformat --lint .              # depuis ios/ ; aussi lancés à chaque build
 ```
+
+- **Tests iOS** : toujours par `ios/scripts/test.sh`, jamais `xcodebuild` à la main. Le script garde un DerivedData stable par worktree (build incrémental : seul le code modifié est recompilé), ne lance `xcodegen generate` que si `project.yml` a changé, attend qu'un autre build du même worktree se termine et n'affiche que les erreurs et le bilan (journal complet : `last-test.log` dans ce DerivedData). Ne pas supprimer ce DerivedData ni régénérer le projet sans raison : le premier build d'un worktree compile tout, dépendances comprises. Ne pas partager le DerivedData entre worktrees : Xcode recompile alors tout à chaque changement de worktree. Pendant une tranche, ne lancer que les suites des fichiers touchés ; la suite complète une seule fois avant le commit. Ne pas lancer les tests iOS en même temps que `pnpm test` / `pnpm build`.
 
 ## Interdits
 

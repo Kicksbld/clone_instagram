@@ -74,6 +74,8 @@ docker compose up -d     # Redis
 pnpm dev                 # API + worker + backoffice (Ctrl+C pour arrêter)
 ```
 
+**Nouveau worktree** (une branche par tranche) : depuis la racine du worktree, `scripts/worktree-setup.sh` copie depuis le dépôt principal (`~/Desktop/Code/Clone-Instagram`, ou `CLONE_MAIN_CHECKOUT`) les fichiers non versionnés (`.env`, `.env.demo`, `supabase/signing_keys.json`, `.xcconfig` et entitlements iOS), lance `pnpm install` et `xcodegen generate`, arrête les `pnpm dev` des autres worktrees, démarre Supabase et Redis s'ils sont arrêtés, applique les migrations de la branche puis lance `pnpm dev`. `--no-dev` s'arrête après la préparation.
+
 **Vérifier que tout tourne :**
 
 | Service | Adresse | Attendu |
@@ -115,10 +117,11 @@ Pour montrer les deux variantes avec deux comptes de test : dans l'expérience, 
 **Tests** (en local, pas de CI macOS) :
 
 ```bash
-cd ios
-xcodebuild test -project CloneInstagram.xcodeproj -scheme CloneInstagram \
-  -destination 'platform=iOS Simulator,name=iPhone 17' -skipPackagePluginValidation
+ios/scripts/test.sh                              # suite complète
+ios/scripts/test.sh FeedViewModelTests           # une ou plusieurs suites
 ```
+
+Le script garde un DerivedData stable par worktree (`~/Library/Developer/Xcode/DerivedData/CloneInstagram-<empreinte du chemin>`, modifiable par `CLONE_IOS_DERIVED_DATA`) : seul le code modifié est recompilé d'un run à l'autre. Il n'affiche que les erreurs et le bilan ; journal complet dans `last-test.log` de ce dossier. Simulateur : `CLONE_IOS_DESTINATION` (par défaut `platform=iOS Simulator,name=iPhone 17`).
 
 SwiftLint et SwiftFormat sont lancés à chaque build (et à la main : `swiftlint lint`, `swiftformat --lint .` depuis `ios/`).
 
@@ -154,6 +157,7 @@ Au prochain `supabase start`, relancer `pnpm db:migrate`, puis `pnpm db:seed`.
 | `pnpm db:migrate` | Applique les migrations Drizzle |
 | `pnpm db:seed` (`pnpm db:seed:demo` pour la démo, § 7) | Crée 100 profils de démo (publics, privés, un suspendu), leurs abonnements et environ 320 posts avec photos ; relançable sans doublon. La première exécution télécharge environ 540 photos d'exemple (picsum.photos, accès Internet requis, 1 à 2 minutes) et les écrit dans Storage (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) ; les suivantes n'envoient rien. Ajoute aussi 3 reels synthétiques libres de droits (mires animées CC0, 5 s) par le vrai pipeline `process-video` : ffmpeg installé et worker actif (`pnpm dev`) requis Avec `SEED_VIEWER_USERNAME=<ton username>` (compte déjà créé dans l'app), relie aussi ton compte à ces profils : il suit `lea.martin`, `chloe.petit` (privé), `ines.moreau` (suspendue, absente du feed) et 30 autres comptes, `hugo.bernard`, `nathan.durand` et 20 autres le suivent, `emma.leroy` le bloque et il bloque `tom.fournier` |
 | `ADMIN_EMAIL=… ADMIN_PASSWORD=… pnpm admin:create` (`admin:create:demo` pour la démo, `.env.demo`) | Crée un admin du backoffice : compte Supabase Auth (email confirmé, sans profil dans l'app) et rôle `admin` ; relançable, un compte existant garde son mot de passe |
+| `pnpm check:changed` | Lint, typecheck, tests et build des seuls paquets modifiés depuis `origin/main` (et de ceux qui en dépendent), changements non commités compris ; la CI vérifie tout |
 | `pnpm test:supabase` | Vérifie contre un vrai Supabase qu'aucune table n'est lisible avec la clé publique, et l'upload présigné et les URL publiques des médias (hors CI, voir § 7) |
 | `supabase status` | Affiche les clés locales de Supabase (l'API de Supabase est sur http://127.0.0.1:54321) |
 

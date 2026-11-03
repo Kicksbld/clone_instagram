@@ -49,7 +49,7 @@ Un ADR peut avoir deux rôles (ADR-005 : squelette de l'API une fois, puis règl
 
 Synthèse de l'interrogatoire, sans nouvelle question, publiée comme issue parente `P<n> — Titre` (label `phase`). Contenu : le modèle de `/to-spec` (problème, solution, récits utilisateur, décisions, endroits testés, hors périmètre), plus la liste des ADR de la phase, leur classement (§ 2.2) et la matrice ADR × tranches.
 
-Les **endroits testés** (les interfaces publiques où les tests observent le comportement : routes via `fastify.inject`, use cases avec adapters en mémoire, ViewModels iOS avec faux services) sont validés avec le lead dev à cette étape : `/tdd` n'écrira de tests qu'à ces endroits.
+Les **endroits testés** (les interfaces publiques où les tests observent le comportement : routes via `fastify.inject` et adapters Drizzle sur Postgres réel, use cases avec adapters en mémoire seulement s'ils contiennent une règle, ViewModels iOS avec faux services ; ADR-033) sont validés avec le lead dev à cette étape, tranche par tranche (tests de use case attendus ou non) : `/tdd` n'écrira de tests qu'à ces endroits.
 
 ### 2.4 Découper en tranches : `/to-tickets`
 
@@ -99,12 +99,22 @@ Une tranche = **une nouvelle session Claude Code, une branche, une PR.** On pren
 | 1 | **Démarrer** | « `/implement` #42. Crée la branche `feat/<module>-<action>`. Lis la fiche et les ADR qu'elle cite, pas le cahier des charges. » | La bonne fiche et ses ADR sont lus |
 | 2 | **Planifier** (plan mode) | « Propose le plan d'implémentation et vérifie la conformité aux ADR. » | Rien de hors tranche ; ordre contrat → base → backend → iOS ; endroits testés du plan de phase ; conclusion ADR présente |
 | 3 | **Contrat** | « Étape 1 : le contrat seulement. Valide et régénère. » | Le diff de `openapi.yaml` (court, crucial) |
-| 4 | **Base + backend** | « Étape 2 : migration puis backend, en `/tdd` : un cas limite de la fiche, un test rouge, le code qui le fait passer, puis le suivant. » | Tests verts ; visibilité appelée ; `UnitOfWork` si plusieurs tables |
+| 4 | **Base + backend** | « Étape 2 : migration puis backend, en `/tdd` : un cas limite de la fiche, un test rouge, le code qui le fait passer, puis le suivant. » (niveaux de tests : ADR-033) | Tests verts ; visibilité appelée ; `UnitOfWork` si plusieurs tables |
 | 5 | **iOS** (puis backoffice) | « Étape 3 : service, ViewModel, vues, en `/tdd` sur les ViewModels. » | L'écran fonctionne dans le simulateur |
-| 6 | **Relire** | « `/code-review` depuis `main`. » (règles du projet + conformité à la fiche) | Écarts à la fiche et aux règles corrigés |
-| 7 | **Definition of done** | « Vérifie la definition of done d'ADR-014 ; lance lint, typecheck, test, build. » | Démo déployée, **test sur iPhone** |
+| 6 | **Relire** | « `/code-review` depuis `main`. » (conformité à la fiche seulement, puis checklist ci-dessous) | Écarts à la fiche et à la checklist corrigés |
+| 7 | **Definition of done** | « Vérifie la definition of done d'ADR-014 ; lance `pnpm check:changed` et `ios/scripts/test.sh`. » (la CI vérifie tous les paquets) | Démo déployée, **test sur iPhone** |
 | 8 | **Clôturer** | « Commit en `feat(<module>): …`, puis PR (`/pr`) qui ferme l'issue. Une décision a-t-elle été prise en route ? » | Si oui : nouvel ADR (et ligne dans `09` du cahier) |
 | 9 | **Rétrospective** | « `/retro` sur cette session. » | Les améliorations proposées à l'environnement (contrôle automatique, règle de revue, `CLAUDE.md`) |
+
+**Checklist de fin de tranche** (étape 6, vérifiée par l'IA sans sous-agent ; les règles mécaniques sont déjà couvertes par lint, typecheck, dependency-cruiser, SwiftLint et SwiftFormat) :
+
+- [ ] Chaque lecture ajoutée passe par la politique de visibilité ; contenu invisible → 404, jamais 403 (ADR-006).
+- [ ] Autorisation dans le use case, pas dans la route ; `UnitOfWork` si plusieurs tables (ADR-005).
+- [ ] Aucun endpoint, champ ou code d'erreur absent du contrat ; clients régénérés (ADR-003).
+- [ ] Actions optimistes sur `OptimisticSync`, échec → alerte (ADR-020) ; aucune feature n'importe une autre (ADR-010).
+- [ ] Chaque décision prise en route est remontée au lead dev (`Décision non documentée — ADR recommandé`).
+
+**Tests iOS pendant la tranche** : `ios/scripts/test.sh <Suites touchées>` ; la suite complète une seule fois, avant le commit (voir `ios/CLAUDE.md`).
 
 Autres skills pendant une tranche :
 
