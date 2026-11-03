@@ -165,7 +165,8 @@ export class DrizzleCommentReader implements CommentReader {
         username: row.username,
         status: row.status,
         isPrivate: row.isPrivate,
-        avatarVariants: row.avatarVariants,
+        avatarVariants:
+          row.avatarVariants && 'thumb' in row.avatarVariants ? row.avatarVariants : null,
       },
     }));
   }

@@ -18,16 +18,29 @@ final class ProfilePostsViewModel {
     /// Échec de la page suivante, affiché sous la grille.
     private(set) var loadMoreFailed = false
 
+    private let reelsOnly: Bool
     private let userId: String
     private let service: any PostService
     private let deletions: PostDeletionStore?
     private var nextCursor: String?
 
     /// - Parameter deletions: mes suppressions, pour la grille de mon profil.
-    init(userId: String, posts: any PostService, deletions: PostDeletionStore? = nil) {
+    init(userId: String, posts: any PostService, deletions: PostDeletionStore? = nil, reelsOnly: Bool = false) {
+        self.reelsOnly = reelsOnly
         self.userId = userId
         service = posts
         self.deletions = deletions
+    }
+
+    func reelsGrid() -> ProfilePostsViewModel {
+        ProfilePostsViewModel(userId: userId, posts: service, deletions: deletions, reelsOnly: true)
+    }
+
+    private func page(cursor: String?) async throws(PostServiceError) -> PostPage {
+        if reelsOnly {
+            return try await service.listReels(of: userId, cursor: cursor)
+        }
+        return try await service.listPosts(of: userId, cursor: cursor)
     }
 
     var posts: [Post] {
@@ -44,7 +57,7 @@ final class ProfilePostsViewModel {
             state = .loading
         }
         do {
-            let page = try await service.listPosts(of: userId, cursor: nil)
+            let page = try await page(cursor: nil)
             loadedPosts = page.items
             nextCursor = page.nextCursor
             loadMoreFailed = false
@@ -62,7 +75,7 @@ final class ProfilePostsViewModel {
         isLoadingMore = true
         defer { isLoadingMore = false }
         do {
-            let page = try await service.listPosts(of: userId, cursor: cursor)
+            let page = try await page(cursor: cursor)
             let known = Set(loadedPosts.map(\.id))
             loadedPosts += page.items.filter { !known.contains($0.id) }
             nextCursor = page.nextCursor

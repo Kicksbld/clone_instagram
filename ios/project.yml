@@ -101,6 +101,8 @@ targets:
         # « All interface orientations must be supported… » (UIRequiresFullScreen est obsolète depuis iOS 26).
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         # Création d'un post : la photo la plus récente est présélectionnée, comme Instagram (ADR-010).
+        INFOPLIST_KEY_NSCameraUsageDescription: Clone utilise la caméra pour filmer vos reels.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Clone utilise le microphone pour filmer vos reels avec le son.
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Clone affiche vos photos pour que vous puissiez les publier.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Icônes alternatives, avantage Clone Plus (ADR-012) : `AppIcon` de `Core/Billing/AppIconService`.

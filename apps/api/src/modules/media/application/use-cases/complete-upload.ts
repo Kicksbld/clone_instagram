@@ -23,7 +23,8 @@ export class CompleteUpload {
       throw new MediaInvalidTransitionError();
     }
 
-    await this.jobs.enqueueImageProcessing(media.id);
+    if (media.kind === 'video') await this.jobs.enqueueVideoProcessing(media.id);
+    else await this.jobs.enqueueImageProcessing(media.id);
     return { ...media, status: 'uploaded' };
   }
 }

@@ -185,7 +185,7 @@ function toSummary(row: {
   username: string;
   fullName: string;
   isPrivate: boolean;
-  avatarVariants: UserSummary['avatarVariants'];
+  avatarVariants: import('../../../../shared/domain/image-variants.ts').MediaVariantPaths | null;
   following: boolean;
   followedBy: boolean;
   requested: boolean;
@@ -195,7 +195,7 @@ function toSummary(row: {
     username: row.username,
     fullName: row.fullName,
     isPrivate: row.isPrivate,
-    avatarVariants: row.avatarVariants,
+    avatarVariants: row.avatarVariants && 'thumb' in row.avatarVariants ? row.avatarVariants : null,
     relationship: {
       following: row.following,
       followedBy: row.followedBy,

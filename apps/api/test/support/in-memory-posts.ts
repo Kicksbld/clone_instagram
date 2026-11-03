@@ -65,9 +65,14 @@ export class InMemoryPosts implements PostRepository, PostReader {
     return Promise.resolve(row && !row.deletedAt ? this.toPost(row, viewerId) : null);
   }
 
-  listByAuthor({ viewerId, authorId, after, limit }: AuthorPostsQuery): Promise<Page<Post>> {
+  listByAuthor({ viewerId, authorId, after, limit, kind }: AuthorPostsQuery): Promise<Page<Post>> {
     return Promise.resolve(
-      this.list(viewerId, (post) => post.author.id === authorId, after, limit),
+      this.list(
+        viewerId,
+        (post) => post.author.id === authorId && (!kind || post.kind === kind),
+        after,
+        limit,
+      ),
     );
   }
 
@@ -116,7 +121,13 @@ export class InMemoryPosts implements PostRepository, PostReader {
       media: row.mediaIds.map((mediaId) => {
         const variants = this.media.rows.get(mediaId)?.variants;
         if (!variants) throw new Error(`Média de post sans variantes : ${mediaId}`);
-        return { variants, ...TEST_IMAGE_SIZE };
+        return {
+          variants,
+          ...TEST_IMAGE_SIZE,
+          ...(this.media.rows.get(mediaId)?.durationMs != null && {
+            durationMs: this.media.rows.get(mediaId)?.durationMs ?? 0,
+          }),
+        };
       }),
     };
   }

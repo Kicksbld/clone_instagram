@@ -1,3 +1,7 @@
+import {
+  previewVariants,
+  type MediaVariantPaths,
+} from '../../../../shared/domain/image-variants.ts';
 import { notifications, type Executor } from '@clone/db';
 import { and, eq, isNull, sql, type SQL } from 'drizzle-orm';
 
@@ -18,7 +22,7 @@ interface GroupRow extends Record<string, unknown> {
   latest_ms: number;
   unread: boolean;
   post_id: string | null;
-  thumbnail: ImageVariantPaths | null;
+  thumbnail: MediaVariantPaths | null;
   comment_id: string | null;
   body: string | null;
 }
@@ -125,6 +129,7 @@ export class DrizzleActivityRepository implements ActivityRepository {
 }
 
 function toGroup(row: GroupRow): ActivityGroup {
+  const thumbnail = previewVariants(row.thumbnail);
   if (row.post_id && !row.thumbnail) {
     // Un post non supprimé a toujours au moins un média `ready`.
     throw new Error(`Post sans miniature dans l'Activité (post ${row.post_id})`);
@@ -136,7 +141,7 @@ function toGroup(row: GroupRow): ActivityGroup {
     actorCount: row.actor_count,
     latestAt: new Date(Math.round(row.latest_ms)),
     read: !row.unread,
-    post: row.post_id && row.thumbnail ? { id: row.post_id, thumbnail: row.thumbnail } : null,
+    post: row.post_id && thumbnail ? { id: row.post_id, thumbnail } : null,
     comment: row.comment_id && row.body !== null ? { id: row.comment_id, body: row.body } : null,
   };
 }

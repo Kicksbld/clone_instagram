@@ -1,0 +1,1 @@
+`reel-source.mp4` est une mire bleue avec un son synthétique, générée localement avec ffmpeg (1920×1080, 2 s). Aucun contenu tiers ; réutilisation libre (CC0). Elle vérifie le vrai réencodage AVAssetWriter avant l'envoi.

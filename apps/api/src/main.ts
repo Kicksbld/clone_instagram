@@ -358,10 +358,18 @@ const mediaEvents = new MediaQueueEvents(
     app.log.warn({ error }, 'Media completion notification failed');
   },
 );
+const videoEvents = new MediaQueueEvents(
+  config.REDIS_URL,
+  new MediaCompletionEvents(media, publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL), realtime),
+  (error) => {
+    app.log.warn({ error }, 'Media completion notification failed');
+  },
+  'video',
+);
 app.addHook('onClose', async () => {
-  await mediaEvents.close();
+  await Promise.all([mediaEvents.close(), videoEvents.close()]);
 });
-await mediaEvents.ready();
+await Promise.all([mediaEvents.ready(), videoEvents.ready()]);
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
   app.log.info({ signal }, 'Arrêt de l’API');

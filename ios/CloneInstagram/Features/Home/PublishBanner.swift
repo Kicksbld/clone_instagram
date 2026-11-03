@@ -22,6 +22,11 @@ struct PublishBanner: View {
                     image.resizable().scaledToFill()
                 } else {
                     Color.secondary.opacity(0.1)
+                        .overlay {
+                            if item.kind == .reel {
+                                Image(systemName: "video")
+                            }
+                        }
                 }
             }
             .frame(width: 40, height: 40)

@@ -1,4 +1,4 @@
-import { PROCESS_IMAGE } from '@clone/jobs';
+import { PROCESS_IMAGE, PROCESS_VIDEO } from '@clone/jobs';
 import { Queue, QueueEvents } from 'bullmq';
 
 import type { RealtimePublisher } from '../../../../shared/application/realtime-publisher.ts';
@@ -51,10 +51,12 @@ export class MediaQueueEvents {
     redisUrl: string,
     completion: MediaCompletionEvents,
     onError: (error: unknown) => void,
+    kind: 'image' | 'video' = 'image',
   ) {
+    const processing = kind === 'video' ? PROCESS_VIDEO : PROCESS_IMAGE;
     const connection = { url: redisUrl, family: 0 };
-    this.queue = new Queue(PROCESS_IMAGE.queue, { connection });
-    this.events = new QueueEvents(PROCESS_IMAGE.queue, { connection });
+    this.queue = new Queue(processing.queue, { connection });
+    this.events = new QueueEvents(processing.queue, { connection });
     this.events.on('error', onError);
     this.queue.on('error', onError);
     this.events.on('completed', ({ returnvalue }) => {
@@ -64,7 +66,7 @@ export class MediaQueueEvents {
       void this.queue
         .getJob(jobId)
         .then(async (job) => {
-          if (job?.name === PROCESS_IMAGE.name) await completion.failed(job.data);
+          if (job?.name === processing.name) await completion.failed(job.data);
         })
         .catch(onError);
     });

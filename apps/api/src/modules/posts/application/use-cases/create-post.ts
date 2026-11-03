@@ -2,6 +2,7 @@ import type { AnalyticsTracker } from '../../../../shared/application/analytics-
 import type { Clock } from '../../../../shared/application/clock.ts';
 import type { IdGenerator } from '../../../../shared/application/id-generator.ts';
 import type { UnitOfWork } from '../../../../shared/application/unit-of-work.ts';
+import { MediaKindMismatchError, MediaNotFoundError } from '../../../media/domain/errors.ts';
 import { ProfileNotFoundError } from '../../../identity/domain/errors.ts';
 import { attachMediaOrThrow } from '../../../media/application/attach-media.ts';
 import { normalizeCaption, type Post, type PostKind } from '../../domain/post.ts';
@@ -33,6 +34,14 @@ export class CreatePost {
     const created = await this.transaction.run(async ({ accounts, media, posts, reader }) => {
       if (!(await accounts.findById(input.authorId))) throw new ProfileNotFoundError();
 
+      // Validate the whole selection before attaching any media (also for in-memory transactions).
+      for (const mediaId of input.mediaIds) {
+        const selected = await media.findById(mediaId);
+        if (!selected || selected.ownerId !== input.authorId) throw new MediaNotFoundError();
+        if (selected.kind !== (input.kind === 'reel' ? 'video' : 'image'))
+          throw new MediaKindMismatchError();
+      }
+      if (input.kind === 'reel' && input.mediaIds.length !== 1) throw new MediaKindMismatchError();
       for (const mediaId of input.mediaIds) {
         await attachMediaOrThrow(media, { id: mediaId, ownerId: input.authorId, purpose: 'post' });
       }

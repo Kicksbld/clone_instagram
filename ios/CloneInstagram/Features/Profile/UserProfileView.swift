@@ -81,7 +81,7 @@ struct UserProfileView: View {
                     }
                     .padding([.horizontal, .top])
                     if profile.canViewContent {
-                        ProfilePostsGrid(viewModel: ProfilePostsViewModel(userId: profile.id, posts: posts))
+                        ProfileContentTabs(viewModel: ProfilePostsViewModel(userId: profile.id, posts: posts))
                             // Nouvelle grille seulement si la visibilité des contenus change (pas à chaque tap Suivre).
                             .id(profile.canViewContent)
                     } else {

@@ -17,6 +17,7 @@ nonisolated struct PendingPost: Codable, Equatable, Identifiable {
     /// Profil qui publie : une publication n'est jamais reprise pour un autre compte.
     let authorId: String
     let caption: String
+    var kind: PostKind?
     /// Photos du post (1 à 10), dans l'ordre d'affichage.
     var media: [PendingMedia]
     var step: Step
@@ -72,6 +73,7 @@ nonisolated struct FilePendingPostStore: PendingPostStore {
 /// Publier une ou plusieurs photos : utilisé par l'écran de création.
 protocol PostPublishing: AnyObject {
     /// Prépare les photos et les ajoute à la file ; la suite (envoi, traitement, création) continue sans l'écran.
+    func publish(video: URL, caption: String, authorId: String) async throws(UploadError)
     func publish(images: [Data], caption: String, authorId: String) async throws(UploadError)
 }
 
@@ -83,6 +85,7 @@ protocol PostPublishing: AnyObject {
  */
 @Observable
 final class PublishQueue: PostPublishing {
+    typealias PrepareVideo = @Sendable (URL, URL) async throws -> PreparedImage
     typealias Prepare = @Sendable (Data, URL) async throws(ImagePreparationError) -> PreparedImage
 
     private(set) var items: [PendingPost]
@@ -93,6 +96,8 @@ final class PublishQueue: PostPublishing {
     private let uploads: any MediaUploading
     private let posts: any PostService
     private let analytics: any AnalyticsService
+    private let prepareVideo: PrepareVideo
+    private var sessionGeneration = 0
     private let prepare: Prepare
     private var tasks: [UUID: Task<Void, Never>] = [:]
 
@@ -103,38 +108,71 @@ final class PublishQueue: PostPublishing {
         analytics: any AnalyticsService = NoopAnalyticsService(),
         prepare: @escaping Prepare = { data, directory throws(ImagePreparationError) in
             try await ImagePreparer.prepare(data, in: directory)
-        }
+        },
+        prepareVideo: @escaping PrepareVideo = { try await VideoPreparer.prepare($0, in: $1) }
     ) {
         self.store = store
         self.uploads = uploads
         self.posts = posts
         self.analytics = analytics
+        self.prepareVideo = prepareVideo
         self.prepare = prepare
         items = store.load()
     }
 
     /// Première photo : vignette du bandeau.
     func fileURL(of item: PendingPost) -> URL? {
-        item.media.first.map(fileURL(of:))
+        item.kind == .reel ? nil : item.media.first.map(fileURL(of:))
     }
 
     func publish(images: [Data], caption: String, authorId: String) async throws(UploadError) {
+        let generation = sessionGeneration
         var media: [PendingMedia] = []
         for data in images {
             do {
                 let image = try await prepare(data, store.directory)
+                guard generation == sessionGeneration, !Task.isCancelled else {
+                    try? FileManager.default.removeItem(at: image.fileURL)
+                    removeFiles(of: media)
+                    throw UploadError.unauthenticated
+                }
                 media.append(PendingMedia(
                     fileName: image.fileURL.lastPathComponent,
                     sizeBytes: image.sizeBytes,
                     width: image.width,
                     height: image.height
                 ))
+            } catch let error as UploadError {
+                removeFiles(of: media)
+                throw error
             } catch {
                 removeFiles(of: media)
                 throw .unreadableImage
             }
         }
         let item = PendingPost(id: UUID(), authorId: authorId, caption: caption, media: media, step: .upload)
+        items.append(item)
+        persist()
+        start(item.id)
+    }
+
+    func publish(video: URL, caption: String, authorId: String) async throws(UploadError) {
+        let generation = sessionGeneration
+        let prepared: PreparedImage
+        do { prepared = try await prepareVideo(video, store.directory) }
+        catch let error as UploadError { throw error }
+        catch { throw .rejected(.invalidVideo) }
+        guard generation == sessionGeneration, !Task.isCancelled else {
+            try? FileManager.default.removeItem(at: prepared.fileURL)
+            throw .unauthenticated
+        }
+        let media = PendingMedia(
+            fileName: prepared.fileURL.lastPathComponent,
+            sizeBytes: prepared.sizeBytes,
+            width: prepared.width,
+            height: prepared.height
+        )
+        let item = PendingPost(id: UUID(), authorId: authorId, caption: caption, kind: .reel, media: [media], step: .upload)
         items.append(item)
         persist()
         start(item.id)
@@ -166,6 +204,7 @@ final class PublishQueue: PostPublishing {
 
     /// À la déconnexion : rien n'est publié pour le compte suivant.
     func discardAll() {
+        sessionGeneration += 1
         for item in items {
             discard(item.id)
         }
@@ -206,7 +245,7 @@ final class PublishQueue: PostPublishing {
             let image = PreparedImage(
                 fileURL: fileURL(of: media),
                 sizeBytes: media.sizeBytes,
-                mimeType: "image/jpeg",
+                mimeType: item.kind == .reel ? "video/mp4" : "image/jpeg",
                 width: media.width,
                 height: media.height
             )
@@ -228,7 +267,7 @@ final class PublishQueue: PostPublishing {
                 return
             }
             do {
-                try await uploads.waitUntilProcessed(mediaId: mediaId)
+                try await uploads.waitUntilProcessed(mediaId: mediaId, isVideo: item.kind == .reel)
             } catch {
                 // Photo refusée par le worker : « Réessayer » ne renvoie qu'elle.
                 if case .rejected = error {
@@ -251,13 +290,17 @@ final class PublishQueue: PostPublishing {
             return
         }
         do {
-            _ = try await posts.createPost(caption: item.caption, mediaIds: mediaIds)
+            if item.kind == .reel, let mediaId = mediaIds.first {
+                _ = try await posts.createReel(caption: item.caption, mediaId: mediaId)
+            } else {
+                _ = try await posts.createPost(caption: item.caption, mediaIds: mediaIds)
+            }
         } catch .mediaAlreadyAttached {
             // Le post a déjà été créé (réponse perdue avant la fermeture de l'app) : publication réussie.
         } catch .mediaNotReady {
             update(item.id) { $0.step = .processing }
             return
-        } catch .mediaNotFound, .mediaPurposeMismatch {
+        } catch .mediaNotFound, .mediaPurposeMismatch, .mediaKindMismatch {
             // Médias inutilisables : « Réessayer » renvoie toutes les photos.
             update(item.id) {
                 for index in $0.media.indices {
@@ -318,5 +361,11 @@ final class PublishQueue: PostPublishing {
         case .unauthenticated: "Votre session a expiré. Reconnectez-vous."
         default: genericMessage
         }
+    }
+}
+
+extension PostPublishing {
+    func publish(video _: URL, caption _: String, authorId _: String) async throws(UploadError) {
+        throw .unexpected
     }
 }

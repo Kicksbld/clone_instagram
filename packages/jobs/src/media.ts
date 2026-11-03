@@ -17,3 +17,14 @@ export type ProcessImageResult = z.infer<typeof PROCESS_IMAGE.result>;
 export function processImageJobId(mediaId: string): string {
   return `${PROCESS_IMAGE.name}-${mediaId}`;
 }
+
+export const PROCESS_VIDEO = {
+  queue: QUEUE_NAMES.video,
+  name: 'process-video',
+  payload: z.object({ mediaId: z.uuid() }),
+  result: z.object({ mediaId: z.uuid(), ownerId: z.uuid() }),
+} as const;
+export type ProcessVideoResult = z.infer<typeof PROCESS_VIDEO.result>;
+export function processVideoJobId(mediaId: string): string {
+  return `${PROCESS_VIDEO.name}-${mediaId}`;
+}

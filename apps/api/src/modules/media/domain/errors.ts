@@ -47,3 +47,9 @@ export function attachRefusal(
   // L'état relu autorise le rattachement : il a changé entre-temps (course).
   return new MediaInvalidTransitionError();
 }
+
+export class MediaKindMismatchError extends BusinessRuleError {
+  constructor() {
+    super('media_kind_mismatch', 'Le type du média ne correspond pas au post.');
+  }
+}

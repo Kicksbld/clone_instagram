@@ -27,13 +27,13 @@ final class MediaProcessingEvents {
         listeners.removeValue(forKey: id)?.1.finish()
     }
 
-    func signals(mediaId: String) -> (id: UUID, stream: AsyncStream<Signal>) {
+    func signals(mediaId: String, initialDelay: Duration = .seconds(20)) -> (id: UUID, stream: AsyncStream<Signal>) {
         let id = UUID()
         let (stream, continuation) = AsyncStream<Signal>.makeStream()
         listeners[id] = (mediaId, continuation)
         let timer = Task {
             do {
-                try await Task.sleep(for: .seconds(20))
+                try await Task.sleep(for: initialDelay)
                 while !Task.isCancelled {
                     continuation.yield(.refresh)
                     try await Task.sleep(for: .seconds(10))

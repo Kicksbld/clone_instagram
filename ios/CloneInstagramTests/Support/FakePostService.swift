@@ -21,6 +21,24 @@ final class FakePostService: PostService {
     /// Appelé pendant `deletePost`, avant la réponse (ex. l'écran affiché pendant l'appel).
     var duringDelete: (() async -> Void)?
 
+    private(set) var createdReels: [String] = []
+    func createReel(
+        caption: String,
+        mediaId: String
+    ) async throws(PostServiceError) -> Post {
+        createdReels.append(mediaId); return try await createPost(
+            caption: caption,
+            mediaIds: [mediaId]
+        )
+    }
+
+    func listReels(of userId: String, cursor: String?) async throws(PostServiceError) -> PostPage {
+        try await listPosts(
+            of: userId,
+            cursor: cursor
+        )
+    }
+
     private(set) var created: [(caption: String, mediaIds: [String])] = []
     private(set) var listRequests: [ListRequest] = []
     /// Curseurs des appels à `listFeed`.
@@ -97,7 +115,7 @@ final class FakeMediaUploading: MediaUploading {
         return mediaIds.count > 1 ? mediaIds.removeFirst() : mediaIds[0]
     }
 
-    func waitUntilProcessed(mediaId: String) async throws(UploadError) {
+    func waitUntilProcessed(mediaId: String, isVideo _: Bool) async throws(UploadError) {
         waited.append(mediaId)
         if let error = waitFailures[waited.count] {
             throw error

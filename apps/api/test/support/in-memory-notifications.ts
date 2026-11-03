@@ -1,3 +1,4 @@
+import { previewVariants } from '../../src/shared/domain/image-variants.ts';
 import type {
   ActivityQuery,
   ActivityReader,
@@ -170,7 +171,9 @@ export class InMemoryActivity implements ActivityReader, ActivityRepository {
     const actor = this.profiles.rows.get(latest.actorId);
     if (!actor) throw new Error(`Acteur absent : ${latest.actorId}`);
     const post = 'postId' in latest ? this.posts.rows.get(latest.postId) : undefined;
-    const thumbnail = post?.mediaIds[0] ? this.media.rows.get(post.mediaIds[0])?.variants : null;
+    const thumbnail = previewVariants(
+      post?.mediaIds[0] ? this.media.rows.get(post.mediaIds[0])?.variants : null,
+    );
     const comment = 'commentId' in latest ? this.comments.rows.get(latest.commentId) : undefined;
     return {
       key: latest.groupKey,

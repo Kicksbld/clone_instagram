@@ -16,6 +16,7 @@ nonisolated enum PostServiceError: Error, Equatable {
     /// `409 media_already_attached` : le média sert déjà à un post (ex. publication déjà créée).
     case mediaAlreadyAttached
     /// `422 media_purpose_mismatch`.
+    case mediaKindMismatch
     case mediaPurposeMismatch
     /// `429 rate_limited` ; `retryAfter` en secondes (`Retry-After`).
     case rateLimited(retryAfter: Int?)
@@ -36,6 +37,8 @@ nonisolated enum PostServiceError: Error, Equatable {
 protocol PostService: Sendable {
     /// `POST /v1/posts` : 1 à 10 images (carrousel), dans l'ordre d'affichage.
     func createPost(caption: String, mediaIds: [String]) async throws(PostServiceError) -> Post
+    func createReel(caption: String, mediaId: String) async throws(PostServiceError) -> Post
+    func listReels(of userId: String, cursor: String?) async throws(PostServiceError) -> PostPage
     /// `GET /v1/posts/{id}`.
     func fetchPost(id: String) async throws(PostServiceError) -> Post
     /// `GET /v1/users/{id}/posts` ; `cursor` = `nextCursor` de la page précédente.
@@ -51,7 +54,15 @@ struct APIPostService: PostService {
     let client: any APIProtocol
 
     func createPost(caption: String, mediaIds: [String]) async throws(PostServiceError) -> Post {
-        let body = Components.Schemas.CreatePostRequest(kind: .post, caption: caption, mediaIds: mediaIds)
+        try await create(kind: .post, caption: caption, mediaIds: mediaIds)
+    }
+
+    func createReel(caption: String, mediaId: String) async throws(PostServiceError) -> Post {
+        try await create(kind: .reel, caption: caption, mediaIds: [mediaId])
+    }
+
+    private func create(kind: Components.Schemas.PostKind, caption: String, mediaIds: [String]) async throws(PostServiceError) -> Post {
+        let body = Components.Schemas.CreatePostRequest(kind: kind, caption: caption, mediaIds: mediaIds)
         let output = try await call { try await client.createPost(body: .json(body)) }
         switch output {
         case let .created(response):
@@ -96,6 +107,27 @@ struct APIPostService: PostService {
     func listPosts(of userId: String, cursor: String?) async throws(PostServiceError) -> PostPage {
         let output = try await call {
             try await client.listUserPosts(path: .init(id: userId), query: .init(cursor: cursor))
+        }
+        switch output {
+        case let .ok(response):
+            let page = try Self.unwrap { try response.body.json }
+            return try PostPage(items: page.items.map(Post.init), nextCursor: page.nextCursor)
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .notFound(response):
+            throw Self.error(404) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
+    func listReels(of userId: String, cursor: String?) async throws(PostServiceError) -> PostPage {
+        let output = try await call {
+            try await client.listUserReels(path: .init(id: userId), query: .init(cursor: cursor))
         }
         switch output {
         case let .ok(response):
@@ -175,6 +207,7 @@ struct APIPostService: PostService {
         case "media_not_found": .mediaNotFound
         case "media_not_ready": .mediaNotReady
         case "media_already_attached": .mediaAlreadyAttached
+        case "media_kind_mismatch": .mediaKindMismatch
         case "media_purpose_mismatch": .mediaPurposeMismatch
         case "invalid_cursor": .invalidCursor
         case "unauthenticated": .unauthenticated
@@ -211,10 +244,22 @@ private extension Post {
     init(_ dto: Components.Schemas.Post) throws(PostServiceError) {
         var media: [PostMediaItem] = []
         for item in dto.media {
-            guard let variants = ImageVariants(item.variants) else { throw .unexpectedResponse(statusCode: 200) }
-            media.append(PostMediaItem(variants: variants, width: item.width, height: item.height))
+            let variants: ImageVariants
+            var hls: URL?
+            switch item.variants {
+            case let .ImageVariants(value):
+                guard let image = ImageVariants(value) else { throw .unexpectedResponse(statusCode: 200) }
+                variants = image
+            case let .VideoVariants(value):
+                guard let thumbnail = URL(string: value.thumbnail),
+                      let url = URL(string: value.hls) else { throw .unexpectedResponse(statusCode: 200) }
+                variants = ImageVariants(thumb: thumbnail, medium: thumbnail, large: thumbnail)
+                hls = url
+            }
+            media.append(PostMediaItem(variants: variants, width: item.width, height: item.height, hls: hls, durationMs: item.durationMs))
         }
         self.init(
+            kind: dto.kind == .reel ? .reel : .post,
             id: dto.id,
             caption: dto.caption,
             author: PostAuthor(
@@ -228,5 +273,15 @@ private extension Post {
             commentCount: dto.commentCount,
             createdAt: dto.createdAt
         )
+    }
+}
+
+extension PostService {
+    func createReel(caption _: String, mediaId _: String) async throws(PostServiceError) -> Post {
+        throw .unreachable
+    }
+
+    func listReels(of _: String, cursor _: String?) async throws(PostServiceError) -> PostPage {
+        throw .unreachable
     }
 }

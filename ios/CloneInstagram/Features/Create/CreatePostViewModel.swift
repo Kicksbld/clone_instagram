@@ -50,6 +50,58 @@ final class CreatePostViewModel {
         }
     }
 
+    var isReel = false
+    private var videoLoadGeneration = 0
+    private(set) var isLoadingVideo = false
+    private(set) var videoURL: URL?
+
+    func selectVideo(_ url: URL) {
+        videoLoadGeneration += 1
+        isLoadingVideo = false
+        if let previous = videoURL, previous != url {
+            try? FileManager.default.removeItem(at: previous)
+        }
+        videoURL = url
+    }
+
+    func loadVideo(_ load: () async throws -> URL?) async {
+        videoLoadGeneration += 1
+        let generation = videoLoadGeneration
+        if let previous = videoURL {
+            try? FileManager.default.removeItem(at: previous)
+        }
+        videoURL = nil
+        isLoadingVideo = true
+        do {
+            let url = try await load()
+            guard generation == videoLoadGeneration else {
+                if let url {
+                    try? FileManager.default.removeItem(at: url)
+                }
+                return
+            }
+            isLoadingVideo = false
+            guard let url else { loadErrorMessage = "Cette vidéo n'a pas pu être lue. Réessayez."; return }
+            videoURL = url
+        } catch {
+            guard generation == videoLoadGeneration else { return }
+            isLoadingVideo = false
+            loadErrorMessage = "Cette vidéo n'a pas pu être lue. Réessayez."
+        }
+    }
+
+    func shareReel() async -> Bool {
+        guard let videoURL, !isSharing else { return false }
+        isSharing = true
+        defer { isSharing = false }
+        do {
+            try await publisher.publish(video: videoURL, caption: caption, authorId: authorId)
+            try? FileManager.default.removeItem(at: videoURL)
+            self.videoURL = nil
+            return true
+        } catch { shareErrorMessage = UploadError.message(for: error); return false }
+    }
+
     private(set) var isSharing = false
     /// Échec du partage, affiché en alerte ; `nil` une fois fermée.
     var shareErrorMessage: String?
@@ -132,7 +184,7 @@ final class CreatePostViewModel {
     }
 
     var canContinue: Bool {
-        !photos.isEmpty && !isLoading
+        isReel ? videoURL != nil && !isLoadingVideo : !photos.isEmpty && !isLoading
     }
 
     /// Une seule photo (mode simple du sélecteur).
@@ -218,6 +270,9 @@ final class CreatePostViewModel {
 
     /// Recadre, prépare et ajoute les photos à la file ; `true` si l'écran peut se fermer.
     func share() async -> Bool {
+        if isReel {
+            return await shareReel()
+        }
         guard !photos.isEmpty, !isSharing else { return false }
         isSharing = true
         defer { isSharing = false }

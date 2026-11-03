@@ -7,7 +7,6 @@ export type PostResponse = components['schemas']['Post'];
 
 /** Post du domaine → schéma `Post` du contrat (chemins Storage → URL publiques). */
 export function toPostResponse(post: Post, urls: PublicMediaUrls): PostResponse {
-  if (post.kind !== 'post') throw new Error(`Valeur hors contrat : ${post.kind}`);
   const { avatarVariants } = post.author;
   return {
     id: post.id,
@@ -22,6 +21,7 @@ export function toPostResponse(post: Post, urls: PublicMediaUrls): PostResponse 
       variants: urls.of(item.variants),
       width: item.width,
       height: item.height,
+      ...(item.durationMs !== undefined && { durationMs: item.durationMs }),
     })),
     likeCount: post.likeCount,
     viewerHasLiked: post.viewerHasLiked,

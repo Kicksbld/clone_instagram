@@ -68,6 +68,8 @@ final class RealtimeClient {
                         receiveReady(event)
                     case let .media_failed(event):
                         let reason: MediaFailureReason = switch event.data.reason {
+                        case .invalidVideo: .invalidVideo
+                        case .videoTooLong: .videoTooLong
                         case .invalidImage: .invalidImage
                         case .fileTooLarge: .fileTooLarge
                         case .processingError: .processingError
@@ -98,7 +100,11 @@ final class RealtimeClient {
     }
 
     private func receiveReady(_ event: Components.Schemas.MediaReady) {
-        guard let variants = ImageVariants(event.data.variants) else { return }
+        if case .VideoVariants = event.data.variants {
+            mediaEvents?.receive(mediaId: event.data.mediaId, status: .videoReady)
+            return
+        }
+        guard case let .ImageVariants(value) = event.data.variants, let variants = ImageVariants(value) else { return }
         mediaEvents?.receive(mediaId: event.data.mediaId, status: .ready(variants))
     }
 

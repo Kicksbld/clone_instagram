@@ -1,7 +1,10 @@
-import type { StorageClient } from '@supabase/storage-js';
+import { StorageClient } from '@supabase/storage-js';
 
 /** Supabase Storage vu par le worker (ADR-008) : lire l'original, écrire et effacer des fichiers. */
 export interface WorkerStorage {
+  withSignal(signal: AbortSignal): WorkerStorage;
+  /** Efface tous les objets sous le préfixe, y compris les sous-dossiers HLS. */
+  removeDirectory(bucket: string, prefix: string): Promise<void>;
   /** `null` si le fichier n'existe pas. */
   download(bucket: string, path: string): Promise<Buffer | null>;
   /** Écrase un fichier existant : un job rejoué réécrit les mêmes chemins, sans doublon. */
@@ -12,7 +15,38 @@ export interface WorkerStorage {
 
 /** Adapter storage-js avec la clé secrète (API et worker uniquement, ADR-009). */
 export class SupabaseWorkerStorage implements WorkerStorage {
-  constructor(private readonly client: StorageClient) {}
+  private readonly client: StorageClient;
+  constructor(
+    private readonly url: string,
+    private readonly headers: Record<string, string>,
+    signal?: AbortSignal,
+  ) {
+    this.client = new StorageClient(url, headers, (input, init) =>
+      fetch(input, {
+        ...init,
+        ...(signal && { signal: init?.signal ? AbortSignal.any([signal, init.signal]) : signal }),
+      }),
+    );
+  }
+
+  withSignal(signal: AbortSignal): WorkerStorage {
+    return new SupabaseWorkerStorage(this.url, this.headers, signal);
+  }
+
+  async removeDirectory(bucket: string, prefix: string): Promise<void> {
+    // List from the start after each deletion: offsets would skip objects as the directory shrinks.
+    for (;;) {
+      const { data, error } = await this.client.from(bucket).list(prefix, { limit: 100 });
+      if (error) throw new Error(`Liste de ${bucket}/${prefix} impossible`, { cause: error });
+      if (!data.length) return;
+      const files: string[] = [];
+      for (const item of data) {
+        if (item.id !== null) files.push(`${prefix}/${item.name}`);
+        else await this.removeDirectory(bucket, `${prefix}/${item.name}`);
+      }
+      await this.remove(bucket, files);
+    }
+  }
 
   async download(bucket: string, path: string): Promise<Buffer | null> {
     const { data, error } = await this.client.from(bucket).download(path);

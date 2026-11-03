@@ -20,6 +20,7 @@ export class ListUserPosts {
     viewerId: string;
     userId: string;
     after: PageCursor | null;
+    kind?: 'reel';
   }): Promise<Page<Post>> {
     await requireVisibleContent(this.accounts, this.relationships, input.viewerId, input.userId);
     return this.posts.listByAuthor({
@@ -27,6 +28,7 @@ export class ListUserPosts {
       authorId: input.userId,
       after: input.after,
       limit: USER_POSTS_PAGE_SIZE,
+      ...(input.kind && { kind: input.kind }),
     });
   }
 }

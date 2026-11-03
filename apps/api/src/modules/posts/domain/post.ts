@@ -1,4 +1,7 @@
-import type { ImageVariantPaths } from '../../../shared/domain/image-variants.ts';
+import type {
+  ImageVariantPaths,
+  MediaVariantPaths,
+} from '../../../shared/domain/image-variants.ts';
 import type { VisibilitySubject } from '../../../shared/domain/visibility.ts';
 import { CaptionTooLongError } from './errors.ts';
 
@@ -19,7 +22,8 @@ export interface PostAuthor extends VisibilitySubject {
 
 /** Une image d'un post, dans l'ordre d'affichage. */
 export interface PostMediaItem {
-  variants: ImageVariantPaths;
+  variants: MediaVariantPaths;
+  durationMs?: number;
   width: number;
   height: number;
 }

@@ -67,12 +67,7 @@ export function purgeAccount({
         STORAGE_BUCKETS.uploads,
         files.map((file) => file.originalPath),
       );
-      await storage.remove(
-        STORAGE_BUCKETS.public,
-        files.flatMap(({ variants }) =>
-          variants ? [variants.thumb, variants.medium, variants.large] : [],
-        ),
-      );
+      for (const file of files) await storage.removeDirectory(STORAGE_BUCKETS.public, file.id);
       await db.transaction((tx) => purgeAccountData(tx, profileId));
     }
 

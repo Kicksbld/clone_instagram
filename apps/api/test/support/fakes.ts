@@ -19,6 +19,11 @@ import type { MediaStorage } from '../../src/modules/media/application/ports/med
 
 /** File de jobs en mémoire : enregistre les identifiants enfilés, sans doublon comme le `jobId` BullMQ. */
 export class InMemoryJobQueue implements JobQueue {
+  readonly videoProcessing = new Set<string>();
+  enqueueVideoProcessing(mediaId: string): Promise<void> {
+    this.videoProcessing.add(mediaId);
+    return Promise.resolve();
+  }
   readonly imageProcessing = new Set<string>();
   readonly accountPurges = new Set<string>();
   readonly contentFilesPurges = new Set<string>();

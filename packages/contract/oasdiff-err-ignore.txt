@@ -1,0 +1,23 @@
+# T22 (#33), validé par le lead dev le 2026-11-02 : reels, vidéo et motifs de refus.
+# Exceptions exactes par opération ; les entrées image existantes restent acceptées.
+GET /v1/feed added the new `reel` enum value to the `items/items/kind` response property for the response status `200`
+GET /v1/feed added `#/components/schemas/ImageVariants, #/components/schemas/VideoVariants` to the `items/items/media/items/variants` response property `oneOf` list for the response status `200`
+POST /v1/media/uploads added 'else' subschema to the request body
+POST /v1/media/uploads added 'if' subschema to the request body
+POST /v1/media/uploads added 'then' subschema to the request body
+GET /v1/media/{id} added the new `invalid_video` enum value to the `failureReason` response property for the response status `200`
+GET /v1/media/{id} added the new `video` enum value to the `kind` response property for the response status `200`
+GET /v1/media/{id} added the new `video_too_long` enum value to the `failureReason` response property for the response status `200`
+GET /v1/media/{id} added `#/components/schemas/ImageVariants, #/components/schemas/VideoVariants` to the `variants` response property `oneOf` list for the response status `200`
+POST /v1/media/{id}/complete added the new `invalid_video` enum value to the `failureReason` response property for the response status `200`
+POST /v1/media/{id}/complete added the new `video` enum value to the `kind` response property for the response status `200`
+POST /v1/media/{id}/complete added the new `video_too_long` enum value to the `failureReason` response property for the response status `200`
+POST /v1/media/{id}/complete added `#/components/schemas/ImageVariants, #/components/schemas/VideoVariants` to the `variants` response property `oneOf` list for the response status `200`
+POST /v1/posts added 'if' subschema to the request body
+POST /v1/posts added 'then' subschema to the request body
+POST /v1/posts added the new `reel` enum value to the `kind` response property for the response status `201`
+POST /v1/posts added `#/components/schemas/ImageVariants, #/components/schemas/VideoVariants` to the `media/items/variants` response property `oneOf` list for the response status `201`
+GET /v1/posts/{id} added the new `reel` enum value to the `kind` response property for the response status `200`
+GET /v1/posts/{id} added `#/components/schemas/ImageVariants, #/components/schemas/VideoVariants` to the `media/items/variants` response property `oneOf` list for the response status `200`
+GET /v1/users/{id}/posts added the new `reel` enum value to the `items/items/kind` response property for the response status `200`
+GET /v1/users/{id}/posts added `#/components/schemas/ImageVariants, #/components/schemas/VideoVariants` to the `items/items/media/items/variants` response property `oneOf` list for the response status `200`

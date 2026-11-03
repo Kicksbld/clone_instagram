@@ -3,7 +3,7 @@ import {
   profiles,
   transitionProfileStatus,
   type Executor,
-  type ImageVariantPaths,
+  type MediaVariantPaths,
   type ProfileRow,
 } from '@clone/db';
 import { and, eq, inArray, ne, sql, type SQL } from 'drizzle-orm';
@@ -16,11 +16,11 @@ import type {
 import { ProfileAlreadyExistsError, UsernameTakenError } from '../../domain/errors.ts';
 import type { AccountStatus, Avatar, Profile } from '../../domain/profile.ts';
 
-function toAvatar(mediaId: string | null, variants: ImageVariantPaths | null): Avatar | null {
-  return mediaId && variants ? { mediaId, variants } : null;
+function toAvatar(mediaId: string | null, variants: MediaVariantPaths | null): Avatar | null {
+  return mediaId && variants && 'thumb' in variants ? { mediaId, variants } : null;
 }
 
-export function toProfile(row: ProfileRow, avatarVariants: ImageVariantPaths | null): Profile {
+export function toProfile(row: ProfileRow, avatarVariants: MediaVariantPaths | null): Profile {
   return {
     id: row.id,
     username: row.username,

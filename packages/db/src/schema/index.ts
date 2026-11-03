@@ -8,6 +8,8 @@ export {
   MEDIA_PURPOSES,
   MEDIA_STATUSES,
   type ImageVariantPaths,
+  type VideoVariantPaths,
+  type MediaVariantPaths,
   type MediaFailureReason,
   type MediaKind,
   type MediaPurpose,

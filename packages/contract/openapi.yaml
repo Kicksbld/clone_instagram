@@ -33,6 +33,7 @@ info:
     | `media_invalid_transition` | 409 | Le statut du média ne permet pas l'opération (ex. `complete` sur un média déjà traité) |
     | `media_not_ready` | 409 | Le média n'est pas encore `ready` |
     | `media_already_attached` | 409 | Le média est déjà utilisé, ou l'a été (un média ne sert qu'une fois) |
+    | `media_kind_mismatch` | 422 | Le type du média ne correspond pas au type du post |
     | `media_purpose_mismatch` | 422 | Le `purpose` du média ne correspond pas à l'usage demandé |
     | `user_not_found` | 404 | Profil inexistant ou invisible pour l'appelant (blocage dans un sens ou dans l'autre, compte non actif : ADR-006) ; liste d'abonnés d'un compte privé non suivi |
     | `account_private` | 403 | Plus renvoyé depuis T20 : suivre un compte privé crée une demande d'abonnement |
@@ -654,6 +655,31 @@ paths:
           $ref: '#/components/responses/UserNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v1/users/{id}/reels:
+    get:
+      operationId: listUserReels
+      tags: [posts]
+      summary: Reels d'un utilisateur
+      description: |
+        Reels non supprimés de cet utilisateur, du plus récent au plus ancien, par pages de 12 (grille du profil). Réservé à qui peut voir ses contenus (compte public, soi-même ou abonné) ; sinon `404 user_not_found` (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page de reels.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/posts:
     post:
       operationId: createPost
@@ -661,7 +687,7 @@ paths:
       summary: Publier un post
       description: |
         Crée un post à partir de médias `ready`, à moi, de `purpose` `post`, jamais utilisés (ADR-008) ; ils sont rattachés au post dans l'ordre de `mediaIds`.
-        De 1 à 10 images (carrousel) ; les reels arrivent en P1. Limité à 20 posts par heure (`429 rate_limited`).
+        De 1 à 10 images (carrousel), ou exactement une vidéo prête pour un reel. Un média de type incompatible renvoie `422 media_kind_mismatch`. Limité à 20 posts par heure (`429 rate_limited`).
       requestBody:
         required: true
         content:
@@ -1049,7 +1075,7 @@ paths:
       description: |
         Crée le média en `pending_upload` et renvoie une URL d'upload présignée (ADR-008).
         Le fichier est envoyé directement à `uploadUrl` par un `PUT` du contenu brut, avec le `Content-Type` déclaré, avant `expiresAt` ;
-        l'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus, pour une photo de profil (`avatar`) ou un post (`post`).
+        l'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus pour `avatar` ou `post` ; vidéo MP4 de 50 Mo au plus pour `post`.
         Limité à 30 demandes par heure (`429 rate_limited`, ADR-005).
       requestBody:
         required: true
@@ -1527,7 +1553,9 @@ components:
               type: string
               format: uuid
             variants:
-              $ref: '#/components/schemas/ImageVariants'
+              oneOf:
+                - $ref: '#/components/schemas/ImageVariants'
+                - $ref: '#/components/schemas/VideoVariants'
     MediaFailed:
       type: object
       required: [type, data]
@@ -1846,10 +1874,21 @@ components:
           type: string
           format: uri
           description: 1080 px de large.
+    VideoVariants:
+      type: object
+      description: URL publiques de la playlist HLS maître et de la miniature WebP.
+      required: [hls, thumbnail]
+      properties:
+        hls:
+          type: string
+          format: uri
+        thumbnail:
+          type: string
+          format: uri
     MediaKind:
       type: string
-      description: '`video` arrive avec les reels (P1).'
-      enum: [image]
+      description: Image ou vidéo MP4 de reel.
+      enum: [image, video]
     MediaPurpose:
       type: string
       description: Usage prévu du média ; il ne peut être rattaché qu'à cet usage (ADR-008).
@@ -1862,9 +1901,11 @@ components:
       type: string
       description: |
         - `invalid_image` : le fichier n'est pas une image JPEG ou PNG ;
-        - `file_too_large` : plus de 20 Mo ;
+        - `file_too_large` : plus de 20 Mo (image) ou 50 Mo (vidéo) ;
         - `processing_error` : échec du traitement après ses tentatives.
-      enum: [invalid_image, file_too_large, processing_error]
+        - `invalid_video` : fichier illisible ou sans flux vidéo ;
+        - `video_too_long` : durée supérieure à 60,5 secondes.
+      enum: [invalid_image, file_too_large, processing_error, invalid_video, video_too_long]
     MediaUploadRequest:
       type: object
       additionalProperties: false
@@ -1876,12 +1917,29 @@ components:
           $ref: '#/components/schemas/MediaPurpose'
         mimeType:
           type: string
-          enum: [image/jpeg, image/png]
+          enum: [image/jpeg, image/png, video/mp4]
         sizeBytes:
           type: integer
           description: Taille déclarée du fichier ; le worker revérifie le fichier réel.
           minimum: 1
-          maximum: 20971520
+          maximum: 52428800
+      if:
+        properties:
+          kind:
+            const: image
+      then:
+        properties:
+          mimeType:
+            enum: [image/jpeg, image/png]
+          sizeBytes:
+            type: integer
+            maximum: 20971520
+      else:
+        properties:
+          purpose:
+            const: post
+          mimeType:
+            const: video/mp4
     MediaUploadIntent:
       type: object
       required: [mediaId, uploadUrl, expiresAt]
@@ -1911,15 +1969,17 @@ components:
         status:
           $ref: '#/components/schemas/MediaStatus'
         variants:
-          $ref: '#/components/schemas/ImageVariants'
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - $ref: '#/components/schemas/VideoVariants'
           description: Présentes quand le média est `ready`.
         failureReason:
           $ref: '#/components/schemas/MediaFailureReason'
           description: Présent quand le média est `failed`.
     PostKind:
       type: string
-      description: '`reel` arrive en P1.'
-      enum: [post]
+      description: Post photo ou reel vidéo.
+      enum: [post, reel]
     Caption:
       type: string
       description: Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.
@@ -1942,6 +2002,15 @@ components:
           items:
             type: string
             format: uuid
+      if:
+        properties:
+          kind:
+            const: reel
+      then:
+        properties:
+          mediaIds:
+            type: array
+            maxItems: 1
     PostAuthor:
       type: object
       description: Auteur d'un post.
@@ -1957,17 +2026,23 @@ components:
           description: Photo de profil ; absente si aucune photo.
     PostMedia:
       type: object
-      description: Une image d'un post ; `width` et `height` (en pixels) donnent son ratio d'affichage.
+      description: Un média de post ; `width` et `height` (en pixels) donnent son ratio d'affichage.
       required: [variants, width, height]
       properties:
         variants:
-          $ref: '#/components/schemas/ImageVariants'
+          oneOf:
+            - $ref: '#/components/schemas/ImageVariants'
+            - $ref: '#/components/schemas/VideoVariants'
         width:
           type: integer
           minimum: 1
         height:
           type: integer
           minimum: 1
+        durationMs:
+          type: integer
+          minimum: 1
+          description: Durée du reel en millisecondes ; absente pour une image.
     Post:
       type: object
       required:
