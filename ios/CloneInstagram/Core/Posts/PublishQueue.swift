@@ -253,7 +253,7 @@ final class PublishQueue: PostPublishing {
                 let mediaId = try await uploads.send(image, purpose: .post)
                 update(item.id) { $0.media[index].mediaId = mediaId }
             } catch {
-                fail(item.id, UploadError.message(for: error))
+                fail(item.id, UploadError.message(for: error, isVideo: item.kind == .reel))
                 return
             }
         }
@@ -276,7 +276,7 @@ final class PublishQueue: PostPublishing {
                         $0.step = .upload
                     }
                 }
-                fail(item.id, UploadError.message(for: error))
+                fail(item.id, UploadError.message(for: error, isVideo: item.kind == .reel))
                 return
             }
         }

@@ -32,6 +32,28 @@ struct ReelPublishingTests {
         #expect(queue.items.isEmpty)
     }
 
+    @Test func `reel refusé par Storage → message sur la vidéo, sans parler de connexion`() async throws {
+        let store = TemporaryPendingPostStore()
+        defer { try? FileManager.default.removeItem(at: store.directory) }
+        let pending = PendingPost(
+            id: UUID(),
+            authorId: "owner",
+            caption: "Refus",
+            kind: .reel,
+            media: [PendingMedia(fileName: "reel.mp4", sizeBytes: 100, width: 720, height: 1280)],
+            step: .upload
+        )
+        store.save([pending])
+        let uploads = FakeMediaUploading()
+        uploads.sendErrors = [.storageRejected]
+        let queue = PublishQueue(store: store, uploads: uploads, posts: FakePostService())
+        queue.resume(for: "owner")
+        await queue.waitUntilIdle()
+        let failed = try #require(queue.items.first)
+        #expect(failed.failureMessage == "Le serveur a refusé la vidéo. Réessayez plus tard.")
+        #expect(failed.step == .upload)
+    }
+
     @Test func `reel en traitement repris après fermeture sans nouvel envoi`() async {
         let store = TemporaryPendingPostStore()
         defer { try? FileManager.default.removeItem(at: store.directory) }

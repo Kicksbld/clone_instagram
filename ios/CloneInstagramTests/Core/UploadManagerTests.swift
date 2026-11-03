@@ -76,6 +76,33 @@ struct UploadManagerTests {
         #expect(media.completed.isEmpty)
     }
 
+    @Test(arguments: [
+        (FileUploadError.rejected(statusCode: 400), UploadError.storageRejected),
+        (.rejected(statusCode: 403), .storageRejected),
+        (.rejected(statusCode: 413), .rejected(.fileTooLarge)),
+    ])
+    func `fichier refusé par Storage → pas d'erreur de connexion, sans complete`(
+        error: FileUploadError,
+        expected: UploadError
+    ) async {
+        uploader.error = error
+
+        await #expect(throws: expected) {
+            try await makeManager().uploadImage(Data("photo".utf8), purpose: .avatar)
+        }
+        #expect(media.completed.isEmpty)
+        #expect(!UploadError.message(for: expected).contains("connexion"))
+    }
+
+    @Test func `messages d'un reel : parlent de la vidéo, pas de la photo`() {
+        #expect(UploadError.message(for: .transferFailed, isVideo: true)
+            == "L'envoi de la vidéo a échoué. Vérifiez votre connexion et réessayez.")
+        #expect(UploadError.message(for: .storageRejected, isVideo: true) == "Le serveur a refusé la vidéo. Réessayez plus tard.")
+        #expect(UploadError.message(for: .timedOut, isVideo: true) == "Le traitement de la vidéo prend trop de temps. Réessayez.")
+        #expect(UploadError.message(for: .rateLimited, isVideo: true) == "Trop de vidéos envoyées. Réessayez plus tard.")
+        #expect(UploadError.message(for: .transferFailed) == "L'envoi de la photo a échoué. Vérifiez votre connexion et réessayez.")
+    }
+
     @Test func `API injoignable → unreachable, rien n'est envoyé`() async {
         media.requestError = .unreachable
 

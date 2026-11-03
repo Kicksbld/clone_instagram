@@ -28,16 +28,7 @@ struct CreatePostView: View {
                     Text("Reel").tag(true)
                 }.pickerStyle(.segmented).padding()
                 if viewModel.isReel {
-                    VStack(spacing: 16) {
-                        if viewModel.isLoadingVideo {
-                            ProgressView("Chargement de la vidéo…")
-                        }
-                        Text(viewModel.videoURL == nil ? "Choisissez ou filmez une vidéo de 60 secondes au plus." : "Vidéo sélectionnée")
-                        PhotosPicker("Choisir une vidéo", selection: $videoSelection, matching: .videos)
-                        if SystemVideoCamera.isAvailable {
-                            Button("Filmer une vidéo") { isShowingCamera = true }
-                        }
-                    }.padding().frame(maxHeight: .infinity)
+                    ReelSourcePicker(viewModel: viewModel, videoSelection: $videoSelection) { isShowingCamera = true }
                 } else {
                     cropArea
                     if viewModel.photos.count > 1 {
@@ -331,8 +322,11 @@ private struct CaptionView: View {
         Form {
             Section {
                 Group {
-                    if viewModel.isReel {
-                        Text("Reel · 60 secondes au plus")
+                    if viewModel.isReel, let url = viewModel.videoURL {
+                        SelectedVideoPreview(url: url)
+                            .frame(height: 280)
+                            .frame(maxWidth: .infinity)
+                            .padding()
                     } else {
                         previews
                     }

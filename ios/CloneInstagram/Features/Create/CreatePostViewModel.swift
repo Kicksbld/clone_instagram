@@ -99,7 +99,7 @@ final class CreatePostViewModel {
             try? FileManager.default.removeItem(at: videoURL)
             self.videoURL = nil
             return true
-        } catch { shareErrorMessage = UploadError.message(for: error); return false }
+        } catch { shareErrorMessage = UploadError.message(for: error, isVideo: true); return false }
     }
 
     private(set) var isSharing = false

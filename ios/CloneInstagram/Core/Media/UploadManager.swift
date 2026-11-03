@@ -3,8 +3,10 @@ import Foundation
 nonisolated enum UploadError: Error, Equatable {
     /// La photo choisie n'a pas pu être lue.
     case unreadableImage
-    /// Envoi du fichier interrompu ou refusé.
+    /// Envoi du fichier interrompu (réseau).
     case transferFailed
+    /// Fichier refusé par Storage (type ou taille non autorisés, URL expirée…) : la connexion n'y est pour rien.
+    case storageRejected
     /// Traitement refusé par le worker (fichier invalide, trop lourd…).
     case rejected(MediaFailureReason)
     /// Traitement trop long.
@@ -73,7 +75,7 @@ struct UploadManager: UploadService, MediaUploading {
             do {
                 try await uploader.upload(fileURL: image.fileURL, to: intent.uploadURL, contentType: image.mimeType)
             } catch {
-                throw UploadError.transferFailed
+                throw Self.uploadError(error)
             }
             _ = try await media.completeUpload(mediaId: intent.mediaId)
             return intent.mediaId
@@ -160,6 +162,15 @@ struct UploadManager: UploadService, MediaUploading {
         }
     }
 
+    /// Seule une coupure réseau parle de connexion ; un refus de Storage a son propre message.
+    private static func uploadError(_ error: FileUploadError) -> UploadError {
+        switch error {
+        case .transferFailed: .transferFailed
+        case .rejected(statusCode: 413): .rejected(.fileTooLarge)
+        case .rejected: .storageRejected
+        }
+    }
+
     private static func uploadError(_ error: MediaServiceError) -> UploadError {
         switch error {
         case .unreachable: .unreachable
@@ -171,20 +182,23 @@ struct UploadManager: UploadService, MediaUploading {
 }
 
 extension UploadError {
-    /// Message compréhensible, sans détail technique (ADR-014) ; partagé par les écrans qui envoient une photo.
-    static func message(for error: UploadError) -> String {
-        switch error {
+    /// Message compréhensible, sans détail technique (ADR-014) ; partagé par les écrans qui envoient une photo
+    /// ou une vidéo (`isVideo` : reel).
+    static func message(for error: UploadError, isVideo: Bool = false) -> String {
+        let file = isVideo ? "la vidéo" : "la photo"
+        return switch error {
         case .unreadableImage: "Cette photo n'a pas pu être lue. Choisissez-en une autre."
         case .rejected(.invalidVideo): "Cette vidéo est illisible. Choisissez-en une autre."
         case .rejected(.videoTooLong): "La vidéo dépasse 60 secondes. Choisissez-en une autre."
         case .rejected(.invalidImage): "Ce fichier n'est pas une photo valide. Choisissez-en une autre."
         case .rejected(.fileTooLarge): "Ce fichier est trop lourd. Choisissez-en une autre."
         case .rejected(.processingError): "Le fichier n'a pas pu être traité. Réessayez."
-        case .transferFailed: "L'envoi de la photo a échoué. Vérifiez votre connexion et réessayez."
-        case .timedOut: "Le traitement de la photo prend trop de temps. Réessayez."
+        case .transferFailed: "L'envoi de \(file) a échoué. Vérifiez votre connexion et réessayez."
+        case .storageRejected: "Le serveur a refusé \(file). Réessayez plus tard."
+        case .timedOut: "Le traitement de \(file) prend trop de temps. Réessayez."
         case .unreachable: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
         case .unauthenticated: "Votre session a expiré. Reconnectez-vous."
-        case .rateLimited: "Trop de photos envoyées. Réessayez plus tard."
+        case .rateLimited: isVideo ? "Trop de vidéos envoyées. Réessayez plus tard." : "Trop de photos envoyées. Réessayez plus tard."
         case .unexpected: "Une erreur est survenue. Réessayez."
         }
     }
