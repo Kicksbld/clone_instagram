@@ -5,7 +5,7 @@ import SwiftUI
 /// importe pas une autre. `feed` et `profileTab` reçoivent l'action qui ouvre l'onglet Recherche ;
 /// `createPost` reçoit l'action qui ferme la création et revient à l'accueil. L'Activité s'ouvre par le
 /// cœur de la barre du haut, comme Instagram (pas d'onglet dédié, ADR-026).
-struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View, Activity: View>: View {
+struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View, Activity: View, Messages: View>: View {
     enum TabID: Hashable {
         case home
         case reels
@@ -23,6 +23,8 @@ struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View,
     @ViewBuilder let searchTab: () -> SearchTab
     @ViewBuilder let createPost: (_ close: @escaping () -> Void) -> CreatePost
     @ViewBuilder let activity: () -> Activity
+
+    @ViewBuilder let messages: () -> Messages
 
     @State private var selection = TabID.home
     @State private var isCreating = false
@@ -61,7 +63,7 @@ struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View,
                 placeholder("Reels", systemImage: "play.rectangle")
             }
             Tab("Messages", systemImage: "paperplane", value: TabID.messages) {
-                placeholder("Messages", systemImage: "paperplane")
+                NavigationStack(root: messages)
             }
             Tab("Recherche", systemImage: "magnifyingglass", value: TabID.search) {
                 NavigationStack(root: searchTab)

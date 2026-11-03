@@ -1,3 +1,8 @@
+import { GetOrCreateConversation } from '../../src/modules/messaging/application/use-cases/get-or-create-conversation.ts';
+import { ListConversations } from '../../src/modules/messaging/application/use-cases/list-conversations.ts';
+import { ListMessages } from '../../src/modules/messaging/application/use-cases/list-messages.ts';
+import { SendMessage } from '../../src/modules/messaging/application/use-cases/send-message.ts';
+import { InMemoryMessaging } from './in-memory-messaging.ts';
 import { ListArchivedStories } from '../../src/modules/ephemeral/application/use-cases/list-archived-stories.ts';
 import { ListStoryViewers } from '../../src/modules/ephemeral/application/use-cases/list-story-viewers.ts';
 import { RealtimeBroker } from '../../src/shared/infrastructure/realtime/realtime.ts';
@@ -111,6 +116,27 @@ export function buildTestApp() {
   const { profiles, media, avatarTransaction } = inMemoryAdapters();
   const jobs = new InMemoryJobQueue();
   const relationships = new InMemoryRelationshipReader();
+  const messaging = new InMemoryMessaging(profiles, relationships);
+  const messagingTransaction = new InMemoryUnitOfWork({ repository: messaging, relationships });
+  const messagingIds = sequentialIds('0199a1b2-0000-7000-d100-');
+  const messagingUseCases = {
+    getOrCreateConversation: new GetOrCreateConversation(messagingTransaction, messagingIds, {
+      now: () => TEST_NOW,
+    }),
+    listConversations: new ListConversations(messaging),
+    listMessages: new ListMessages(messaging, relationships),
+    sendMessage: new SendMessage(
+      messagingTransaction,
+      messagingIds,
+      { now: () => TEST_NOW },
+      {
+        publish: (ids, event) => {
+          realtime.publish(ids, event);
+        },
+        disconnect: () => {},
+      },
+    ),
+  };
   const graph = new InMemorySocialGraph(profiles, relationships);
   const notifications = new InMemoryNotifications(relationships);
   const notificationDispatcher = new InMemoryNotificationDispatcher();
@@ -200,6 +226,7 @@ export function buildTestApp() {
   const app = buildApp({
     logLevel: 'silent',
     dependencies: {
+      messaging: messagingUseCases,
       realtime,
       tokenVerifier: testTokenVerifier,
       accountStatuses: profiles,

@@ -1,3 +1,7 @@
+import {
+  registerMessagingRoutes,
+  type MessagingUseCases,
+} from './modules/messaging/infrastructure/http/messaging-routes.ts';
 import { RealtimeBroker, registerRealtime } from './shared/infrastructure/realtime/realtime.ts';
 import { randomUUID } from 'node:crypto';
 
@@ -66,6 +70,7 @@ import { registerRateLimit } from './shared/infrastructure/http/rate-limit.ts';
 
 /** Dépendances assemblées par `main.ts` (ou par les tests, avec des adapters en mémoire). */
 export interface AppDependencies {
+  messaging: MessagingUseCases;
   realtime: RealtimeBroker;
   tokenVerifier: TokenVerifier;
   accountStatuses: AccountStatusReader;
@@ -127,6 +132,7 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
   // Routes `/v1` : toutes authentifiées (ADR-003).
   void app.register((v1, _options, done) => {
     requireAuthentication(v1, dependencies.tokenVerifier, dependencies.accountStatuses);
+    registerMessagingRoutes(v1, dependencies.messaging, dependencies.mediaUrls);
     registerIdentityRoutes(v1, dependencies.identity, dependencies.mediaUrls);
     registerMediaRoutes(v1, dependencies.media, dependencies.mediaUrls);
     registerSocialRoutes(v1, dependencies.social, dependencies.mediaUrls);

@@ -1,5 +1,17 @@
 /** Notifications only; REST remains the source of truth (ADR-021). */
 export type RealtimeEvent =
+  | {
+      type: 'message.created';
+      data: {
+        id: string;
+        conversationId: string;
+        senderId: string;
+        clientId: string;
+        kind: 'text';
+        body: string;
+        createdAt: string;
+      };
+    }
   | { type: 'activity.created'; data: { unreadCount: number } }
   | {
       type: 'media.ready';

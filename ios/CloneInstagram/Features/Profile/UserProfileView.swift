@@ -77,6 +77,8 @@ struct UserProfileView: View {
                         )
                         if viewModel.canFollow(profile) {
                             followButton(profile)
+                            NavigationLink("Message", value: ConversationRoute(userId: profile.id, username: profile.username))
+                                .buttonStyle(.bordered)
                         }
                     }
                     .padding([.horizontal, .top])

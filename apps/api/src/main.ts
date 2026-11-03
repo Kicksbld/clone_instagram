@@ -1,3 +1,8 @@
+import { GetOrCreateConversation } from './modules/messaging/application/use-cases/get-or-create-conversation.ts';
+import { ListConversations } from './modules/messaging/application/use-cases/list-conversations.ts';
+import { ListMessages } from './modules/messaging/application/use-cases/list-messages.ts';
+import { SendMessage } from './modules/messaging/application/use-cases/send-message.ts';
+import { DrizzleMessagingRepository } from './modules/messaging/infrastructure/persistence/drizzle-messaging-repository.ts';
 import { ListArchivedStories } from './modules/ephemeral/application/use-cases/list-archived-stories.ts';
 import { ListStoryViewers } from './modules/ephemeral/application/use-cases/list-story-viewers.ts';
 // Composition root (ADR-005) : configuration, puis assemblage manuel des dépendances.
@@ -157,6 +162,11 @@ const notificationDispatcher = new RealtimeNotificationDispatcher(
   },
 );
 
+const messagingRepository = new DrizzleMessagingRepository(database.db);
+const messagingTransaction = new DrizzleUnitOfWork(database.db, (tx) => ({
+  repository: new DrizzleMessagingRepository(tx),
+  relationships: new DrizzleRelationshipReader(tx),
+}));
 const profiles = new DrizzleProfileRepository(database.db);
 const media = new DrizzleMediaRepository(database.db);
 const relationships = new DrizzleRelationshipReader(database.db);
@@ -280,6 +290,16 @@ const storage = new SupabaseMediaStorage(
 const app = buildApp({
   logLevel: config.LOG_LEVEL,
   dependencies: {
+    messaging: {
+      getOrCreateConversation: new GetOrCreateConversation(
+        messagingTransaction,
+        uuidV7Generator,
+        systemClock,
+      ),
+      listConversations: new ListConversations(messagingRepository),
+      listMessages: new ListMessages(messagingRepository, relationships),
+      sendMessage: new SendMessage(messagingTransaction, uuidV7Generator, systemClock, realtime),
+    },
     realtime,
     tokenVerifier: createJwtVerifier({
       issuer: config.SUPABASE_JWT_ISSUER,

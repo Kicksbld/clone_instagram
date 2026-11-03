@@ -188,10 +188,20 @@ struct RootView: View {
                         service: dependencies.activity, social: dependencies.social, badge: dependencies.activityBadge
                     )
                 )
+            } messages: {
+                MessagesView(
+                    viewModel: MessagesViewModel(store: dependencies.messaging, social: dependencies.social, viewerId: profile.id),
+                    viewerId: profile.id
+                )
+                .modifier(SocialDestinations(dependencies: dependencies, viewerId: profile.id, openComments: openComments))
             }
             // Reprise des publications interrompues (fermeture de l'app) ; compteurs rechargés après chaque
             // post publié (un post supprimé disparaît tout de suite : `PostDeletionStore`).
-            .task(id: profile.id) { dependencies.publishQueue.resume(for: profile.id) }
+            .task(id: profile.id) {
+                dependencies.messaging.setAccount(profile.id)
+                dependencies.publishQueue.resume(for: profile.id)
+                await dependencies.messaging.reconnect()
+            }
             // Pastille du cœur (ADR-026) : relue au lancement et à chaque retour au premier plan.
             .task(id: profile.id) { await dependencies.activityBadge.refresh() }
             .onChange(of: scenePhase) { _, phase in
@@ -254,7 +264,9 @@ struct RootView: View {
             dependencies.postDeletions.myProfileReloaded()
         }
     }
+}
 
+private extension RootView {
     /// Les publications en attente, les likes, les suppressions, les abonnements, les compteurs de commentaires,
     /// les blocages et la pastille de l'Activité de la session ne sont jamais repris pour un autre compte.
     private func signOut() {
@@ -266,11 +278,10 @@ struct RootView: View {
         dependencies.commentCounts.reset()
         dependencies.blocks.reset()
         dependencies.activityBadge.reset()
+        dependencies.messaging.setAccount(nil)
         Task { await viewModel.signOut() }
     }
-}
 
-private extension RootView {
     /// Paywall Clone Plus : fin de l'onboarding (`onClose` = « Plus tard ») ou Paramètres > Clone Plus.
     private func paywall(for profile: Profile, onClose: (() -> Void)?) -> some View {
         PaywallView(
@@ -329,59 +340,5 @@ private extension RootView {
         case .onboarding: return onboardingProfileId
         default: return nil
         }
-    }
-}
-
-/// Destinations partagées des onglets Accueil, Profil et Recherche : profil d'un autre compte, listes
-/// d'abonnés et détail d'un post. Déclarées ici : une feature n'importe pas une autre (ADR-010).
-private struct SocialDestinations: ViewModifier {
-    let dependencies: AppDependencies
-    let viewerId: String
-    /// Feuille des commentaires, ouverte depuis le détail d'un post.
-    let openComments: OpenCommentsAction
-
-    func body(content: Content) -> some View {
-        content
-            .navigationDestination(for: ProfileRoute.self) { route in
-                UserProfileView(
-                    viewModel: UserProfileViewModel(
-                        username: route.username,
-                        viewerId: viewerId,
-                        identity: dependencies.identity,
-                        follows: dependencies.follows
-                    ),
-                    posts: dependencies.posts
-                )
-            }
-            .navigationDestination(for: PostRoute.self) { route in
-                PostDetailView(
-                    viewModel: PostDetailViewModel(
-                        postId: route.postId,
-                        viewerId: viewerId,
-                        posts: dependencies.posts,
-                        likes: dependencies.likes,
-                        commentCounts: dependencies.commentCounts,
-                        deletions: dependencies.postDeletions
-                    )
-                )
-                .environment(\.openComments, openComments)
-            }
-            .navigationDestination(for: FollowListRoute.self) { route in
-                FollowListsView(
-                    route: route,
-                    followers: listViewModel(.followers, route),
-                    following: listViewModel(.following, route)
-                )
-            }
-    }
-
-    private func listViewModel(_ kind: FollowListKind, _ route: FollowListRoute) -> FollowListViewModel {
-        FollowListViewModel(
-            kind: kind,
-            userId: route.userId,
-            viewerId: viewerId,
-            social: dependencies.social,
-            follows: dependencies.follows
-        )
     }
 }

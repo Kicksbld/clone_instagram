@@ -6,6 +6,7 @@ final class RealtimeClient {
     private let makeTransport: () -> any RealtimeTransport
     private let accessToken: () async -> String?
     private let mediaEvents: MediaProcessingEvents?
+    private let messaging: MessagingStore?
     private let badge: ActivityBadge
     private let onSuspended: () -> Void
     private let sleep: (Duration) async throws -> Void
@@ -20,9 +21,11 @@ final class RealtimeClient {
         accessToken: @escaping () async -> String?,
         badge: ActivityBadge,
         onSuspended: @escaping () -> Void,
+        messaging: MessagingStore? = nil,
         mediaEvents: MediaProcessingEvents? = nil,
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
+        self.messaging = messaging
         self.makeTransport = makeTransport
         self.accessToken = accessToken
         self.mediaEvents = mediaEvents
@@ -63,7 +66,15 @@ final class RealtimeClient {
                         mediaEvents?.refresh()
                         attempt = 0
                         catchUp?.cancel()
-                        catchUp = Task { await badge.refresh() }
+                        catchUp = Task {
+                            await badge.refresh()
+                            await messaging?.reconnect()
+                        }
+                    case let .message_created(event):
+                        if let message = ChatMessage(event.data) {
+                            messaging?.receive(message)
+                            Task { await messaging?.refresh() }
+                        }
                     case let .media_ready(event):
                         receiveReady(event)
                     case let .media_failed(event):

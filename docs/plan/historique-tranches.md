@@ -81,3 +81,13 @@ Ce que chaque tranche a posé dans le code, pour retrouver où vit une fonctionn
 - iOS : feuille « Vues » paginée avec recherche Plus et paywall, réglage de vue anonyme dans le viewer, Profil > menu > « Archive » (grille paginée, ouverture dans le viewer et accès aux vues). Le paywall est fourni par `App` via l’environnement ; le plan est relu depuis le routeur pour débloquer l’écran après un achat. Une préférence anonyme conservée après expiration ne devient jamais une vue normale silencieusement.
 - Décisions : application d’ADR-025, ADR-012, ADR-006 et ADR-007 ; aucune nouvelle décision d’architecture.
 - Reste à valider : parcours de démo sur iPhone physique (A publie, B regarde normalement, C Plus anonymement ; A voit seulement B puis retrouve sa story et ses vues dans l’Archive après expiration).
+
+
+## T26 — Messages texte en temps réel (#37)
+
+- Contrat : `GET` / `POST /v1/conversations`, `GET` / `POST /v1/conversations/{id}/messages`, événement `message.created` (même message que REST), clients régénérés. Historique par 30, rattrapage `after` par 100 avec continuation `nextCursor` ; conversations non vides par 20.
+- Base : migration `0017_thin_slapstick`, tables `conversations`, `conversation_members`, `messages`, RLS sans policy, unicité de la paire et de `(sender_id, client_id)`, index de pagination. Seed idempotent de conversations texte, dont une avec le compte `SEED_VIEWER_USERNAME` s'il est renseigné.
+- API : module `messaging`, `GetOrCreateConversation`, `ListConversations`, `ListMessages`, `SendMessage` ; transaction message + date de conversation, sérialisation des envois avant attribution de leur date, événement aux deux membres après commit, limite de 60 envois/minute. `canMessage` pour chaque accès ; listes filtrées selon la même règle, historique conservé après déblocage.
+- iOS : `Core/Messaging` (service et store partagé, dédoublonnage par identifiant, retry avec le même `clientId`, rattrapage des conversations ouvertes après authentification WebSocket), feature `Messages` (liste, recherche, conversation, barre Liquid Glass, menu Signaler/Bloquer), bouton Message sur le profil via `ConversationRoute`. Aucune lecture/non-lus/photo/partage (T27 et suivantes).
+- Décisions : application des ADR existants, aucune nouvelle décision d'architecture.
+- Reste à valider : démo sur deux iPhone physiques, réception immédiate puis rattrapage après coupure réseau. Migration à appliquer sur la démo avant le test.
