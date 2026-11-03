@@ -7,9 +7,11 @@ struct StoryTrayView: View {
     @State private var viewModel: StoryTrayViewModel
     /// Change à chaque rafraîchissement du feed : le bandeau se recharge aussi.
     let reloadToken: Int
-    let makeViewer: (_ authors: [PostAuthor], _ startIndex: Int) -> StoryViewerViewModel
+    let makeViewer: (_ authors: [PostAuthor], _ startIndex: Int, _ deletions: StoryDeletionStore) -> StoryViewerViewModel
     let makeCreate: (_ onPublished: @escaping () -> Void) -> CreateStoryViewModel
 
+    /// Suppressions de mes stories, partagées avec le viewer (ADR-020).
+    @State private var deletions: StoryDeletionStore
     @State private var viewer: ViewerRoute?
     @State private var isCreating = false
 
@@ -21,11 +23,17 @@ struct StoryTrayView: View {
 
     init(
         viewModel: StoryTrayViewModel,
+        deletions: StoryDeletionStore,
         reloadToken: Int,
-        makeViewer: @escaping (_ authors: [PostAuthor], _ startIndex: Int) -> StoryViewerViewModel,
+        makeViewer: @escaping (
+            _ authors: [PostAuthor],
+            _ startIndex: Int,
+            _ deletions: StoryDeletionStore
+        ) -> StoryViewerViewModel,
         makeCreate: @escaping (_ onPublished: @escaping () -> Void) -> CreateStoryViewModel
     ) {
         _viewModel = State(initialValue: viewModel)
+        _deletions = State(initialValue: deletions)
         self.reloadToken = reloadToken
         self.makeViewer = makeViewer
         self.makeCreate = makeCreate
@@ -55,11 +63,29 @@ struct StoryTrayView: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
         }
-        .task(id: reloadToken) { await viewModel.load() }
+        .task(id: reloadToken + deletions.revision) { await viewModel.load() }
+        // Échec d'une suppression après la fermeture du viewer (ma dernière story) ; sinon le viewer l'affiche.
+        .alert(
+            "Action impossible",
+            isPresented: Binding(
+                get: { viewer == nil && deletions.errorMessage != nil },
+                set: {
+                    if !$0 {
+                        deletions.errorMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deletions.errorMessage ?? "")
+        }
         .fullScreenCover(
             item: $viewer,
             onDismiss: { Task { await viewModel.load() } },
-            content: { route in StoryViewerView(viewModel: makeViewer(route.authors, route.startIndex)) }
+            content: { route in
+                StoryViewerView(viewModel: makeViewer(route.authors, route.startIndex, deletions))
+            }
         )
         .fullScreenCover(isPresented: $isCreating) {
             CreateStoryView(viewModel: makeCreate { Task { await viewModel.load() } })

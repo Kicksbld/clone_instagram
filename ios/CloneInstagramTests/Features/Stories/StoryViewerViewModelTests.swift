@@ -18,7 +18,13 @@ struct StoryViewerViewModelTests {
     }
 
     private func makeViewModel(_ authors: [PostAuthor], start: Int = 0) -> StoryViewerViewModel {
-        StoryViewerViewModel(viewerId: viewer, authors: authors, startIndex: start, service: service)
+        StoryViewerViewModel(
+            viewerId: viewer,
+            authors: authors,
+            startIndex: start,
+            service: service,
+            deletions: StoryDeletionStore(service: service)
+        )
     }
 
     @Test func `commence à la première story non vue et envoie sa vue`() async {
@@ -145,19 +151,35 @@ struct StoryViewerViewModelTests {
         #expect(viewModel.currentStory?.id == "a1")
     }
 
-    @Test func `supprimer ma dernière story ferme le viewer ; un échec affiche une alerte`() async {
+    @Test func `supprimer ma story : la suivante s'affiche pendant l'appel ; un échec la réaffiche`() async {
+        service.storiesByAuthor[viewer] = .success([
+            .fixture(id: "m1", authorId: viewer, isSeen: true),
+            .fixture(id: "m2", authorId: viewer, isSeen: true),
+        ])
+        let viewModel = makeViewModel([PostAuthor(id: viewer, username: "moi", avatar: nil)])
+        await viewModel.start()
+        var duringCall: [String]?
+        service.duringDelete = { duringCall = viewModel.stories.map(\.id) }
+        service.deleteError = .unreachable
+
+        await viewModel.deleteCurrent()
+
+        #expect(duringCall == ["m2"])
+        #expect(viewModel.currentStory?.id == "m2")
+        #expect(viewModel.stories.map(\.id) == ["m1", "m2"])
+        #expect(viewModel.deletions.errorMessage != nil)
+    }
+
+    @Test func `supprimer ma dernière story ferme le viewer sans attendre l'API`() async {
         service.storiesByAuthor[viewer] = .success([.fixture(id: "m1", authorId: viewer, isSeen: true)])
         let viewModel = makeViewModel([PostAuthor(id: viewer, username: "moi", avatar: nil)])
         await viewModel.start()
+        var stateDuringCall: StoryViewerViewModel.State?
+        service.duringDelete = { stateDuringCall = viewModel.state }
 
-        service.deleteError = .unreachable
         await viewModel.deleteCurrent()
-        #expect(viewModel.deleteErrorMessage != nil)
-        #expect(viewModel.currentStory?.id == "m1")
 
-        service.deleteError = nil
-        await viewModel.deleteCurrent()
-        #expect(service.deleted == ["m1", "m1"])
-        #expect(viewModel.state == .finished)
+        #expect(stateDuringCall == .finished)
+        #expect(service.deleted == ["m1"])
     }
 }

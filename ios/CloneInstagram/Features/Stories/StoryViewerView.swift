@@ -49,17 +49,17 @@ struct StoryViewerView: View {
         .alert(
             "Action impossible",
             isPresented: Binding(
-                get: { viewModel.deleteErrorMessage != nil },
+                get: { viewModel.deletions.errorMessage != nil },
                 set: {
                     if !$0 {
-                        viewModel.deleteErrorMessage = nil
+                        viewModel.deletions.errorMessage = nil
                     }
                 }
             )
         ) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(viewModel.deleteErrorMessage ?? "")
+            Text(viewModel.deletions.errorMessage ?? "")
         }
         .preferredColorScheme(.dark)
         .statusBarHidden()

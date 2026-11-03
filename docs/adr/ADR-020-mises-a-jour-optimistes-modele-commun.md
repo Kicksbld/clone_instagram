@@ -11,7 +11,7 @@ Chaque écran a aussi sa propre variante : seul `LikeSynchronizer` gère les tap
 Contraintes : l'API reste la source de vérité (ADR-004), les erreurs sont compréhensibles avec possibilité de réessayer (ADR-010), et les écrans restent en wireframe, composants système uniquement.
 
 ## Décision
-- **Actions optimistes** (l'écran change tout de suite, l'API confirme ensuite) : like, enregistrement (P1), suivre et ne plus suivre, compte privé ou public, bloquer et débloquer, supprimer un post, publier et supprimer un commentaire, photo de profil (image locale affichée pendant l'envoi).
+- **Actions optimistes** (l'écran change tout de suite, l'API confirme ensuite) : like, enregistrement (P1), suivre et ne plus suivre, compte privé ou public, bloquer et débloquer, supprimer un post, supprimer une story (T24, choix du lead dev), publier et supprimer un commentaire, photo de profil (image locale affichée pendant l'envoi).
 - **Actions qui attendent l'API** (spinner, bouton désactivé) : signalement, modification du nom, du username et de la bio (validés par le serveur), achat et restauration, connexion et inscription, suppression du compte.
 - **Modèle commun** dans `Core/Optimistic`, repris de l'algorithme de `LikeSynchronizer`, par clé (identifiant du post, du compte…) :
   - un dernier état confirmé par l'API et un état voulu ;

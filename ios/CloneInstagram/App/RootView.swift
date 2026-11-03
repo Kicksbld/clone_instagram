@@ -243,30 +243,6 @@ struct RootView: View {
         )
     }
 
-    /// Bandeau des stories en haut du feed (feature `Stories`), rechargé avec le feed et après un blocage.
-    private func storyTray(for profile: Profile) -> some View {
-        let currentUser = PostAuthor(id: profile.id, username: profile.username, avatar: profile.avatar)
-        return StoryTrayView(
-            viewModel: StoryTrayViewModel(currentUser: currentUser, service: dependencies.stories),
-            reloadToken: feedRefreshCount + dependencies.blocks.revision,
-            makeViewer: { authors, index in
-                StoryViewerViewModel(
-                    viewerId: profile.id,
-                    authors: authors,
-                    startIndex: index,
-                    service: dependencies.stories
-                )
-            },
-            makeCreate: { onPublished in
-                CreateStoryViewModel(
-                    uploads: dependencies.uploads,
-                    service: dependencies.stories,
-                    onPublished: onPublished
-                )
-            }
-        )
-    }
-
     /// Change à chaque post publié.
     private var postsRevision: Int {
         dependencies.publishQueue.publishedCount
@@ -301,6 +277,32 @@ struct RootView: View {
 }
 
 private extension RootView {
+    /// Bandeau des stories en haut du feed (feature `Stories`), rechargé avec le feed et après un blocage.
+    func storyTray(for profile: Profile) -> some View {
+        let currentUser = PostAuthor(id: profile.id, username: profile.username, avatar: profile.avatar)
+        return StoryTrayView(
+            viewModel: StoryTrayViewModel(currentUser: currentUser, service: dependencies.stories),
+            deletions: StoryDeletionStore(service: dependencies.stories),
+            reloadToken: feedRefreshCount + dependencies.blocks.revision,
+            makeViewer: { authors, index, deletions in
+                StoryViewerViewModel(
+                    viewerId: profile.id,
+                    authors: authors,
+                    startIndex: index,
+                    service: dependencies.stories,
+                    deletions: deletions
+                )
+            },
+            makeCreate: { onPublished in
+                CreateStoryViewModel(
+                    uploads: dependencies.uploads,
+                    service: dependencies.stories,
+                    onPublished: onPublished
+                )
+            }
+        )
+    }
+
     var realtimeSession: String? {
         guard scenePhase == .active else { return nil }
         switch viewModel.route {

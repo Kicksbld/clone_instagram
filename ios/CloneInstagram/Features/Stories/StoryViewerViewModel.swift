@@ -18,28 +18,44 @@ final class StoryViewerViewModel {
     static let storyDuration = 5.0
 
     private(set) var state: State = .loading
-    /// Stories actives de l'auteur affiché, de la plus ancienne à la plus récente.
-    private(set) var stories: [Story] = []
-    private(set) var storyIndex = 0
+    /// Stories actives chargées de l'auteur affiché, de la plus ancienne à la plus récente.
+    private var loadedStories: [Story] = []
+    private var currentStoryId: String?
     /// Avancement de la story affichée, de 0 à 1.
     private(set) var progress = 0.0
     /// Doigt appuyé ou confirmation de suppression ouverte.
     var isPaused = false
     /// Photo de la story affichée chargée : le temps s'écoule.
     private(set) var isPhotoDisplayed = false
-    /// Échec de la suppression, affiché en alerte ; `nil` une fois fermée.
-    var deleteErrorMessage: String?
 
     private let viewerId: String
     private let authors: [PostAuthor]
     private var authorIndex: Int
     private let service: any StoryService
+    let deletions: StoryDeletionStore
 
-    init(viewerId: String, authors: [PostAuthor], startIndex: Int, service: any StoryService) {
+    init(
+        viewerId: String,
+        authors: [PostAuthor],
+        startIndex: Int,
+        service: any StoryService,
+        deletions: StoryDeletionStore
+    ) {
         self.viewerId = viewerId
         self.authors = authors
         authorIndex = min(max(startIndex, 0), max(authors.count - 1, 0))
         self.service = service
+        self.deletions = deletions
+    }
+
+    /// Stories de l'auteur affiché, sans celles que je supprime (`StoryDeletionStore`).
+    var stories: [Story] {
+        deletions.visible(loadedStories)
+    }
+
+    /// Position de la story affichée dans `stories`.
+    var storyIndex: Int {
+        stories.firstIndex { $0.id == currentStoryId } ?? 0
     }
 
     var author: PostAuthor? {
@@ -47,7 +63,7 @@ final class StoryViewerViewModel {
     }
 
     var currentStory: Story? {
-        stories.indices.contains(storyIndex) ? stories[storyIndex] : nil
+        stories.first { $0.id == currentStoryId }
     }
 
     /// Ma story : menu « Supprimer ».
@@ -89,21 +105,18 @@ final class StoryViewerViewModel {
         }
     }
 
-    /// Supprime ma story affichée (confirmée par l'utilisateur), puis passe à la suivante.
+    /// Supprime ma story affichée (confirmée par l'utilisateur) : elle disparaît tout de suite et la suivante
+    /// s'affiche ; elle réapparaît si l'API échoue (ADR-020).
     func deleteCurrent() async {
         guard isMine, let story = currentStory else { return }
-        do {
-            try await service.delete(storyId: story.id)
-        } catch {
-            deleteErrorMessage = "La story n'a pas pu être supprimée. Vérifiez votre connexion et réessayez."
-            return
-        }
-        stories.remove(at: storyIndex)
+        let index = storyIndex
+        guard deletions.hide(storyId: story.id) else { return }
         if stories.isEmpty {
             await nextAuthor()
         } else {
-            await show(min(storyIndex, stories.count - 1))
+            await show(min(index, stories.count - 1))
         }
+        await deletions.confirmDeletion(storyId: story.id)
     }
 
     private func nextAuthor() async {
@@ -123,9 +136,9 @@ final class StoryViewerViewModel {
         }
         state = .loading
         do {
-            stories = try await service.stories(of: author.id)
+            loadedStories = try await service.stories(of: author.id)
         } catch .userNotFound {
-            stories = []
+            loadedStories = []
         } catch {
             state = .failed(message: "Impossible de charger les stories. Vérifiez votre connexion et réessayez.")
             return
@@ -145,12 +158,14 @@ final class StoryViewerViewModel {
         guard let story = currentStory, story.id == storyId, !isPhotoDisplayed else { return }
         isPhotoDisplayed = true
         guard !story.isSeen else { return }
-        stories[storyIndex].isSeen = true
+        if let index = loadedStories.firstIndex(where: { $0.id == story.id }) {
+            loadedStories[index].isSeen = true
+        }
         try? await service.markViewed(storyId: story.id)
     }
 
     private func show(_ index: Int) async {
-        storyIndex = index
+        currentStoryId = stories[index].id
         progress = 0
         isPhotoDisplayed = false
     }

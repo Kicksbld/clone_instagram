@@ -9,6 +9,8 @@ final class FakeStoryService: StoryService {
     var publishError: StoryServiceError?
     var deleteError: StoryServiceError?
     var viewError: StoryServiceError?
+    /// Appelé pendant `delete`, avant la réponse (état affiché pendant l'appel).
+    var duringDelete: (() async -> Void)?
 
     private(set) var published: [(mediaId: String, audience: StoryAudience)] = []
     private(set) var viewed: [String] = []
@@ -41,6 +43,7 @@ final class FakeStoryService: StoryService {
 
     func delete(storyId: String) async throws(StoryServiceError) {
         deleted.append(storyId)
+        await duringDelete?()
         if let deleteError {
             throw deleteError
         }
