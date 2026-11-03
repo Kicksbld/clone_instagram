@@ -26,11 +26,19 @@ if [[ ! -f CloneInstagram.xcodeproj/project.pbxproj || project.yml -nt CloneInst
   xcodegen generate --quiet
 fi
 
+# Verrou : dossier contenant le PID du propriétaire ; repris s'il appartient à un processus disparu
+# (build tué par un délai dépassé, par exemple).
 until mkdir "$LOCK" 2>/dev/null; do
+  owner="$(cat "$LOCK/pid" 2>/dev/null || true)"
+  if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null; then
+    rm -rf "$LOCK"
+    continue
+  fi
   echo "→ un autre build iOS de ce worktree est en cours, attente…"
   sleep 10
 done
-trap 'rmdir "$LOCK"' EXIT
+echo $$ >"$LOCK/pid"
+trap 'rm -rf "$LOCK"' EXIT
 
 only_testing=()
 for suite in "$@"; do

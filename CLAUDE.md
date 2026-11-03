@@ -44,6 +44,7 @@ docker compose up -d        # Redis (file BullMQ uniquement)
 pnpm install
 pnpm dev                    # API (:3000) + worker + backoffice (:3001)
 pnpm lint | pnpm typecheck | pnpm test | pnpm build
+pnpm check:changed          # les mêmes, seulement sur les paquets modifiés depuis origin/main (+ dépendants)
 pnpm contract:generate      # régénère les clients depuis openapi.yaml
 pnpm contract:breaking      # aucune rupture de compatibilité avec main (oasdiff, ADR-019)
 pnpm db:migrate | pnpm db:seed
@@ -99,7 +100,7 @@ Les cinq labels par défaut (`needs-triage`, `needs-info`, `ready-for-agent`, `r
 
 ### Implémentation et revue
 
-- **`/tdd`** : les endroits testés sont fixés par ADR-014 et validés au plan de phase (routes via `fastify.inject`, adapters Drizzle sur Postgres réel, use cases avec adapters en mémoire, ViewModels et stores iOS avec faux services). Ne pas redemander leur validation au lead dev ; ne demander que pour un endroit hors de cette liste.
+- **`/tdd`** : les endroits testés sont fixés par ADR-014 et ADR-033, et validés au plan de phase (routes via `fastify.inject` et adapters Drizzle sur Postgres réel toujours ; use cases avec adapters en mémoire seulement s'ils contiennent une règle ; ViewModels et stores iOS avec faux services). Ne pas redemander leur validation au lead dev ; ne demander que pour un endroit hors de cette liste.
 - **`/code-review`** : seulement l'axe **Spec** (un sous-agent : fiche de la tranche + ADR cités). Pas d'axe « Standards » : lint, typecheck, dependency-cruiser, SwiftLint et SwiftFormat le couvrent. À la place, vérifier soi-même, sans sous-agent, la checklist de fin de tranche de [`docs/ia-workflow.md`](docs/ia-workflow.md) § 3.
 
 ### Domain docs
