@@ -22,6 +22,13 @@ export interface FollowRequestEntry {
   createdAt: Date;
 }
 
+/** Ami proche enregistré, avec sa date (ordre de la liste). */
+export interface CloseFriendEntry {
+  ownerId: string;
+  friendId: string;
+  createdAt: Date;
+}
+
 /**
  * Adapter en mémoire (ADR-005) : mêmes règles que les tables `follows`, `follow_requests` et
  * `blocks`.
@@ -31,6 +38,7 @@ export class InMemoryRelationshipReader implements RelationshipReader {
   private readonly requestEntries = new Map<string, FollowRequestEntry>();
   /** Blocages et leur date (ordre de la liste des bloqués). */
   private readonly blockEntries = new Map<string, BlockEntry>();
+  private readonly closeFriendEntries = new Map<string, CloseFriendEntry>();
   private clock = Date.parse('2026-01-01T00:00:00.000Z');
 
   /** Abonnement créé 1 ms après le précédent ; `false` s'il existait déjà. */
@@ -94,6 +102,27 @@ export class InMemoryRelationshipReader implements RelationshipReader {
 
   get blocks(): BlockEntry[] {
     return [...this.blockEntries.values()];
+  }
+
+  /** Ami proche ajouté 1 ms après l'écriture précédente ; `false` s'il l'était déjà. */
+  addCloseFriend(ownerId: string, friendId: string): boolean {
+    const key = `${ownerId}>${friendId}`;
+    if (this.closeFriendEntries.has(key)) return false;
+    this.clock += 1;
+    this.closeFriendEntries.set(key, { ownerId, friendId, createdAt: new Date(this.clock) });
+    return true;
+  }
+
+  removeCloseFriend(ownerId: string, friendId: string): boolean {
+    return this.closeFriendEntries.delete(`${ownerId}>${friendId}`);
+  }
+
+  isCloseFriend(ownerId: string, friendId: string): boolean {
+    return this.closeFriendEntries.has(`${ownerId}>${friendId}`);
+  }
+
+  get closeFriends(): CloseFriendEntry[] {
+    return [...this.closeFriendEntries.values()];
   }
 
   isBlockedEitherWay(a: string, b: string): boolean {

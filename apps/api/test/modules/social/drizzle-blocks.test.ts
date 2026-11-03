@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
 import {
+  closeFriends,
   comments,
   follows,
   media,
@@ -20,6 +21,7 @@ import { DrizzleFeedReader } from '../../../src/modules/feed/infrastructure/pers
 import { BlockUser } from '../../../src/modules/social/application/use-cases/block-user.ts';
 import { DrizzleAccountReader } from '../../../src/modules/social/infrastructure/persistence/drizzle-account-reader.ts';
 import { DrizzleBlockRepository } from '../../../src/modules/social/infrastructure/persistence/drizzle-block-repository.ts';
+import { DrizzleCloseFriendRepository } from '../../../src/modules/social/infrastructure/persistence/drizzle-close-friend-repository.ts';
 import {
   DrizzleFollowCounters,
   DrizzleFollowRepository,
@@ -34,6 +36,7 @@ import { connectTestDatabase } from '../../support/database.ts';
 const database = connectTestDatabase();
 const { db } = database;
 const blockRepository = new DrizzleBlockRepository(db);
+const closeFriendRepository = new DrizzleCloseFriendRepository(db);
 const graph = new DrizzleSocialGraphReader(db);
 const accounts = new DrizzleAccountReader(db);
 const relationships = new DrizzleRelationshipReader(db);
@@ -46,6 +49,7 @@ const blockUser = new BlockUser(
     blocks: new DrizzleBlockRepository(tx),
     follows: new DrizzleFollowRepository(tx),
     requests: new DrizzleFollowRequestRepository(tx),
+    closeFriends: new DrizzleCloseFriendRepository(tx),
     counters: new DrizzleFollowCounters(tx),
     notifications: new DrizzleNotificationWriter(tx),
   })),
@@ -133,6 +137,73 @@ describe('DrizzleBlockRepository', () => {
     await expect(blockRepository.has(b, a)).resolves.toBe(false);
     await expect(blockRepository.remove(a, b)).resolves.toBe(true);
     await expect(blockRepository.remove(a, b)).resolves.toBe(false);
+  });
+});
+
+describe('DrizzleCloseFriendRepository', () => {
+  it('add / remove, idempotents et orientés', async () => {
+    const [a, b] = [await newProfile('a'), await newProfile('b')];
+
+    await expect(closeFriendRepository.add(a, b)).resolves.toBe(true);
+    await expect(closeFriendRepository.add(a, b)).resolves.toBe(false);
+    await expect(closeFriendRepository.remove(b, a)).resolves.toBe(false);
+    await expect(closeFriendRepository.remove(a, b)).resolves.toBe(true);
+    await expect(closeFriendRepository.remove(a, b)).resolves.toBe(false);
+  });
+
+  it('on ne s’ajoute pas soi-même (CHECK)', async () => {
+    const a = await newProfile('a');
+    await expect(closeFriendRepository.add(a, a)).rejects.toThrow();
+  });
+});
+
+describe('DrizzleSocialGraphReader.listCloseFriends', () => {
+  it('le plus récent en premier, comptes visibles seulement, pagination sans doublon', async () => {
+    const me = await newProfile('me');
+    const friends: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const id = await newProfile(`f${i}`);
+      friends.push(id);
+      await closeFriendRepository.add(me, id);
+    }
+    const banned = await newProfile('banned', { status: 'banned' });
+    await closeFriendRepository.add(me, banned);
+    // Ligne restée malgré un blocage (écrite à la main) : filtrée par la visibilité, dans les deux sens.
+    const [blockedByMe, blockingMe] = [await newProfile('bm'), await newProfile('bme')];
+    await closeFriendRepository.add(me, blockedByMe);
+    await closeFriendRepository.add(me, blockingMe);
+    await blockRepository.add(me, blockedByMe);
+    await blockRepository.add(blockingMe, me);
+    // La liste d'un autre n'apparaît pas dans la mienne.
+    await closeFriendRepository.add(friends[0] ?? '', me);
+
+    const first = await graph.listCloseFriends({ viewerId: me, after: null, limit: 3 });
+    const second = await graph.listCloseFriends({ viewerId: me, after: first.next, limit: 3 });
+
+    const ids = [...first.items, ...second.items].map((user) => user.id);
+    expect(ids).toEqual([...friends].reverse());
+    expect(second.next).toBeNull();
+  });
+});
+
+describe('BlockUser sur Postgres : amis proches', () => {
+  it('retire des amis proches dans les deux sens, sans toucher aux autres', async () => {
+    const [me, other, third] = [
+      await newProfile('me'),
+      await newProfile('other'),
+      await newProfile('third'),
+    ];
+    await closeFriendRepository.add(me, other);
+    await closeFriendRepository.add(other, me);
+    await closeFriendRepository.add(me, third);
+
+    await blockUser.execute({ viewerId: me, userId: other });
+
+    const rows = await db
+      .select({ ownerId: closeFriends.ownerId, friendId: closeFriends.friendId })
+      .from(closeFriends)
+      .where(inArray(closeFriends.ownerId, [me, other]));
+    expect(rows).toEqual([{ ownerId: me, friendId: third }]);
   });
 });
 

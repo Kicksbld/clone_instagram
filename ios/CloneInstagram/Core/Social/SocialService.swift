@@ -11,6 +11,8 @@ enum SocialServiceError: Error, Equatable {
     case cannotFollowSelf
     /// `422 cannot_block_self`.
     case cannotBlockSelf
+    /// `422 cannot_close_friend_self`.
+    case cannotCloseFriendSelf
     /// Onboarding non terminé (`404 profile_not_found`).
     case profileNotFound
     /// Curseur de pagination refusé (`400 invalid_cursor`).
@@ -25,8 +27,8 @@ enum SocialServiceError: Error, Equatable {
     case unexpectedResponse(statusCode: Int)
 }
 
-/// Abonnements, demandes d'abonnement, listes d'abonnés, recherche d'utilisateurs et blocages (ADR-006) ;
-/// partagé par les features Profile, Search, Settings et Activity.
+/// Abonnements, demandes d'abonnement, listes d'abonnés, recherche d'utilisateurs, blocages et amis proches
+/// (ADR-006) ; partagé par les features Profile, Search, Settings et Activity.
 protocol SocialService: Sendable {
     /// `PUT /v1/users/{id}/follow` : abonnement direct, ou demande vers un compte privé (`isRequested`).
     func follow(userId: String) async throws(SocialServiceError) -> FollowStatus
@@ -50,6 +52,12 @@ protocol SocialService: Sendable {
     func unblock(userId: String) async throws(SocialServiceError)
     /// `GET /v1/me/blocks` ; `cursor` = `nextCursor` de la page précédente.
     func listBlocks(cursor: String?) async throws(SocialServiceError) -> UserPage
+    /// `GET /v1/me/close-friends` ; `cursor` = `nextCursor` de la page précédente.
+    func listCloseFriends(cursor: String?) async throws(SocialServiceError) -> UserPage
+    /// `PUT /v1/me/close-friends/{userId}` : idempotent, sans notification.
+    func addCloseFriend(userId: String) async throws(SocialServiceError)
+    /// `DELETE /v1/me/close-friends/{userId}` : idempotent.
+    func removeCloseFriend(userId: String) async throws(SocialServiceError)
 }
 
 /// `SocialService` sur le client généré (ADR-003) : convertit DTO et erreurs en modèles de l'app.
@@ -281,6 +289,62 @@ struct APISocialService: SocialService {
         }
     }
 
+    func listCloseFriends(cursor: String?) async throws(SocialServiceError) -> UserPage {
+        let output = try await call { try await client.listCloseFriends(query: .init(cursor: cursor)) }
+        switch output {
+        case let .ok(response):
+            return try UserPage(Self.unwrap { try response.body.json })
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
+    func addCloseFriend(userId: String) async throws(SocialServiceError) {
+        let output = try await call { try await client.addCloseFriend(path: .init(userId: userId)) }
+        switch output {
+        case .noContent:
+            return
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .notFound(response):
+            throw Self.error(404) { try response.body.applicationProblemJson }
+        case let .unprocessableContent(response):
+            throw Self.error(422) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
+    func removeCloseFriend(userId: String) async throws(SocialServiceError) {
+        let output = try await call { try await client.removeCloseFriend(path: .init(userId: userId)) }
+        switch output {
+        case .noContent:
+            return
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .notFound(response):
+            throw Self.error(404) { try response.body.applicationProblemJson }
+        case let .unprocessableContent(response):
+            throw Self.error(422) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
     /// Erreur réseau, annulation ou corps non conforme au contrat → `unreachable`.
     private func call<Output>(_ operation: () async throws -> Output) async throws(SocialServiceError) -> Output {
         do {
@@ -305,6 +369,7 @@ struct APISocialService: SocialService {
         case "follow_request_not_found": .followRequestNotFound
         case "cannot_follow_self": .cannotFollowSelf
         case "cannot_block_self": .cannotBlockSelf
+        case "cannot_close_friend_self": .cannotCloseFriendSelf
         case "profile_not_found": .profileNotFound
         case "invalid_cursor": .invalidCursor
         case "unauthenticated": .unauthenticated
@@ -357,6 +422,18 @@ struct UnavailableSocialService: SocialService {
     }
 
     func listBlocks(cursor _: String?) async throws(SocialServiceError) -> UserPage {
+        throw .unreachable
+    }
+
+    func listCloseFriends(cursor _: String?) async throws(SocialServiceError) -> UserPage {
+        throw .unreachable
+    }
+
+    func addCloseFriend(userId _: String) async throws(SocialServiceError) {
+        throw .unreachable
+    }
+
+    func removeCloseFriend(userId _: String) async throws(SocialServiceError) {
         throw .unreachable
     }
 }

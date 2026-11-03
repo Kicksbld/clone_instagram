@@ -8,13 +8,16 @@ import { parseCursor } from '../../../../shared/infrastructure/http/cursor.ts';
 import type { Page } from '../../../../shared/domain/pagination.ts';
 import type { PublicMediaUrls } from '../../../../shared/infrastructure/http/public-media-urls.ts';
 import type { AcceptFollowRequest } from '../../application/use-cases/accept-follow-request.ts';
+import type { AddCloseFriend } from '../../application/use-cases/add-close-friend.ts';
 import type { BlockUser } from '../../application/use-cases/block-user.ts';
 import type { DeclineFollowRequest } from '../../application/use-cases/decline-follow-request.ts';
 import type { FollowUser } from '../../application/use-cases/follow-user.ts';
 import type { ListBlocks } from '../../application/use-cases/list-blocks.ts';
+import type { ListCloseFriends } from '../../application/use-cases/list-close-friends.ts';
 import type { ListFollowRequests } from '../../application/use-cases/list-follow-requests.ts';
 import type { ListFollowers } from '../../application/use-cases/list-followers.ts';
 import type { ListFollowing } from '../../application/use-cases/list-following.ts';
+import type { RemoveCloseFriend } from '../../application/use-cases/remove-close-friend.ts';
 import type { RemoveFollower } from '../../application/use-cases/remove-follower.ts';
 import type { SearchUsers } from '../../application/use-cases/search-users.ts';
 import type { UnblockUser } from '../../application/use-cases/unblock-user.ts';
@@ -34,6 +37,9 @@ export interface SocialUseCases {
   listFollowRequests: ListFollowRequests;
   acceptFollowRequest: AcceptFollowRequest;
   declineFollowRequest: DeclineFollowRequest;
+  listCloseFriends: ListCloseFriends;
+  addCloseFriend: AddCloseFriend;
+  removeCloseFriend: RemoveCloseFriend;
 }
 
 type UserPage = components['schemas']['UserPage'];
@@ -112,6 +118,42 @@ export function registerSocialRoutes(
         after: parseCursor(request.query.cursor),
       });
       return toUserPage(page);
+    },
+  );
+
+  app.get<{ Querystring: { cursor?: string } }>(
+    '/v1/me/close-friends',
+    { schema: routeSchemaFor('listCloseFriends') },
+    async (request): Promise<UserPage> => {
+      const page = await useCases.listCloseFriends.execute({
+        viewerId: authenticatedUserId(request),
+        after: parseCursor(request.query.cursor),
+      });
+      return toUserPage(page);
+    },
+  );
+
+  app.put<{ Params: { userId: string } }>(
+    '/v1/me/close-friends/:userId',
+    { schema: routeSchemaFor('addCloseFriend') },
+    async (request, reply): Promise<void> => {
+      await useCases.addCloseFriend.execute({
+        viewerId: authenticatedUserId(request),
+        userId: request.params.userId,
+      });
+      reply.status(204);
+    },
+  );
+
+  app.delete<{ Params: { userId: string } }>(
+    '/v1/me/close-friends/:userId',
+    { schema: routeSchemaFor('removeCloseFriend') },
+    async (request, reply): Promise<void> => {
+      await useCases.removeCloseFriend.execute({
+        viewerId: authenticatedUserId(request),
+        userId: request.params.userId,
+      });
+      reply.status(204);
     },
   );
 

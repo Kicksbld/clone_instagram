@@ -7,9 +7,11 @@ import type {
   FollowRepository,
 } from '../../src/modules/social/application/ports/follow-repository.ts';
 import type { BlockRepository } from '../../src/modules/social/application/ports/block-repository.ts';
+import type { CloseFriendRepository } from '../../src/modules/social/application/ports/close-friend-repository.ts';
 import type { FollowRequestRepository } from '../../src/modules/social/application/ports/follow-request-repository.ts';
 import type {
   BlockedListQuery,
+  CloseFriendListQuery,
   FollowRequestListQuery,
   ListQuery,
   SearchQuery,
@@ -130,6 +132,33 @@ export class InMemorySocialGraph
     });
   }
 
+  listCloseFriends({ viewerId, after, limit }: CloseFriendListQuery): Promise<Page<UserSummary>> {
+    const entries = this.relationships.closeFriends
+      .filter((entry) => entry.ownerId === viewerId)
+      .map((entry) => ({ entry, profile: this.row(entry.friendId) }))
+      .filter(({ profile }) => this.visibleTo(viewerId, profile))
+      .sort(
+        (a, b) =>
+          b.entry.createdAt.getTime() - a.entry.createdAt.getTime() ||
+          b.profile.id.localeCompare(a.profile.id),
+      )
+      .filter(
+        ({ entry, profile }) =>
+          !after ||
+          entry.createdAt.getTime() < after.createdAt.getTime() ||
+          (entry.createdAt.getTime() === after.createdAt.getTime() && profile.id < after.id),
+      );
+    const page = entries.slice(0, limit);
+    const last = page.at(-1);
+    return Promise.resolve({
+      items: page.map(({ profile }) => this.summary(viewerId, profile)),
+      next:
+        entries.length > limit && last
+          ? { createdAt: last.entry.createdAt, id: last.profile.id }
+          : null,
+    });
+  }
+
   search({ viewerId, query, limit }: SearchQuery): Promise<UserSummary[]> {
     const matches = [...this.profiles.rows.values()].filter(
       (p) =>
@@ -245,5 +274,18 @@ export class InMemoryFollowRequests implements FollowRequestRepository {
       .map((request) => request.requesterId);
     for (const requesterId of requesterIds) this.relationships.removeRequest(requesterId, targetId);
     return Promise.resolve(requesterIds);
+  }
+}
+
+/** Amis proches en mémoire, sur les mêmes relations que la politique de visibilité. */
+export class InMemoryCloseFriends implements CloseFriendRepository {
+  constructor(private readonly relationships: InMemoryRelationshipReader) {}
+
+  add(ownerId: string, friendId: string): Promise<boolean> {
+    return Promise.resolve(this.relationships.addCloseFriend(ownerId, friendId));
+  }
+
+  remove(ownerId: string, friendId: string): Promise<boolean> {
+    return Promise.resolve(this.relationships.removeCloseFriend(ownerId, friendId));
   }
 }

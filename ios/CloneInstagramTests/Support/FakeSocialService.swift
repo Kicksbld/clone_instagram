@@ -33,6 +33,16 @@ final class FakeSocialService: SocialService {
     /// Appelé pendant une réponse à une demande ou un retrait d'abonné, avant la réponse de l'API.
     var duringFollowRequest: (() async -> Void)?
 
+    /// Réponses successives de `listCloseFriends` ; page vide quand la liste est vide.
+    var closeFriendListResults: [Result<UserPage, SocialServiceError>] = []
+    /// Erreurs successives de `addCloseFriend` / `removeCloseFriend` ; succès quand la liste est vide.
+    var closeFriendErrors: [SocialServiceError] = []
+    /// Appelé pendant un ajout ou un retrait d'ami proche, avant la réponse (ex. l'utilisateur touche encore).
+    var duringCloseFriend: (() async -> Void)?
+    private(set) var closeFriendListCursors: [String?] = []
+    private(set) var addedCloseFriends: [String] = []
+    private(set) var removedCloseFriends: [String] = []
+
     private(set) var follows: [String] = []
     private(set) var acceptedRequests: [String] = []
     private(set) var declinedRequests: [String] = []
@@ -135,6 +145,34 @@ final class FakeSocialService: SocialService {
         blockListCursors.append(cursor)
         guard !blockListResults.isEmpty else { return UserPage(items: [], nextCursor: nil) }
         return try blockListResults.removeFirst().get()
+    }
+}
+
+extension FakeSocialService {
+    func listCloseFriends(cursor: String?) async throws(SocialServiceError) -> UserPage {
+        closeFriendListCursors.append(cursor)
+        guard !closeFriendListResults.isEmpty else { return UserPage(items: [], nextCursor: nil) }
+        return try closeFriendListResults.removeFirst().get()
+    }
+
+    func addCloseFriend(userId: String) async throws(SocialServiceError) {
+        addedCloseFriends.append(userId)
+        try await answerCloseFriend()
+    }
+
+    func removeCloseFriend(userId: String) async throws(SocialServiceError) {
+        removedCloseFriends.append(userId)
+        try await answerCloseFriend()
+    }
+
+    private func answerCloseFriend() async throws(SocialServiceError) {
+        if let duringCloseFriend {
+            self.duringCloseFriend = nil
+            await duringCloseFriend()
+        }
+        if !closeFriendErrors.isEmpty {
+            throw closeFriendErrors.removeFirst()
+        }
     }
 }
 

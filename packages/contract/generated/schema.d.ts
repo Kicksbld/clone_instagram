@@ -138,6 +138,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/close-friends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mes amis proches
+         * @description Ma liste d'amis proches, privée : ajout le plus récent en premier, par pages de 20. Les comptes bloqués dans un sens ou dans l'autre et les comptes non actifs n'apparaissent pas (ADR-006).
+         */
+        get: operations["listCloseFriends"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/close-friends/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Ajouter un compte à mes amis proches
+         * @description Sans notification : le compte ajouté n'est pas prévenu. Idempotent : un compte déjà dans la liste renvoie `204` sans effet. Sans corps.
+         *     Seul un compte visible peut être ajouté : compte inexistant, bloqué dans un sens ou dans l'autre, ou non actif : `404 user_not_found` (ADR-006).
+         */
+        put: operations["addCloseFriend"];
+        post?: never;
+        /**
+         * Retirer un compte de mes amis proches
+         * @description Il perd aussitôt l'accès à mes contenus réservés aux amis proches, sans être prévenu. Idempotent : un compte absent de la liste renvoie `204` sans effet. Compte inexistant : `404 user_not_found`.
+         */
+        delete: operations["removeCloseFriend"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/subscription/refresh": {
         parameters: {
             query?: never;
@@ -1602,6 +1647,15 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
+        /** @description On ne peut ni s'ajouter soi-même à ses amis proches ni s'en retirer (`cannot_close_friend_self`). */
+        CannotCloseFriendSelf: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
         /** @description Profil inexistant ou invisible pour l'appelant (`user_not_found`). */
         UserNotFound: {
             headers: {
@@ -1701,6 +1755,8 @@ export interface components {
         Cursor: string;
         /** @description Identifiant du compte qui a demandé à me suivre. */
         RequesterId: string;
+        /** @description Identifiant du compte à ajouter à mes amis proches ou à en retirer. */
+        CloseFriendId: string;
         MediaId: string;
         PostId: string;
         CommentId: string;
@@ -1939,6 +1995,92 @@ export interface operations {
             };
             400: components["responses"]["InvalidInput"];
             401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listCloseFriends: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de mes amis proches. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    addCloseFriend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du compte à ajouter à mes amis proches ou à en retirer. */
+                userId: components["parameters"]["CloseFriendId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Compte dans mes amis proches. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Compte introuvable ou invisible (`user_not_found`), ou onboarding non terminé (`profile_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            422: components["responses"]["CannotCloseFriendSelf"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    removeCloseFriend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifiant du compte à ajouter à mes amis proches ou à en retirer. */
+                userId: components["parameters"]["CloseFriendId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Compte retiré de mes amis proches. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["UserNotFound"];
+            422: components["responses"]["CannotCloseFriendSelf"];
             500: components["responses"]["InternalError"];
         };
     };

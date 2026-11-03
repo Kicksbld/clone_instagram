@@ -1,8 +1,17 @@
-import { blocks, followRequests, follows, media, profiles, type Executor } from '@clone/db';
+import {
+  blocks,
+  closeFriends,
+  followRequests,
+  follows,
+  media,
+  profiles,
+  type Executor,
+} from '@clone/db';
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 
 import type {
   BlockedListQuery,
+  CloseFriendListQuery,
   FollowRequestListQuery,
   ListQuery,
   SearchQuery,
@@ -84,6 +93,37 @@ export class DrizzleSocialGraphReader implements SocialGraphReader {
     return {
       items: page.map(toSummary),
       next: rows.length > limit && last ? { createdAt: last.requestedAt, id: last.id } : null,
+    };
+  }
+
+  async listCloseFriends({
+    viewerId,
+    after,
+    limit,
+  }: CloseFriendListQuery): Promise<Page<UserSummary>> {
+    const rows = await this.db
+      // Date de l'ajout : premier membre du curseur.
+      .select({ ...this.summaryFields(viewerId), addedAt: closeFriends.createdAt })
+      .from(closeFriends)
+      .innerJoin(profiles, eq(profiles.id, closeFriends.friendId))
+      .leftJoin(media, eq(media.id, profiles.avatarMediaId))
+      .where(
+        and(
+          eq(closeFriends.ownerId, viewerId),
+          this.visibleTo(viewerId),
+          after
+            ? sql`(${closeFriends.createdAt}, ${profiles.id}) < (${after.createdAt.toISOString()}::timestamptz, ${after.id}::uuid)`
+            : undefined,
+        ),
+      )
+      .orderBy(desc(closeFriends.createdAt), desc(profiles.id))
+      .limit(limit + 1);
+
+    const page = rows.slice(0, limit);
+    const last = page.at(-1);
+    return {
+      items: page.map(toSummary),
+      next: rows.length > limit && last ? { createdAt: last.addedAt, id: last.id } : null,
     };
   }
 

@@ -1,13 +1,14 @@
 import StoreKit
 import SwiftUI
 
-/// Paramètres et activité (wireframe, comme Instagram) : Clone Plus, confidentialité du compte, comptes
-/// bloqués, déconnexion et suppression du compte. Le paywall est fourni par le routeur racine : une feature n'importe pas une autre
+/// Paramètres et activité (wireframe, comme Instagram) : Clone Plus, confidentialité du compte, amis proches,
+/// comptes bloqués, déconnexion et suppression du compte. Le paywall est fourni par le routeur racine : une feature n'importe pas une autre
 /// (ADR-010).
 struct SettingsView<Paywall: View>: View {
     let planStatus: PlanStatus
     let icons: AppIconViewModel
     let privacy: AccountPrivacyViewModel
+    let closeFriends: CloseFriendsViewModel
     let blockedAccounts: BlockedAccountsViewModel
     let deleteAccount: DeleteAccountViewModel
     /// Plan relu par l'API à l'ouverture de Clone Plus.
@@ -39,6 +40,11 @@ struct SettingsView<Paywall: View>: View {
                     } label: {
                         Label("Confidentialité du compte", systemImage: "lock")
                     }
+                }
+                NavigationLink {
+                    CloseFriendsView(viewModel: closeFriends)
+                } label: {
+                    Label("Amis proches", systemImage: "star.circle")
                 }
             }
             Section("Comment les autres peuvent interagir avec vous") {
