@@ -62,3 +62,14 @@ Ce que chaque tranche a posé dans le code, pour retrouver où vit une fonctionn
 - API, module `social` : `AddCloseFriend` (visibilité `canViewProfile` lue dans la transaction de l'écriture, *scope* `CloseFriendTransaction`), `RemoveCloseFriend`, `ListCloseFriends` (`DrizzleSocialGraphReader.listCloseFriends`, comptes actifs sans blocage) ; `BlockUser` retire des amis proches dans les deux sens (`closeFriends` dans `BlockTransaction`). `RelationshipReader.viewerIsCloseFriend` reste à `false` jusqu'à T24 (stories).
 - iOS : `SocialService` (`listCloseFriends`, `addCloseFriend`, `removeCloseFriend`), Paramètres > « Amis proches » (`Features/Settings/CloseFriendsView`, `CloseFriendsViewModel` : ajout / retrait optimistes sur `OptimisticSync`, recherche par `GET /v1/search/users` sans moi-même). L'état « ami proche » d'un résultat de recherche est celui de la liste chargée (le contrat ne l'expose pas dans `UserSummary`).
 - Reste à valider : démo sur iPhone physique.
+
+### T24 — Je publie une story et mes abonnés la regardent (#35)
+
+- Contrat : `POST /v1/stories` (`201 Story`, 20 / h), `GET /v1/stories/tray` (`StoryTray`, 100 auteurs au plus, sans curseur : ADR-034), `GET /v1/users/{id}/stories` (`StoryList`), `POST /v1/stories/{id}/view` (corps `{}` obligatoire, `anonymous` limité à `false`), `DELETE /v1/stories/{id}` ; code `404 story_not_found` ; `story` ajouté à `MediaPurpose` (rupture validée par le lead dev le 2026-11-03, `oasdiff-err-ignore.txt`).
+- Base : migration `0016_stories`, tables `stories` (`media_id` unique, `SET NULL` à la purge : la story supprimée garde sa ligne) et `story_views` ; `purgeAccountData` recompte `view_count` des stories vues par le compte supprimé.
+- API, module `ephemeral` : `PublishStory` (port `PlusStatus` sur `GetPlan`, durée fixée à la publication), `GetStoryTray` (visibilité traduite en SQL dans `DrizzleStoryReader.tray`), `GetUserStories` (`canViewStory`), `ViewStory` (vue et `view_count` dans une transaction), `DeleteStory` ; `RelationshipReader.viewerIsCloseFriend` lit désormais `close_friends`.
+- iOS, feature `Stories` : `StoryService`, bandeau (`StoryTrayView`, fourni à `FeedView` par `RootView` en en-tête, anneau en pointillés pour les amis proches), viewer plein écran (`StoryViewerViewModel` : 5 s par story, première non vue, vue envoyée à l'affichage, suppression), création (`CreateStoryViewModel`, `UploadService` avec `purpose` `story`) ; suppression optimiste par `StoryDeletionStore` (`OptimisticSync`, partagé par le bandeau et le viewer, alerte dans le viewer ou le bandeau, ADR-020) ; `Core/Media/SystemPhotoCamera`.
+- Seed : 76 stories picsum 9:16 réécrites à chaque seed pour rester actives, amis proches (Léa → compte de démo ; Chloé : story amis proches invisible pour lui).
+- Bandeau vérifié par `EXPLAIN ANALYZE` sur le seed : 0,9 ms.
+- Reste à valider : démo sur iPhone physique.
+

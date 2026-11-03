@@ -17,6 +17,8 @@ struct AppDependencies {
     /// Suppression de mes posts, partagée par le feed, le détail et la grille de mon profil.
     let postDeletions: PostDeletionStore
     let comments: any CommentService
+    /// Stories (ADR-025).
+    let stories: any StoryService
     /// Nombre de commentaires des posts, partagé par le feed, le détail et la feuille de commentaires.
     let commentCounts: CommentCountStore
     /// Activité (notifications in-app, ADR-026) et pastille du cœur, partagée par l'accueil et l'Activité.
@@ -85,6 +87,7 @@ struct AppDependencies {
             likes: LikeSynchronizer(service: APIEngagementService(client: client), analytics: analytics),
             postDeletions: PostDeletionStore(service: posts),
             comments: APICommentService(client: client),
+            stories: APIStoryService(client: client),
             commentCounts: CommentCountStore(),
             activity: activity,
             activityBadge: badge,
@@ -125,6 +128,7 @@ extension AppDependencies {
             likes: LikeSynchronizer(service: UnavailableEngagementService(), analytics: analytics),
             postDeletions: PostDeletionStore(service: posts),
             comments: UnavailableCommentService(),
+            stories: UnavailableStoryService(),
             commentCounts: CommentCountStore(),
             activity: UnavailableActivityService(),
             activityBadge: ActivityBadge(service: UnavailableActivityService()),

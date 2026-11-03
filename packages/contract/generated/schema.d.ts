@@ -483,6 +483,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/users/{id}/stories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stories actives d'un utilisateur
+         * @description Stories actives (ni expirées ni supprimées) de cet utilisateur que l'appelant peut voir (`canViewStory`, ADR-006), de la plus ancienne à la plus récente. Une story `close_friends` n'est renvoyée qu'à l'auteur et à ses amis proches. Liste vide si aucune story active visible.
+         *     Auteur inexistant ou dont l'appelant ne peut pas voir les contenus (blocage, compte non actif, compte privé non suivi) : `404 user_not_found`.
+         */
+        get: operations["listUserStories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/posts": {
         parameters: {
             query?: never;
@@ -618,6 +639,90 @@ export interface paths {
          *     Commentaire inexistant, déjà supprimé, invisible, ou supprimé par quelqu'un d'autre → `404 comment_not_found`, jamais `403` (ADR-006).
          */
         delete: operations["deleteComment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publier une story
+         * @description Crée une story à partir d'une image `ready`, à moi, de `purpose` `story`, jamais utilisée (ADR-008). Elle est active 24 h, ou 48 h si je suis abonné Clone Plus au moment de la publication (ADR-012) ; cette durée ne change plus ensuite.
+         *     Audience `everyone` (qui peut voir mes contenus) ou `close_friends` (mes amis proches seulement). Une vidéo renvoie `422 media_kind_mismatch`. Limité à 20 stories par heure (`429 rate_limited`).
+         */
+        post: operations["createStory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stories/tray": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Bandeau des stories
+         * @description Auteurs (moi-même et les comptes que je suis) ayant au moins une story active que je peux voir (`canViewStory`, ADR-006), au plus 100.
+         *     Ordre : ma story d'abord, puis les auteurs ayant une story non vue, puis les autres ; dans chaque groupe, de la story la plus récente à la plus ancienne. Un auteur est vu quand j'ai vu toutes ses stories actives visibles.
+         */
+        get: operations["getStoryTray"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stories/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Supprimer une de mes stories
+         * @description Suppression logique par l'auteur (ADR-007), active ou expirée : la story disparaît de toutes les lectures et son média est détaché, puis purgé par `purge-orphan-media` (ADR-008).
+         *     Story inexistante, déjà supprimée ou d'un autre auteur → `404 story_not_found`, jamais `403` (ADR-006).
+         */
+        delete: operations["deleteStory"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stories/{id}/view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enregistrer ma vue d'une story
+         * @description Envoyé à l'affichage de la story. Une vue par compte : idempotent, la vue n'est comptée qu'une fois. Ma propre story n'est pas comptée (`204` sans effet).
+         *     Story inexistante, supprimée, expirée ou invisible pour l'appelant → `404 story_not_found` (ADR-006).
+         */
+        post: operations["viewStory"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1216,7 +1321,7 @@ export interface components {
          * @description Usage prévu du média ; il ne peut être rattaché qu'à cet usage (ADR-008).
          * @enum {string}
          */
-        MediaPurpose: "avatar" | "post";
+        MediaPurpose: "avatar" | "post" | "story";
         /**
          * @description `pending_upload` → `uploaded` → `processing` → `ready` | `failed` (ADR-008).
          * @enum {string}
@@ -1311,6 +1416,68 @@ export interface components {
             items: components["schemas"]["Post"][];
             /** @description Curseur de la page suivante ; absent sur la dernière page. */
             nextCursor?: string;
+        };
+        /**
+         * @description `everyone` : qui peut voir mes contenus ; `close_friends` : mes amis proches seulement (ADR-025).
+         * @enum {string}
+         */
+        StoryAudience: "everyone" | "close_friends";
+        CreateStoryRequest: {
+            /**
+             * Format: uuid
+             * @description Image `ready`, de `purpose` `story`.
+             */
+            mediaId: string;
+            audience: components["schemas"]["StoryAudience"];
+        };
+        ViewStoryRequest: {
+            /**
+             * @description Seule la vue normale (`false`, par défaut) est acceptée.
+             * @enum {boolean}
+             */
+            anonymous?: false;
+        };
+        /** @description Photo de la story ; `width` et `height` (en pixels) donnent son ratio. */
+        StoryMedia: {
+            variants: components["schemas"]["ImageVariants"];
+            width: number;
+            height: number;
+        };
+        Story: {
+            /** Format: uuid */
+            id: string;
+            author: components["schemas"]["PostAuthor"];
+            audience: components["schemas"]["StoryAudience"];
+            media: components["schemas"]["StoryMedia"];
+            /** @description L'appelant a déjà vu cette story (toujours `true` pour l'auteur). */
+            viewerHasSeen: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Fin de la période active (24 h, ou 48 h pour une story publiée en Clone Plus).
+             */
+            expiresAt: string;
+        };
+        StoryList: {
+            /** @description De la plus ancienne à la plus récente. */
+            items: components["schemas"]["Story"][];
+        };
+        /** @description Un auteur du bandeau. */
+        StoryTrayItem: {
+            author: components["schemas"]["PostAuthor"];
+            /** @description J'ai vu toutes ses stories actives visibles. */
+            seen: boolean;
+            /** @description Au moins une de ses stories actives visibles est réservée à ses amis proches (anneau distinct). */
+            hasCloseFriendsStory: boolean;
+            /**
+             * Format: date-time
+             * @description Date de sa story active visible la plus récente.
+             */
+            latestStoryAt: string;
+        };
+        StoryTray: {
+            items: components["schemas"]["StoryTrayItem"][];
         };
         /** @description État du like après l'action, et nombre de likes du post. */
         LikeStatus: {
@@ -1683,6 +1850,15 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
+        /** @description Story inexistante, supprimée, expirée ou invisible pour l'appelant (`story_not_found`). */
+        StoryNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
         /** @description Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`), ou onboarding non terminé (`profile_not_found`). */
         LikeTargetNotFound: {
             headers: {
@@ -1759,6 +1935,7 @@ export interface components {
         CloseFriendId: string;
         MediaId: string;
         PostId: string;
+        StoryId: string;
         CommentId: string;
         ReportId: string;
     };
@@ -2541,6 +2718,32 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    listUserStories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Les stories actives visibles. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryList"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["UserNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     createPost: {
         parameters: {
             query?: never;
@@ -2827,6 +3030,136 @@ export interface operations {
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["CommentNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Story publiée. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Story"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Onboarding non terminé (`profile_not_found`) ou média introuvable (`media_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Média pas encore prêt (`media_not_ready`) ou déjà utilisé (`media_already_attached`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Média vidéo (`media_kind_mismatch`) ou prévu pour un autre usage (`media_purpose_mismatch`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getStoryTray: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Le bandeau. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryTray"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    deleteStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["StoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Story supprimée. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["StoryNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    viewStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["StoryId"];
+            };
+            cookie?: never;
+        };
+        /** @description `{}` pour une vue normale. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ViewStoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Vue enregistrée (ou déjà enregistrée). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["StoryNotFound"];
             500: components["responses"]["InternalError"];
         };
     };

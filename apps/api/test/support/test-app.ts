@@ -10,6 +10,11 @@ import { LikePost } from '../../src/modules/engagement/application/use-cases/lik
 import { ListComments } from '../../src/modules/engagement/application/use-cases/list-comments.ts';
 import { ListReplies } from '../../src/modules/engagement/application/use-cases/list-replies.ts';
 import { UnlikePost } from '../../src/modules/engagement/application/use-cases/unlike-post.ts';
+import { DeleteStory } from '../../src/modules/ephemeral/application/use-cases/delete-story.ts';
+import { GetStoryTray } from '../../src/modules/ephemeral/application/use-cases/get-story-tray.ts';
+import { GetUserStories } from '../../src/modules/ephemeral/application/use-cases/get-user-stories.ts';
+import { PublishStory } from '../../src/modules/ephemeral/application/use-cases/publish-story.ts';
+import { ViewStory } from '../../src/modules/ephemeral/application/use-cases/view-story.ts';
 import { GetFeed } from '../../src/modules/feed/application/use-cases/get-feed.ts';
 import { CheckUsernameAvailability } from '../../src/modules/identity/application/use-cases/check-username-availability.ts';
 import { CompleteOnboarding } from '../../src/modules/identity/application/use-cases/complete-onboarding.ts';
@@ -78,6 +83,7 @@ import { InMemoryPosts } from './in-memory-posts.ts';
 import { InMemoryProfileRepository } from './in-memory-profile-repository.ts';
 import { InMemoryRelationshipReader } from './in-memory-relationship-reader.ts';
 import { InMemoryReports } from './in-memory-reports.ts';
+import { InMemoryStories } from './in-memory-stories.ts';
 import {
   InMemoryBlocks,
   InMemoryCloseFriends,
@@ -187,6 +193,7 @@ export function buildTestApp() {
     comments,
     audit: auditLog,
   });
+  const stories = new InMemoryStories(profiles, media, relationships);
   const realtime = new RealtimeBroker(() => undefined);
   const app = buildApp({
     logLevel: 'silent',
@@ -242,6 +249,21 @@ export function buildTestApp() {
       },
       feed: {
         getFeed: new GetFeed(new InMemoryFeedReader(posts, relationships)),
+      },
+      stories: {
+        publishStory: new PublishStory(
+          new InMemoryUnitOfWork({ accounts: graph, media, stories, reader: stories }),
+          { isPlus: async (userId) => (await getPlan.execute({ userId })).plan === 'plus' },
+          sequentialIds('0199a1b2-0000-7000-e100-'),
+          clock,
+        ),
+        getStoryTray: new GetStoryTray(stories, clock),
+        getUserStories: new GetUserStories(graph, relationships, stories, clock),
+        viewStory: new ViewStory(
+          new InMemoryUnitOfWork({ relationships, reader: stories, stories }),
+          clock,
+        ),
+        deleteStory: new DeleteStory(new InMemoryUnitOfWork({ media, stories })),
       },
       engagement: {
         likePost: new LikePost(likeTransaction, notificationDispatcher),
@@ -308,6 +330,7 @@ export function buildTestApp() {
     jobs,
     relationships,
     posts,
+    stories,
     comments,
     notifications,
     notificationDispatcher,

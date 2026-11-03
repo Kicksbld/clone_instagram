@@ -113,6 +113,13 @@
       "when": 1793695211216,
       "tag": "0015_close_friends",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793702389460,
+      "tag": "0016_stories",
+      "breakpoints": true
     }
   ]
 }

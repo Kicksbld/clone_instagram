@@ -2,8 +2,9 @@ import SwiftUI
 
 /// Feed d'accueil (wireframe, comme Instagram) : posts des comptes suivis et les miens, repère « Vous êtes
 /// à jour » après les 3 derniers jours, puis les publications plus anciennes à la demande. Jamais de
-/// Liquid Glass sur le contenu (ADR-010).
-struct FeedView: View {
+/// Liquid Glass sur le contenu (ADR-010). `header` (bandeau des stories) est fourni par le routeur racine :
+/// une feature n'en importe pas une autre ; il défile avec le feed.
+struct FeedView<Header: View>: View {
     @State private var viewModel: FeedViewModel
     /// Incrémenté à chaque post supprimé ailleurs (détail, profil) et à chaque compte bloqué : le feed se
     /// recharge.
@@ -12,15 +13,27 @@ struct FeedView: View {
     let publishedCount: Int
     /// Feed vide : ouvre l'onglet Recherche.
     let onSearch: () -> Void
+    /// Tirer pour rafraîchir : incrémenté pour recharger aussi `header`.
+    @Binding var refreshCount: Int
+    @ViewBuilder let header: () -> Header
 
     @State private var position = ScrollPosition(edge: .top)
     @State private var postToDelete: Post?
 
-    init(viewModel: FeedViewModel, revision: Int, publishedCount: Int, onSearch: @escaping () -> Void) {
+    init(
+        viewModel: FeedViewModel,
+        revision: Int,
+        publishedCount: Int,
+        onSearch: @escaping () -> Void,
+        refreshCount: Binding<Int> = .constant(0),
+        @ViewBuilder header: @escaping () -> Header = { EmptyView() }
+    ) {
         _viewModel = State(initialValue: viewModel)
         self.revision = revision
         self.publishedCount = publishedCount
         self.onSearch = onSearch
+        _refreshCount = refreshCount
+        self.header = header
     }
 
     var body: some View {
@@ -89,6 +102,7 @@ struct FeedView: View {
 
     private var feed: some View {
         ScrollView {
+            header()
             if viewModel.posts.isEmpty {
                 emptyFeed
                     .containerRelativeFrame(.vertical)
@@ -113,7 +127,10 @@ struct FeedView: View {
             }
         }
         .scrollPosition($position)
-        .refreshable { await viewModel.refresh() }
+        .refreshable {
+            refreshCount += 1
+            await viewModel.refresh()
+        }
         .safeAreaInset(edge: .bottom) {
             if viewModel.loadMoreFailed {
                 Button("Charger la suite") { Task { await viewModel.loadMore() } }

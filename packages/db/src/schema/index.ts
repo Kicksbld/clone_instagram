@@ -74,3 +74,12 @@ export {
   type NotificationRow,
   type NotificationType,
 } from './activity.ts';
+export {
+  STORY_AUDIENCES,
+  stories,
+  storyViews,
+  type NewStoryRow,
+  type StoryAudience,
+  type StoryRow,
+  type StoryViewRow,
+} from './ephemeral.ts';

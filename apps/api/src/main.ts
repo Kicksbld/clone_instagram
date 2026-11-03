@@ -28,6 +28,15 @@ import {
   DrizzleLikeablePostReader,
   DrizzleLikeRepository,
 } from './modules/engagement/infrastructure/persistence/drizzle-likes.ts';
+import { DeleteStory } from './modules/ephemeral/application/use-cases/delete-story.ts';
+import { GetStoryTray } from './modules/ephemeral/application/use-cases/get-story-tray.ts';
+import { GetUserStories } from './modules/ephemeral/application/use-cases/get-user-stories.ts';
+import { PublishStory } from './modules/ephemeral/application/use-cases/publish-story.ts';
+import { ViewStory } from './modules/ephemeral/application/use-cases/view-story.ts';
+import {
+  DrizzleStoryReader,
+  DrizzleStoryRepository,
+} from './modules/ephemeral/infrastructure/persistence/drizzle-stories.ts';
 import { GetFeed } from './modules/feed/application/use-cases/get-feed.ts';
 import { DrizzleFeedReader } from './modules/feed/infrastructure/persistence/drizzle-feed-reader.ts';
 import { CheckUsernameAvailability } from './modules/identity/application/use-cases/check-username-availability.ts';
@@ -236,6 +245,27 @@ const resolveReportTransaction = new DrizzleUnitOfWork(database.db, (tx: Executo
 }));
 const adminReports = new DrizzleAdminReportReader(database.db);
 const getPlan = new GetPlan(subscriptions, systemClock);
+// Stories (ADR-025) : publication, vue et suppression dans une transaction chacune.
+const publishStoryTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  accounts: new DrizzleAccountReader(tx),
+  media: new DrizzleMediaRepository(tx),
+  stories: new DrizzleStoryRepository(tx),
+  reader: new DrizzleStoryReader(tx),
+}));
+const viewStoryTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  relationships: new DrizzleRelationshipReader(tx),
+  reader: new DrizzleStoryReader(tx),
+  stories: new DrizzleStoryRepository(tx),
+}));
+const deleteStoryTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  media: new DrizzleMediaRepository(tx),
+  stories: new DrizzleStoryRepository(tx),
+}));
+const storyReader = new DrizzleStoryReader(database.db);
+// Règle `isPlus` du module `billing` (ADR-012), lue à la publication d'une story.
+const plusStatus = {
+  isPlus: async (userId: string) => (await getPlan.execute({ userId })).plan === 'plus',
+};
 const storage = new SupabaseMediaStorage(
   new StorageClient(new URL('/storage/v1', config.SUPABASE_URL).toString(), {
     apikey: secretKey,
@@ -298,6 +328,18 @@ const app = buildApp({
     },
     feed: {
       getFeed: new GetFeed(new DrizzleFeedReader(database.db)),
+    },
+    stories: {
+      publishStory: new PublishStory(
+        publishStoryTransaction,
+        plusStatus,
+        uuidV7Generator,
+        systemClock,
+      ),
+      getStoryTray: new GetStoryTray(storyReader, systemClock),
+      getUserStories: new GetUserStories(accounts, relationships, storyReader, systemClock),
+      viewStory: new ViewStory(viewStoryTransaction, systemClock),
+      deleteStory: new DeleteStory(deleteStoryTransaction),
     },
     engagement: {
       likePost: new LikePost(likeTransaction, notificationDispatcher),

@@ -21,3 +21,6 @@ GET /v1/posts/{id} added the new `reel` enum value to the `kind` response proper
 GET /v1/posts/{id} added `#/components/schemas/ImageVariants, #/components/schemas/VideoVariants` to the `media/items/variants` response property `oneOf` list for the response status `200`
 GET /v1/users/{id}/posts added the new `reel` enum value to the `items/items/kind` response property for the response status `200`
 GET /v1/users/{id}/posts added `#/components/schemas/ImageVariants, #/components/schemas/VideoVariants` to the `items/items/media/items/variants` response property `oneOf` list for the response status `200`
+# T24 (#35), validé par le lead dev le 2026-11-03 : médias de story (`purpose = story`).
+GET /v1/media/{id} added the new `story` enum value to the `purpose` response property for the response status `200`
+POST /v1/media/{id}/complete added the new `story` enum value to the `purpose` response property for the response status `200`

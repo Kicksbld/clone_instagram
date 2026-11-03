@@ -39,3 +39,4 @@ Décisions d'architecture du projet, rédigées selon [Agent ADR Architecte.md](
 | [ADR-031](ADR-031-temps-reel-activite-cycle-session.md) | Activité temps réel : préserver l'ordre des mises à jour de la pastille | Proposé |
 | [ADR-032](ADR-032-demandes-abonnement-contrat-acceptation.md) | Demandes d'abonnement : état `requested`, acceptation partagée et section de l'Activité | Proposé |
 | [ADR-033](ADR-033-niveaux-de-tests-selon-la-tranche.md) | Niveaux de tests de l'API selon la tranche : routes et Postgres toujours, use cases si règle | Accepté |
+| [ADR-034](ADR-034-bandeau-stories-non-pagine-plafonne.md) | Bandeau des stories : une seule réponse non paginée, 100 auteurs au plus | Proposé |

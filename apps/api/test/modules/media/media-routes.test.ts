@@ -57,9 +57,16 @@ describe('POST /v1/media/uploads', () => {
     expect(media.json()).toMatchObject({ purpose: 'post', status: 'pending_upload' });
   });
 
+  it('photo de story (T24) → 201, média de purpose story', async () => {
+    const response = await post({ ...upload, purpose: 'story' });
+
+    expect(response.statusCode).toBe(201);
+    expect(context.media.rows.get(PHOTO)?.purpose).toBe('story');
+  });
+
   it.each([
     ['vidéo', { kind: 'video' }],
-    ['usage story (P1)', { purpose: 'story' }],
+    ['vidéo de story', { kind: 'video', purpose: 'story', mimeType: 'video/mp4' }],
     ['type non accepté', { mimeType: 'image/heic' }],
     ['plus de 20 Mo', { sizeBytes: 20 * 1024 * 1024 + 1 }],
     ['taille nulle', { sizeBytes: 0 }],

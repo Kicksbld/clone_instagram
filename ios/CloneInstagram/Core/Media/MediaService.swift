@@ -6,6 +6,8 @@ import OpenAPIRuntime
 nonisolated enum MediaPurpose: Equatable {
     case avatar
     case post
+    /// Photo de story (T24).
+    case story
 }
 
 /// Motif d'échec du traitement d'un média par le worker.
@@ -171,6 +173,7 @@ private extension Components.Schemas.MediaPurpose {
         switch purpose {
         case .avatar: self = .avatar
         case .post: self = .post
+        case .story: self = .story
         }
     }
 }
