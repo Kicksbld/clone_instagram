@@ -76,6 +76,13 @@ jobs:
       - name: Migrations (Postgres de la CI, pour les tests d'adapters)
         run: pnpm db:migrate
 
+      - name: Outils vidéo du worker (ADR-024)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version
+          ffprobe -version
+
       - name: Tests
         run: pnpm test
 
