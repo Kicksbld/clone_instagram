@@ -83,3 +83,4 @@ export {
   type StoryRow,
   type StoryViewRow,
 } from './ephemeral.ts';
+export { conversations, conversationMembers, messages } from './messaging.ts';

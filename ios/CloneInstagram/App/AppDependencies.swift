@@ -24,6 +24,7 @@ struct AppDependencies {
     /// Activité (notifications in-app, ADR-026) et pastille du cœur, partagée par l'accueil et l'Activité.
     let activity: any ActivityService
     let activityBadge: ActivityBadge
+    var messaging = MessagingStore(service: UnavailableMessagingService())
     var realtime: RealtimeClient?
     /// Publications en cours, persistées (ADR-008).
     let publishQueue: PublishQueue
@@ -61,6 +62,7 @@ struct AppDependencies {
         let social = APISocialService(client: client)
         let activity = APIActivityService(client: client)
         let badge = ActivityBadge(service: activity)
+        let messaging = MessagingStore(service: APIMessagingService(client: client))
         var socketURL = URLComponents(url: configuration.baseURL, resolvingAgainstBaseURL: false)
         socketURL?.scheme = configuration.baseURL.scheme == "https" ? "wss" : "ws"
         socketURL?.path = "/v1/ws"
@@ -72,6 +74,7 @@ struct AppDependencies {
                 accessToken: { await auth.accessToken() },
                 badge: badge,
                 onSuspended: { suspension.report() },
+                messaging: messaging,
                 mediaEvents: mediaEvents
             )
         }
@@ -91,6 +94,7 @@ struct AppDependencies {
             commentCounts: CommentCountStore(),
             activity: activity,
             activityBadge: badge,
+            messaging: messaging,
             realtime: realtime,
             publishQueue: PublishQueue(
                 store: FilePendingPostStore.applicationSupport,

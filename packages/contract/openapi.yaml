@@ -25,6 +25,8 @@ info:
 
     | Code | Statut | Cas |
     |---|---|---|
+    | `conversation_not_found` | 404 | Conversation inexistante, invisible ou appartenant à un tiers |
+    | `cannot_message_self` | 422 | Conversation avec soi-même |
     | `profile_not_found` | 404 | L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé) |
     | `username_taken` | 409 | Username déjà utilisé par un autre profil |
     | `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |
@@ -62,6 +64,8 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: messaging
+    description: Conversations privées et messages texte (ADR-023)
   - name: system
     description: Supervision de l'API
   - name: identity
@@ -89,6 +93,131 @@ tags:
   - name: admin
     description: Administration depuis le backoffice (ADR-011) ; rôle `admin` requis, chaque action écrite dans le journal d'audit
 paths:
+  /v1/conversations:
+    get:
+      operationId: listConversations
+      tags: [messaging]
+      summary: Mes conversations non vides, de la plus récente à la plus ancienne
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Page de 20 conversations visibles, curseur (last_message_at, id).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    post:
+      operationId: getOrCreateConversation
+      tags: [messaging]
+      summary: Obtenir ou créer une conversation avec un compte, même privé non suivi
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Conversation existante.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '201':
+          description: Conversation créée (vide, absente des listes).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ConversationNotFound'
+        '422':
+          description: Conversation avec soi-même (cannot_message_self).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /v1/conversations/{id}/messages:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    get:
+      operationId: listMessages
+      tags: [messaging]
+      summary: Historique ou rattrapage des messages
+      description: Curseur vers le passé (30, décroissant), ou after (100, croissant). Pour changer de mode, retirer le curseur précédent. after doit appartenir à cette conversation, sinon invalid_cursor. nextCursor sert à poursuivre chaque mode ; en rattrapage passer ce curseur avec after.
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - name: after
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Page des messages.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagePage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ConversationNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    post:
+      operationId: sendMessage
+      tags: [messaging]
+      summary: Envoyer un texte, au plus 60 messages par minute
+      description: Même clientId du même expéditeur renvoie le message existant sans nouvel événement. Message et last_message_at dans une transaction ; message.created aux deux membres après validation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendTextMessage'
+      responses:
+        '201':
+          description: Message créé.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '200':
+          description: Message existant pour ce clientId.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ConversationNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /v1/ws:
     get:
       operationId: connectRealtime
@@ -1775,6 +1904,88 @@ components:
       bearerFormat: JWT
       description: Access token Supabase Auth.
   schemas:
+    SendTextMessage:
+      type: object
+      additionalProperties: false
+      required: [clientId, kind, body]
+      properties:
+        clientId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [text]
+        body:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    Message:
+      type: object
+      required: [id, conversationId, senderId, clientId, kind, body, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        conversationId:
+          type: string
+          format: uuid
+        senderId:
+          type: string
+          format: uuid
+        clientId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          description: Type ouvert pour les ajouts compatibles des prochaines tranches.
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    Conversation:
+      type: object
+      required: [id, otherMember, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        otherMember:
+          $ref: '#/components/schemas/PostAuthor'
+        createdAt:
+          type: string
+          format: date-time
+        lastMessage:
+          $ref: '#/components/schemas/Message'
+    ConversationPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Conversation'
+        nextCursor:
+          type: string
+    MessagePage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+        nextCursor:
+          type: string
+    MessageCreated:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [message.created]
+        data:
+          $ref: '#/components/schemas/Message'
     RealtimeAuth:
       type: object
       additionalProperties: false
@@ -1843,6 +2054,7 @@ components:
               $ref: '#/components/schemas/MediaFailureReason'
     RealtimeEvent:
       oneOf:
+        - $ref: '#/components/schemas/MessageCreated'
         - $ref: '#/components/schemas/RealtimeAuthOK'
         - $ref: '#/components/schemas/ActivityCreated'
         - $ref: '#/components/schemas/MediaReady'
@@ -1850,6 +2062,7 @@ components:
       discriminator:
         propertyName: type
         mapping:
+          message.created: '#/components/schemas/MessageCreated'
           auth.ok: '#/components/schemas/RealtimeAuthOK'
           activity.created: '#/components/schemas/ActivityCreated'
           media.ready: '#/components/schemas/MediaReady'
@@ -3010,6 +3223,12 @@ components:
         type: string
         format: uuid
   responses:
+    ConversationNotFound:
+      description: Conversation absente ou invisible (conversation_not_found).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
     ValidationFailed:
       description: Entrée non conforme au schéma (`validation_failed`).
       content:

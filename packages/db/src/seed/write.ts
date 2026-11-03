@@ -1,3 +1,4 @@
+import { writeMessagingSeed } from './messaging.ts';
 // Écriture du plan en base, dans une transaction (images déjà dans Storage). Idempotente : lignes
 // existantes ignorées, compteurs dénormalisés recalculés (ADR-007).
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
@@ -160,6 +161,8 @@ export async function writeSeed(
       .values(batch.map(([ownerId, friendId]) => ({ ownerId, friendId })))
       .onConflictDoNothing();
   }
+
+  await writeMessagingSeed(db, viewerId);
 
   // Compteurs dénormalisés (ADR-007) recalculés à partir de `follows` et `posts`.
   const touched = plan.profiles.map((p) => p.id);
