@@ -3,7 +3,16 @@
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { Executor } from '../client.ts';
-import { blocks, follows, media, postMedia, posts, profiles } from '../schema/index.ts';
+import {
+  blocks,
+  closeFriends,
+  follows,
+  media,
+  postMedia,
+  posts,
+  profiles,
+  stories,
+} from '../schema/index.ts';
 import { variantPaths } from './images.ts';
 import { RATIOS, type SeedPlan } from './plan.ts';
 
@@ -130,6 +139,27 @@ export async function writeSeed(
     .insert(blocks)
     .values(plan.blocks.map(([blockerId, blockedId]) => ({ blockerId, blockedId })))
     .onConflictDoNothing();
+
+  // Stories (T24) : dates réécrites à chaque seed pour qu'elles restent actives, sauf si supprimées.
+  for (const batch of chunks(plan.stories)) {
+    await db
+      .insert(stories)
+      .values(batch)
+      .onConflictDoUpdate({
+        target: stories.id,
+        set: {
+          createdAt: sql`excluded.created_at`,
+          expiresAt: sql`excluded.expires_at`,
+        },
+        setWhere: isNull(stories.deletedAt),
+      });
+  }
+  for (const batch of chunks(plan.closeFriends)) {
+    await db
+      .insert(closeFriends)
+      .values(batch.map(([ownerId, friendId]) => ({ ownerId, friendId })))
+      .onConflictDoNothing();
+  }
 
   // Compteurs dénormalisés (ADR-007) recalculés à partir de `follows` et `posts`.
   const touched = plan.profiles.map((p) => p.id);

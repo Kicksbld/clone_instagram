@@ -67,6 +67,29 @@ describe('planSeed', () => {
   });
 });
 
+describe('planSeed — stories (T24)', () => {
+  it('actives à la date du seed, photo 9:16 de leur auteur, une partie pour les amis proches', () => {
+    const mediaById = new Map(plan.media.map((item) => [item.id, item]));
+    expect(plan.stories.length).toBeGreaterThan(20);
+    for (const story of plan.stories) {
+      expect(story.createdAt.getTime()).toBeLessThanOrEqual(NOW.getTime());
+      expect(story.expiresAt.getTime()).toBeGreaterThan(NOW.getTime());
+      expect(mediaById.get(story.mediaId)).toMatchObject({
+        ownerId: story.authorId,
+        purpose: 'story',
+        ratio: 'story',
+      });
+    }
+    expect(plan.stories.some((story) => story.audience === 'close_friends')).toBe(true);
+  });
+
+  it('amis proches sans doublon ni soi-même', () => {
+    const keys = plan.closeFriends.map(([a, b]) => `${a}>${b}`);
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const [owner, friend] of plan.closeFriends) expect(owner).not.toBe(friend);
+  });
+});
+
 describe('planViewerRelations', () => {
   const viewer = '0199a1b2-0000-7000-8000-00000000abcd';
 
@@ -80,5 +103,6 @@ describe('planViewerRelations', () => {
       [viewer, SEED_PROFILES.tom.id],
     ]);
     expect(relations.follows.filter(([follower]) => follower === viewer)).toHaveLength(33);
+    expect(relations.closeFriends).toEqual([[SEED_PROFILES.lea.id, viewer]]);
   });
 });

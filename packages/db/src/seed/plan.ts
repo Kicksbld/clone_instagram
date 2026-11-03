@@ -23,6 +23,8 @@ export const RATIOS = {
   portrait: { width: 1080, height: 1350 },
   square: { width: 1080, height: 1080 },
   landscape: { width: 1080, height: 566 },
+  /** Story plein écran 9:16 (T24). */
+  story: { width: 1080, height: 1920 },
 } as const;
 export type Ratio = keyof typeof RATIOS;
 
@@ -33,7 +35,7 @@ export interface PlannedProfile extends SeedProfile {
 export interface PlannedMedia {
   id: string;
   ownerId: string;
-  purpose: 'post' | 'avatar';
+  purpose: 'post' | 'avatar' | 'story';
   /** Graine de l'image d'exemple (picsum.photos) : même graine, même photo. */
   source: string;
   ratio: Ratio;
@@ -48,6 +50,16 @@ export interface PlannedPost {
   mediaIds: string[];
 }
 
+/** Story photo (T24) : dates relatives à l'exécution, réécrites à chaque seed pour rester active. */
+export interface PlannedStory {
+  id: string;
+  authorId: string;
+  mediaId: string;
+  audience: 'everyone' | 'close_friends';
+  createdAt: Date;
+  expiresAt: Date;
+}
+
 export interface SeedPlan {
   profiles: PlannedProfile[];
   /** `[abonné, suivi]` */
@@ -56,6 +68,9 @@ export interface SeedPlan {
   blocks: [string, string][];
   media: PlannedMedia[];
   posts: PlannedPost[];
+  stories: PlannedStory[];
+  /** `[propriétaire, ami proche]` */
+  closeFriends: [string, string][];
 }
 
 // UUID v7 fixes (préfixe des profils de T4) : le quatrième groupe distingue profils, posts et médias.
@@ -64,6 +79,8 @@ const seedUuid = (group: string, n: number) =>
 export const seedProfileId = (n: number) => seedUuid('8000', n);
 const seedPostId = (n: number) => seedUuid('9000', n);
 const seedMediaId = (n: number) => seedUuid('a000', n);
+const seedStoryId = (n: number) => seedUuid('b000', n);
+const HOUR_MS = 60 * 60 * 1000;
 
 const FIRST_NAMES = [
   'Adam',
@@ -296,13 +313,79 @@ export function planSeed(now: Date): SeedPlan {
     }
   }
 
+  const { stories, closeFriends } = planStories(now, profiles, [...follows.values()], (story) => {
+    const id = nextMediaId();
+    media.push({ id, purpose: 'story', ratio: 'story', ...story });
+    return id;
+  });
+
   return {
     profiles,
     follows: [...follows.values()],
     blocks: SEED_BLOCKS.map(([blocker, blocked]) => [fixedId(blocker), fixedId(blocked)]),
     media,
     posts,
+    stories,
+    closeFriends,
   };
+}
+
+/**
+ * Stories actives (T24) : Léa en a une pour tout le monde et une pour ses amis proches (Hugo, et le
+ * compte de démo), Chloé une seule pour ses amis proches (Léa) ; 40 % des comptes générés en ont 1 à
+ * 3, publiées dans les 20 dernières heures, un quart pour leurs amis proches (3 de leurs abonnés).
+ */
+function planStories(
+  now: Date,
+  profiles: readonly PlannedProfile[],
+  follows: readonly [string, string][],
+  addPhoto: (story: { ownerId: string; source: string; attachedAt: Date }) => string,
+): Pick<SeedPlan, 'stories' | 'closeFriends'> {
+  const random = new Random(20261103);
+  const stories: PlannedStory[] = [];
+  const closeFriends = new Map<string, [string, string]>();
+  const add = (authorId: string, hoursAgo: number, audience: PlannedStory['audience']): void => {
+    const createdAt = new Date(Math.round(now.getTime() - hoursAgo * HOUR_MS));
+    const mediaId = addPhoto({
+      ownerId: authorId,
+      source: `clone-story-${stories.length + 1}`,
+      attachedAt: createdAt,
+    });
+    stories.push({
+      id: seedStoryId(stories.length + 1),
+      authorId,
+      mediaId,
+      audience,
+      createdAt,
+      expiresAt: new Date(createdAt.getTime() + 24 * HOUR_MS),
+    });
+  };
+  const addCloseFriend = (owner: string, friend: string) =>
+    closeFriends.set(`${owner}>${friend}`, [owner, friend]);
+
+  add(fixedId('lea'), 6, 'everyone');
+  add(fixedId('lea'), 2, 'close_friends');
+  addCloseFriend(fixedId('lea'), fixedId('hugo'));
+  add(fixedId('chloe'), 1, 'close_friends');
+  addCloseFriend(fixedId('chloe'), fixedId('lea'));
+
+  const fixedIds = new Set<string>(Object.values(SEED_PROFILES).map((profile) => profile.id));
+  for (const profile of profiles) {
+    if (fixedIds.has(profile.id) || !random.chance(0.4)) continue;
+    let hasCloseFriendsStory = false;
+    for (let count = random.int(1, 3); count > 0; count--) {
+      const audience = random.chance(0.25) ? 'close_friends' : 'everyone';
+      hasCloseFriendsStory ||= audience === 'close_friends';
+      add(profile.id, 0.2 + random.next() * 19.8, audience);
+    }
+    if (!hasCloseFriendsStory) continue;
+    const followers = follows
+      .filter(([, followee]) => followee === profile.id)
+      .map(([follower]) => follower);
+    for (const friend of random.sample(followers, Math.min(3, followers.length)))
+      addCloseFriend(profile.id, friend);
+  }
+  return { stories, closeFriends: [...closeFriends.values()] };
 }
 
 /**
@@ -310,7 +393,9 @@ export function planSeed(now: Date): SeedPlan {
  * plus 30 comptes générés suivis (feed fourni), 20 qui le suivent, et Inès (suspendue : ses posts
  * restent absents du feed).
  */
-export function planViewerRelations(viewerId: string): Pick<SeedPlan, 'follows' | 'blocks'> {
+export function planViewerRelations(
+  viewerId: string,
+): Pick<SeedPlan, 'follows' | 'blocks' | 'closeFriends'> {
   const random = new Random(7);
   const fixedCount = Object.keys(SEED_PROFILES).length;
   const generatedIds = Array.from({ length: SEED_PROFILE_COUNT - fixedCount }, (_, i) =>
@@ -331,5 +416,7 @@ export function planViewerRelations(viewerId: string): Pick<SeedPlan, 'follows' 
       [fixedId('emma'), viewerId],
       [viewerId, fixedId('tom')],
     ],
+    // Le compte de démo voit la story « amis proches » de Léa, pas celle de Chloé (T24).
+    closeFriends: [[fixedId('lea'), viewerId]],
   };
 }

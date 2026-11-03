@@ -1,5 +1,5 @@
-// Seed de démo (ADR-007) : une centaine de profils, des abonnements et des posts avec images, en
-// local comme sur la démo. Idempotent : relançable sans doublon ni nouvel envoi d'image.
+// Seed de démo (ADR-007) : une centaine de profils, des abonnements, des posts et des stories avec
+// images, en local comme sur la démo. Idempotent : relançable sans doublon ni nouvel envoi d'image.
 // Profils sans compte Supabase Auth (aucune FK vers `auth`) : ils ne se connectent pas, ils servent
 // à être consultés et à remplir le feed.
 // `SEED_VIEWER_USERNAME` (facultatif) : username d'un compte existant, relié aux profils du seed
@@ -30,6 +30,7 @@ try {
     const relations = planViewerRelations(viewerId);
     plan.follows.push(...relations.follows);
     plan.blocks.push(...relations.blocks);
+    plan.closeFriends.push(...relations.closeFriends);
   }
 
   // 1. Images (hors transaction) : seulement celles des médias pas encore en base.
@@ -51,7 +52,7 @@ try {
   await database.db.transaction((tx) => writeSeed(tx, plan, sizes, viewerId));
   console.info(
     `db:seed — ${plan.profiles.length} profils, ${plan.posts.length} posts, ` +
-      `${plan.follows.length} abonnements${viewerUsername ? `, reliés à « ${viewerUsername} »` : ''}.`,
+      `${plan.stories.length} stories, ${plan.follows.length} abonnements${viewerUsername ? `, reliés à « ${viewerUsername} »` : ''}.`,
   );
 } finally {
   await database.close();

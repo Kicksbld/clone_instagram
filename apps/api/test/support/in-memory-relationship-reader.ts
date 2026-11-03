@@ -135,7 +135,7 @@ export class InMemoryRelationshipReader implements RelationshipReader {
       ownerFollowsViewer: this.isFollowing(ownerId, viewerId),
       viewerRequestedOwner: this.hasRequested(viewerId, ownerId),
       blocked: this.isBlockedEitherWay(viewerId, ownerId),
-      viewerIsCloseFriend: false,
+      viewerIsCloseFriend: this.isCloseFriend(ownerId, viewerId),
     });
   }
 }

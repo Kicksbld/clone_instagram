@@ -53,6 +53,7 @@ info:
     | `report_already_resolved` | 409 | Le signalement n'est plus ouvert : déjà supprimé ou classé, seul ou avec les autres signalements du même contenu |
     | `cannot_remove_user` | 422 | `remove_content` sur le signalement d'un compte : seul le classement est possible, la sanction passe par la fiche du compte |
     | `plus_required` | 403 | Avantage réservé à Clone Plus demandé sans abonnement actif (ADR-012) ; aucune route P0 ne le renvoie encore |
+    | `story_not_found` | 404 | Story inexistante, supprimée, expirée ou invisible pour l'appelant (ADR-006, ADR-025) ; suppression de la story d'un autre auteur |
 
     Pagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).
 servers:
@@ -73,6 +74,8 @@ tags:
     description: Abonnements, demandes d'abonnement, listes d'abonnés, blocages, amis proches et recherche d'utilisateurs (ADR-006)
   - name: posts
     description: Publication et lecture des posts, selon la politique de visibilité (ADR-006)
+  - name: stories
+    description: Stories photo éphémères (ADR-025), selon la politique de visibilité (ADR-006)
   - name: feed
     description: Feed d'accueil chronologique (ADR-007), selon la politique de visibilité (ADR-006)
   - name: engagement
@@ -751,6 +754,31 @@ paths:
           $ref: '#/components/responses/UserNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v1/users/{id}/stories:
+    get:
+      operationId: listUserStories
+      tags: [stories]
+      summary: Stories actives d'un utilisateur
+      description: |
+        Stories actives (ni expirées ni supprimées) de cet utilisateur que l'appelant peut voir (`canViewStory`, ADR-006), de la plus ancienne à la plus récente. Une story `close_friends` n'est renvoyée qu'à l'auteur et à ses amis proches. Liste vide si aucune story active visible.
+        Auteur inexistant ou dont l'appelant ne peut pas voir les contenus (blocage, compte non actif, compte privé non suivi) : `404 user_not_found`.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Les stories actives visibles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryList'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/posts:
     post:
       operationId: createPost
@@ -1007,6 +1035,121 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '404':
           $ref: '#/components/responses/CommentNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/stories:
+    post:
+      operationId: createStory
+      tags: [stories]
+      summary: Publier une story
+      description: |
+        Crée une story à partir d'une image `ready`, à moi, de `purpose` `story`, jamais utilisée (ADR-008). Elle est active 24 h, ou 48 h si je suis abonné Clone Plus au moment de la publication (ADR-012) ; cette durée ne change plus ensuite.
+        Audience `everyone` (qui peut voir mes contenus) ou `close_friends` (mes amis proches seulement). Une vidéo renvoie `422 media_kind_mismatch`. Limité à 20 stories par heure (`429 rate_limited`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStoryRequest'
+      responses:
+        '201':
+          description: Story publiée.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Story'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: Onboarding non terminé (`profile_not_found`) ou média introuvable (`media_not_found`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Média pas encore prêt (`media_not_ready`) ou déjà utilisé (`media_already_attached`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          description: Média vidéo (`media_kind_mismatch`) ou prévu pour un autre usage (`media_purpose_mismatch`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/stories/tray:
+    get:
+      operationId: getStoryTray
+      tags: [stories]
+      summary: Bandeau des stories
+      description: |
+        Auteurs (moi-même et les comptes que je suis) ayant au moins une story active que je peux voir (`canViewStory`, ADR-006), au plus 100.
+        Ordre : ma story d'abord, puis les auteurs ayant une story non vue, puis les autres ; dans chaque groupe, de la story la plus récente à la plus ancienne. Un auteur est vu quand j'ai vu toutes ses stories actives visibles.
+      responses:
+        '200':
+          description: Le bandeau.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryTray'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/stories/{id}:
+    delete:
+      operationId: deleteStory
+      tags: [stories]
+      summary: Supprimer une de mes stories
+      description: |
+        Suppression logique par l'auteur (ADR-007), active ou expirée : la story disparaît de toutes les lectures et son média est détaché, puis purgé par `purge-orphan-media` (ADR-008).
+        Story inexistante, déjà supprimée ou d'un autre auteur → `404 story_not_found`, jamais `403` (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      responses:
+        '204':
+          description: Story supprimée.
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/StoryNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/stories/{id}/view:
+    post:
+      operationId: viewStory
+      tags: [stories]
+      summary: Enregistrer ma vue d'une story
+      description: |
+        Envoyé à l'affichage de la story. Une vue par compte : idempotent, la vue n'est comptée qu'une fois. Ma propre story n'est pas comptée (`204` sans effet).
+        Story inexistante, supprimée, expirée ou invisible pour l'appelant → `404 story_not_found` (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      requestBody:
+        required: true
+        description: '`{}` pour une vue normale.'
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ViewStoryRequest'
+      responses:
+        '204':
+          description: Vue enregistrée (ou déjà enregistrée).
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/StoryNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
   /v1/feed:
@@ -1963,7 +2106,7 @@ components:
     MediaPurpose:
       type: string
       description: Usage prévu du média ; il ne peut être rattaché qu'à cet usage (ADR-008).
-      enum: [avatar, post]
+      enum: [avatar, post, story]
     MediaStatus:
       type: string
       description: '`pending_upload` → `uploaded` → `processing` → `ready` | `failed` (ADR-008).'
@@ -2160,6 +2303,100 @@ components:
         nextCursor:
           type: string
           description: Curseur de la page suivante ; absent sur la dernière page.
+    StoryAudience:
+      type: string
+      description: '`everyone` : qui peut voir mes contenus ; `close_friends` : mes amis proches seulement (ADR-025).'
+      enum: [everyone, close_friends]
+    CreateStoryRequest:
+      type: object
+      additionalProperties: false
+      required: [mediaId, audience]
+      properties:
+        mediaId:
+          type: string
+          format: uuid
+          description: Image `ready`, de `purpose` `story`.
+        audience:
+          $ref: '#/components/schemas/StoryAudience'
+    ViewStoryRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        anonymous:
+          type: boolean
+          description: Seule la vue normale (`false`, par défaut) est acceptée.
+          enum: [false]
+    StoryMedia:
+      type: object
+      description: Photo de la story ; `width` et `height` (en pixels) donnent son ratio.
+      required: [variants, width, height]
+      properties:
+        variants:
+          $ref: '#/components/schemas/ImageVariants'
+        width:
+          type: integer
+          minimum: 1
+        height:
+          type: integer
+          minimum: 1
+    Story:
+      type: object
+      required: [id, author, audience, media, viewerHasSeen, createdAt, expiresAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        author:
+          $ref: '#/components/schemas/PostAuthor'
+        audience:
+          $ref: '#/components/schemas/StoryAudience'
+        media:
+          $ref: '#/components/schemas/StoryMedia'
+        viewerHasSeen:
+          type: boolean
+          description: L'appelant a déjà vu cette story (toujours `true` pour l'auteur).
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          description: Fin de la période active (24 h, ou 48 h pour une story publiée en Clone Plus).
+    StoryList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: De la plus ancienne à la plus récente.
+          items:
+            $ref: '#/components/schemas/Story'
+    StoryTrayItem:
+      type: object
+      description: Un auteur du bandeau.
+      required: [author, seen, hasCloseFriendsStory, latestStoryAt]
+      properties:
+        author:
+          $ref: '#/components/schemas/PostAuthor'
+        seen:
+          type: boolean
+          description: J'ai vu toutes ses stories actives visibles.
+        hasCloseFriendsStory:
+          type: boolean
+          description: Au moins une de ses stories actives visibles est réservée à ses amis proches (anneau distinct).
+        latestStoryAt:
+          type: string
+          format: date-time
+          description: Date de sa story active visible la plus récente.
+    StoryTray:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/StoryTrayItem'
     LikeStatus:
       type: object
       description: État du like après l'action, et nombre de likes du post.
@@ -2652,6 +2889,13 @@ components:
       schema:
         type: string
         format: uuid
+    StoryId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     CommentId:
       name: id
       in: path
@@ -2729,6 +2973,12 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     PostNotFound:
       description: Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    StoryNotFound:
+      description: Story inexistante, supprimée, expirée ou invisible pour l'appelant (`story_not_found`).
       content:
         application/problem+json:
           schema:

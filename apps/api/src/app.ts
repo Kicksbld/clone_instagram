@@ -16,6 +16,10 @@ import {
   registerEngagementRoutes,
 } from './modules/engagement/infrastructure/http/engagement-routes.ts';
 import {
+  registerStoriesRoutes,
+  type StoriesUseCases,
+} from './modules/ephemeral/infrastructure/http/stories-routes.ts';
+import {
   type FeedUseCases,
   registerFeedRoutes,
 } from './modules/feed/infrastructure/http/feed-routes.ts';
@@ -70,6 +74,8 @@ export interface AppDependencies {
   social: SocialUseCases;
   posts: PostsUseCases;
   feed: FeedUseCases;
+  /** Stories (ADR-025). */
+  stories: StoriesUseCases;
   engagement: EngagementUseCases;
   billing: BillingUseCases;
   moderation: ModerationUseCases;
@@ -126,6 +132,7 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
     registerSocialRoutes(v1, dependencies.social, dependencies.mediaUrls);
     registerPostsRoutes(v1, dependencies.posts, dependencies.mediaUrls);
     registerFeedRoutes(v1, dependencies.feed, dependencies.mediaUrls);
+    registerStoriesRoutes(v1, dependencies.stories, dependencies.mediaUrls);
     registerEngagementRoutes(v1, dependencies.engagement, dependencies.mediaUrls);
     registerBillingRoutes(v1, dependencies.billing);
     registerModerationRoutes(v1, dependencies.moderation);

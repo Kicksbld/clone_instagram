@@ -7,6 +7,8 @@ struct RootView: View {
     /// Feuille des commentaires ouverte depuis un post (feed, détail).
     @State private var onboardingProfileId: String?
     @State private var commentsRoute: CommentsRoute?
+    /// Tirer pour rafraîchir le feed : recharge aussi le bandeau des stories.
+    @State private var feedRefreshCount = 0
     /// Splash animé joué une seule fois, au lancement.
     @State private var isSplashFinished = false
     @Environment(\.scenePhase) private var scenePhase
@@ -97,8 +99,11 @@ struct RootView: View {
                     ),
                     revision: dependencies.blocks.revision,
                     publishedCount: dependencies.publishQueue.publishedCount,
-                    onSearch: openSearch
-                )
+                    onSearch: openSearch,
+                    refreshCount: $feedRefreshCount
+                ) {
+                    storyTray(for: profile)
+                }
                 .environment(\.openComments, openComments)
                 .modifier(SocialDestinations(
                     dependencies: dependencies,
@@ -235,6 +240,30 @@ struct RootView: View {
                 onPlanChanged: viewModel.updatePlan
             ),
             onClose: onClose
+        )
+    }
+
+    /// Bandeau des stories en haut du feed (feature `Stories`), rechargé avec le feed et après un blocage.
+    private func storyTray(for profile: Profile) -> some View {
+        let currentUser = PostAuthor(id: profile.id, username: profile.username, avatar: profile.avatar)
+        return StoryTrayView(
+            viewModel: StoryTrayViewModel(currentUser: currentUser, service: dependencies.stories),
+            reloadToken: feedRefreshCount + dependencies.blocks.revision,
+            makeViewer: { authors, index in
+                StoryViewerViewModel(
+                    viewerId: profile.id,
+                    authors: authors,
+                    startIndex: index,
+                    service: dependencies.stories
+                )
+            },
+            makeCreate: { onPublished in
+                CreateStoryViewModel(
+                    uploads: dependencies.uploads,
+                    service: dependencies.stories,
+                    onPublished: onPublished
+                )
+            }
         )
     }
 

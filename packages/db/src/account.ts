@@ -2,6 +2,7 @@ import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import type { Executor } from './client.ts';
+import { stories, storyViews } from './schema/ephemeral.ts';
 import { comments, postLikes } from './schema/engagement.ts';
 import { posts } from './schema/posts.ts';
 import { profiles } from './schema/profiles.ts';
@@ -14,7 +15,7 @@ import { follows } from './schema/social.ts';
  * s'il est déjà purgé. Les fichiers Storage sont effacés avant, par le worker.
  *
  * Les compteurs des autres comptes que le compte supprimé alimentait (abonnés, abonnements, likes,
- * commentaires et réponses) sont recomptés sur les seules lignes touchées, dans la même transaction :
+ * commentaires et réponses, vues de stories) sont recomptés sur les seules lignes touchées, dans la même transaction :
  * un décrément calculé à la main compterait deux fois les commentaires déjà supprimés logiquement, et
  * oublierait les réponses des autres que la cascade de `parent_id` efface avec ses commentaires.
  */
@@ -22,6 +23,7 @@ export async function purgeAccountData(tx: Executor, profileId: string): Promise
   const accountIds = await relatedAccounts(tx, profileId);
   const postIds = await relatedPosts(tx, profileId);
   const parentIds = await relatedParentComments(tx, profileId);
+  const storyIds = await viewedStories(tx, profileId);
 
   const deleted = await tx
     .delete(profiles)
@@ -56,7 +58,24 @@ export async function purgeAccountData(tx: Executor, profileId: string): Promise
       })
       .where(inArray(comments.id, parentIds));
   }
+  if (storyIds.length > 0) {
+    await tx
+      .update(stories)
+      .set({
+        viewCount: sql`(SELECT count(*) FROM ${storyViews} WHERE ${storyViews.storyId} = ${stories.id})`,
+      })
+      .where(inArray(stories.id, storyIds));
+  }
   return true;
+}
+
+/** Stories d'autres auteurs que le compte supprimé a vues (T24). */
+async function viewedStories(tx: Executor, profileId: string): Promise<string[]> {
+  const rows = await tx
+    .select({ id: storyViews.storyId })
+    .from(storyViews)
+    .where(eq(storyViews.viewerId, profileId));
+  return rows.map((row) => row.id);
 }
 
 /** Comptes suivis par le compte supprimé, et ses abonnés. */

@@ -1,4 +1,4 @@
-import { blocks, follows, newId, profiles } from '@clone/db';
+import { blocks, closeFriends, follows, newId, profiles } from '@clone/db';
 import { inArray } from 'drizzle-orm';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
@@ -65,6 +65,18 @@ describe('DrizzleRelationshipReader', () => {
 
     await expect(reader.between(viewer, owner)).resolves.toMatchObject({ blocked: true });
     await expect(reader.between(owner, viewer)).resolves.toMatchObject({ blocked: true });
+  });
+
+  it('ami proche : seulement dans le sens propriétaire → ami', async () => {
+    const [viewer, owner] = [await newProfile(), await newProfile()];
+    await database.db.insert(closeFriends).values({ ownerId: owner, friendId: viewer });
+
+    await expect(reader.between(viewer, owner)).resolves.toMatchObject({
+      viewerIsCloseFriend: true,
+    });
+    await expect(reader.between(owner, viewer)).resolves.toMatchObject({
+      viewerIsCloseFriend: false,
+    });
   });
 
   it('se suivre ou se bloquer soi-même est refusé par la base', async () => {

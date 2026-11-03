@@ -3,6 +3,7 @@ import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
 import { purgeAccountData } from '../src/account.ts';
 import { newId } from '../src/ids.ts';
+import { stories, storyViews } from '../src/schema/ephemeral.ts';
 import { comments, postLikes } from '../src/schema/engagement.ts';
 import { media } from '../src/schema/media.ts';
 import { reports } from '../src/schema/moderation.ts';
@@ -158,6 +159,41 @@ describe('purgeAccountData', () => {
     expect(post).toMatchObject({ likeCount: 1, commentCount: 2 });
     const [parent] = await db.select().from(comments).where(eq(comments.id, brunoComment));
     expect(parent?.replyCount).toBe(1);
+  });
+
+  it('recompte les vues des stories des autres que le compte supprimé avait vues', async () => {
+    const gone = await givenProfile('deleted');
+    const alice = await givenProfile();
+    const bruno = await givenProfile();
+    const mediaId = newId();
+    await db.insert(media).values({
+      id: mediaId,
+      ownerId: alice,
+      kind: 'image',
+      purpose: 'story',
+      status: 'ready',
+      originalPath: `${alice}/${mediaId}`,
+      mimeType: 'image/jpeg',
+      sizeBytes: 1,
+    });
+    const storyId = newId();
+    await db.insert(stories).values({
+      id: storyId,
+      authorId: alice,
+      mediaId,
+      audience: 'everyone',
+      viewCount: 2,
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    await db.insert(storyViews).values([
+      { storyId, viewerId: gone },
+      { storyId, viewerId: bruno },
+    ]);
+
+    expect(await purgeAccountData(db, gone)).toBe(true);
+
+    const [story] = await db.select().from(stories).where(eq(stories.id, storyId));
+    expect(story?.viewCount).toBe(1);
   });
 
   it('ne touche pas un compte actif', async () => {

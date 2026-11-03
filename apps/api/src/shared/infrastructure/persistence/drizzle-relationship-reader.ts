@@ -1,12 +1,12 @@
-import { blocks, followRequests, follows, type Executor } from '@clone/db';
+import { blocks, closeFriends, followRequests, follows, type Executor } from '@clone/db';
 import { and, eq, or, sql } from 'drizzle-orm';
 
 import type { RelationshipReader } from '../../application/relationship-reader.ts';
 import type { Relationship } from '../../domain/visibility.ts';
 
 /**
- * Relation lue en une requête sur `follows`, `follow_requests` et `blocks` (index de clé primaire et
- * `(blocked_id)`).
+ * Relation lue en une requête sur `follows`, `follow_requests`, `blocks` et `close_friends` (index de
+ * clé primaire et `(blocked_id)`).
  */
 export class DrizzleRelationshipReader implements RelationshipReader {
   constructor(private readonly db: Executor) {}
@@ -32,6 +32,10 @@ export class DrizzleRelationshipReader implements RelationshipReader {
           and(eq(blocks.blockerId, ownerId), eq(blocks.blockedId, viewerId)),
         ),
       )})`;
+    const closeFriend = sql<boolean>`EXISTS (${this.db
+      .select({ one: sql`1` })
+      .from(closeFriends)
+      .where(and(eq(closeFriends.ownerId, ownerId), eq(closeFriends.friendId, viewerId)))})`;
 
     const [row] = await this.db
       .select({
@@ -39,10 +43,10 @@ export class DrizzleRelationshipReader implements RelationshipReader {
         ownerFollowsViewer: follow(ownerId, viewerId).mapWith(Boolean),
         viewerRequestedOwner: requested.mapWith(Boolean),
         blocked: blocked.mapWith(Boolean),
+        viewerIsCloseFriend: closeFriend.mapWith(Boolean),
       })
       .from(sql`(SELECT 1) AS relation`);
     if (!row) throw new Error('SELECT sans ligne renvoyée');
-    // Amis proches : table `close_friends` en P1.
-    return { ...row, viewerIsCloseFriend: false };
+    return row;
   }
 }
