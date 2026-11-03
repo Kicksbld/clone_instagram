@@ -66,3 +66,14 @@ export function compareTrayEntries(viewerId: string) {
     b.latestStoryAt.getTime() - a.latestStoryAt.getTime() ||
     (a.author.id < b.author.id ? 1 : -1);
 }
+
+/** Compte et date de sa première vue normale. */
+export interface StoryViewer {
+  viewer: {
+    id: string;
+    username: string;
+    fullName: string;
+    avatarVariants: ImageVariantPaths | null;
+  };
+  viewedAt: Date;
+}

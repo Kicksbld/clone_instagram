@@ -1,3 +1,7 @@
+import type { ListArchivedStories } from '../../application/use-cases/list-archived-stories.ts';
+import { encodeCursor } from '@clone/db';
+import { parseCursor } from '../../../../shared/infrastructure/http/cursor.ts';
+import type { ListStoryViewers } from '../../application/use-cases/list-story-viewers.ts';
 import type { components, operations } from '@clone/contract';
 import type { FastifyInstance } from 'fastify';
 
@@ -12,6 +16,8 @@ import type { ViewStory } from '../../application/use-cases/view-story.ts';
 import type { Story, StoryTrayEntry } from '../../domain/story.ts';
 
 export interface StoriesUseCases {
+  listArchivedStories: ListArchivedStories;
+  listStoryViewers: ListStoryViewers;
   publishStory: PublishStory;
   getStoryTray: GetStoryTray;
   getUserStories: GetUserStories;
@@ -94,15 +100,51 @@ export function registerStoriesRoutes(
     },
   );
 
-  app.post<{ Params: { id: string } }>(
+  app.post<{ Params: { id: string }; Body: Schemas['ViewStoryRequest'] }>(
     '/v1/stories/:id/view',
     { schema: routeSchemaFor('viewStory') },
     async (request, reply): Promise<void> => {
       await useCases.viewStory.execute({
         viewerId: authenticatedUserId(request),
         storyId: request.params.id,
+        anonymous: request.body.anonymous ?? false,
       });
       reply.status(204);
+    },
+  );
+
+  app.get<{ Params: { id: string }; Querystring: { cursor?: string; q?: string } }>(
+    '/v1/stories/:id/viewers',
+    { schema: routeSchemaFor('listStoryViewers') },
+    async (request): Promise<Schemas['StoryViewerPage']> => {
+      const page = await useCases.listStoryViewers.execute({
+        viewerId: authenticatedUserId(request),
+        storyId: request.params.id,
+        after: parseCursor(request.query.cursor),
+        ...(request.query.q !== undefined && { q: request.query.q }),
+      });
+      return {
+        items: page.items.map(({ viewer: { avatarVariants, ...viewer }, viewedAt }) => ({
+          viewer: { ...viewer, ...(avatarVariants && { avatar: urls.of(avatarVariants) }) },
+          viewedAt: viewedAt.toISOString(),
+        })),
+        ...(page.next && { nextCursor: encodeCursor(page.next) }),
+      };
+    },
+  );
+
+  app.get<{ Querystring: { cursor?: string } }>(
+    '/v1/me/stories/archive',
+    { schema: routeSchemaFor('listArchivedStories') },
+    async (request): Promise<Schemas['ArchivedStoryPage']> => {
+      const page = await useCases.listArchivedStories.execute({
+        viewerId: authenticatedUserId(request),
+        after: parseCursor(request.query.cursor),
+      });
+      return {
+        items: page.items.map(toStory),
+        ...(page.next && { nextCursor: encodeCursor(page.next) }),
+      };
     },
   );
 

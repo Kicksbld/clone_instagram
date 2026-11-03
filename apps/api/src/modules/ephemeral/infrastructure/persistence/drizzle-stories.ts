@@ -1,5 +1,7 @@
+import type { Page, PageCursor } from '../../../../shared/domain/pagination.ts';
+import type { StoryViewer } from '../../domain/story.ts';
 import { media, profiles, stories, storyViews, type Executor } from '@clone/db';
-import { and, asc, eq, gt, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNull, lte, sql, type SQL } from 'drizzle-orm';
 
 import type {
   NewStory,
@@ -49,6 +51,92 @@ export class DrizzleStoryRepository implements StoryRepository {
 /** Lectures des stories non supprimées. */
 export class DrizzleStoryReader implements StoryReader {
   constructor(private readonly db: Executor) {}
+
+  async listArchived(input: {
+    authorId: string;
+    now: Date;
+    after: PageCursor | null;
+    limit: number;
+  }): Promise<Page<Story>> {
+    const { authorId, now, after, limit } = input;
+    // canViewStory : seul le propriétaire consulte son archive, sans restriction d’audience.
+    const rows = await this.select(
+      authorId,
+      and(
+        eq(stories.authorId, authorId),
+        lte(stories.expiresAt, now),
+        after
+          ? sql`(${stories.createdAt}, ${stories.id}) < (${after.createdAt.toISOString()}::timestamptz, ${after.id}::uuid)`
+          : undefined,
+      ),
+      { limit: limit + 1 },
+    );
+    const items = rows.slice(0, limit);
+    const last = items.at(-1);
+    return {
+      items,
+      next: rows.length > limit && last ? { createdAt: last.createdAt, id: last.id } : null,
+    };
+  }
+
+  async findOwned(id: string, authorId: string): Promise<Story | null> {
+    const [story] = await this.select(
+      authorId,
+      and(eq(stories.id, id), eq(stories.authorId, authorId)),
+    );
+    return story ?? null;
+  }
+
+  async listViewers(input: {
+    storyId: string;
+    authorId: string;
+    after: PageCursor | null;
+    q?: string;
+    limit: number;
+  }): Promise<Page<StoryViewer>> {
+    const { storyId, authorId, after, q, limit } = input;
+    const rows = await this.db
+      .select({
+        id: profiles.id,
+        username: profiles.username,
+        fullName: profiles.fullName,
+        avatarVariants: media.variants,
+        viewedAt: storyViews.viewedAt,
+      })
+      .from(storyViews)
+      .innerJoin(profiles, eq(profiles.id, storyViews.viewerId))
+      .leftJoin(media, eq(media.id, profiles.avatarMediaId))
+      .where(
+        and(
+          eq(storyViews.storyId, storyId),
+          eq(profiles.status, 'active'),
+          sql`NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ${authorId} AND b.blocked_id = ${profiles.id}) OR (b.blocked_id = ${authorId} AND b.blocker_id = ${profiles.id}))`,
+          after
+            ? sql`(${storyViews.viewedAt}, ${storyViews.viewerId}) < (${after.createdAt.toISOString()}::timestamptz, ${after.id}::uuid)`
+            : undefined,
+          q !== undefined
+            ? sql`(strpos(lower(${profiles.username}), lower(${q})) > 0 OR strpos(lower(${profiles.fullName}), lower(${q})) > 0)`
+            : undefined,
+        ),
+      )
+      .orderBy(desc(storyViews.viewedAt), desc(storyViews.viewerId))
+      .limit(limit + 1);
+    const items = rows.slice(0, limit).map((row) => ({
+      viewer: {
+        id: row.id,
+        username: row.username,
+        fullName: row.fullName,
+        avatarVariants:
+          row.avatarVariants && 'thumb' in row.avatarVariants ? row.avatarVariants : null,
+      },
+      viewedAt: row.viewedAt,
+    }));
+    const last = items.at(-1);
+    return {
+      items,
+      next: rows.length > limit && last ? { createdAt: last.viewedAt, id: last.viewer.id } : null,
+    };
+  }
 
   async findActive(id: string, viewerId: string, now: Date): Promise<Story | null> {
     const [story] = await this.select(viewerId, and(eq(stories.id, id), activeAt(now)));
@@ -133,7 +221,11 @@ export class DrizzleStoryReader implements StoryReader {
   }
 
   /** Stories non supprimées filtrées par `where`, de la plus ancienne à la plus récente. */
-  private async select(viewerId: string, where: SQL | undefined): Promise<Story[]> {
+  private async select(
+    viewerId: string,
+    where: SQL | undefined,
+    archive?: { limit: number },
+  ): Promise<Story[]> {
     const rows = await this.db
       .select({
         id: stories.id,
@@ -160,7 +252,11 @@ export class DrizzleStoryReader implements StoryReader {
       .innerJoin(profiles, eq(profiles.id, stories.authorId))
       .innerJoin(media, eq(media.id, stories.mediaId))
       .where(and(isNull(stories.deletedAt), where))
-      .orderBy(asc(stories.createdAt), asc(stories.id));
+      .orderBy(
+        archive ? desc(stories.createdAt) : asc(stories.createdAt),
+        archive ? desc(stories.id) : asc(stories.id),
+      )
+      .limit(archive?.limit ?? 2147483647);
 
     return rows.map((row) => {
       // Un média rattaché est toujours une image `ready` : variantes et dimensions sont renseignées.

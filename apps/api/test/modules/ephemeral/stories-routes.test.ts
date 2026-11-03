@@ -1,3 +1,4 @@
+import type { components } from '@clone/contract';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildTestApp, TEST_MEDIA_BASE_URL, TEST_NOW } from '../../support/test-app.ts';
@@ -70,7 +71,7 @@ async function publish(
 
 /** Story de `authorId` publiée `hoursAgo` heures avant `TEST_NOW`, active `durationHours`. */
 function givenPastStory(authorId: string, hoursAgo: number, durationHours = 24): string {
-  const id = `0199a1b2-0000-7000-f000-${String(++mediaCounter).padStart(12, '0')}`;
+  const id = `0199a1b2-0000-7000-a000-${String(++mediaCounter).padStart(12, '0')}`;
   const createdAt = new Date(TEST_NOW.getTime() - hoursAgo * HOUR);
   void context.stories.create({
     id,
@@ -254,14 +255,15 @@ describe('POST /v1/stories/{id}/view', () => {
     expect(await storiesOf(FOLLOWER, ME)).toMatchObject([{ id, viewerHasSeen: true }]);
   });
 
-  it('vue anonyme (T25) → 400', async () => {
+  it('vue anonyme sans Plus → 403 plus_required', async () => {
     const id = await publish(ME);
 
     const response = await request(FOLLOWER, 'POST', `/v1/stories/${id}/view`, {
       anonymous: true,
     });
 
-    expect(response.statusCode).toBe(400);
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ code: 'plus_required' });
   });
 
   it('story invisible, expirée, inexistante ou d’un auteur bloqué → 404 story_not_found', async () => {
@@ -364,5 +366,137 @@ describe('GET /v1/stories/tray', () => {
     expect(await tray(ME)).toMatchObject([
       { author: { id: ME }, seen: true, hasCloseFriendsStory: true },
     ]);
+  });
+});
+
+describe('Vues T25', () => {
+  it('Plus regarde anonymement sans vue ; seul l’auteur consulte les vues', async () => {
+    const id = await publish(ME);
+    givenPlus(FRIEND);
+    expect(
+      (await request(FRIEND, 'POST', `/v1/stories/${id}/view`, { anonymous: true })).statusCode,
+    ).toBe(204);
+    await request(FOLLOWER, 'POST', `/v1/stories/${id}/view`, {});
+    const response = await request(ME, 'GET', `/v1/stories/${id}/viewers`);
+    expect(response.statusCode).toBe(200);
+    expect(response.json<components['schemas']['StoryViewerPage']>()).toMatchObject({
+      items: [{ viewer: { id: FOLLOWER, username: 'chloe' }, viewedAt: TEST_NOW.toISOString() }],
+    });
+    expect(response.json<components['schemas']['StoryViewerPage']>().items).toHaveLength(1);
+    expect(context.stories.rows.get(id)?.viewCount).toBe(1);
+    expect((await request(FRIEND, 'GET', `/v1/stories/${id}/viewers`)).statusCode).toBe(404);
+  });
+});
+
+describe('Archive T25', () => {
+  it('mes stories expirées seulement, récentes en premier ; vues conservées et suppression respectée', async () => {
+    const older = givenPastStory(ME, 40);
+    const recent = givenPastStory(ME, 30);
+    const deleted = givenPastStory(ME, 26);
+    givenPastStory(FRIEND, 28);
+    await publish(ME);
+    await context.stories.recordView(recent, FOLLOWER, TEST_NOW);
+    await request(ME, 'DELETE', `/v1/stories/${deleted}`);
+    const response = await request(ME, 'GET', '/v1/me/stories/archive');
+    expect(response.statusCode).toBe(200);
+    expect(
+      response
+        .json<components['schemas']['ArchivedStoryPage']>()
+        .items.map((s: { id: string }) => s.id),
+    ).toEqual([recent, older]);
+    expect(
+      (await request(ME, 'GET', `/v1/stories/${recent}/viewers`)).json<
+        components['schemas']['StoryViewerPage']
+      >().items,
+    ).toMatchObject([{ viewer: { id: FOLLOWER } }]);
+    expect((await request(FRIEND, 'GET', `/v1/stories/${recent}/viewers`)).statusCode).toBe(404);
+  });
+});
+
+describe('Règles de lecture T25', () => {
+  it('recherche par username ou nom réservée à Plus, même q vide ; abonnement expiré refusé', async () => {
+    const id = await publish(ME);
+    await request(FOLLOWER, 'POST', `/v1/stories/${id}/view`, {});
+    for (const q of ['', 'chloe']) {
+      const response = await request(ME, 'GET', `/v1/stories/${id}/viewers?q=${q}`);
+      expect(response.statusCode).toBe(403);
+      expect(response.json<components['schemas']['StoryViewerPage']>()).toMatchObject({
+        code: 'plus_required',
+      });
+    }
+    givenPlus(ME);
+    expect(
+      (await request(ME, 'GET', `/v1/stories/${id}/viewers?q=CHL`)).json<
+        components['schemas']['StoryViewerPage']
+      >().items,
+    ).toHaveLength(1);
+    expect(
+      (await request(ME, 'GET', `/v1/stories/${id}/viewers?q=absent`)).json<
+        components['schemas']['StoryViewerPage']
+      >().items,
+    ).toEqual([]);
+    givenPlus(ME, new Date(TEST_NOW.getTime() - HOUR));
+    expect((await request(ME, 'GET', `/v1/stories/${id}/viewers?q=chloe`)).statusCode).toBe(403);
+    expect(
+      (await request(ME, 'POST', `/v1/stories/${id}/view`, { anonymous: true })).statusCode,
+    ).toBe(403);
+  });
+
+  it('comptes bloqués après leur vue et comptes non actifs exclus ; story supprimée indisponible', async () => {
+    const id = await publish(ME);
+    for (const viewer of [FRIEND, FOLLOWER, STRANGER])
+      await request(viewer, 'POST', `/v1/stories/${id}/view`, {});
+    context.relationships.block(FRIEND, ME);
+    context.relationships.block(ME, STRANGER);
+    const follower = context.profiles.rows.get(FOLLOWER);
+    if (follower) follower.status = 'suspended';
+    expect(
+      (await request(ME, 'GET', `/v1/stories/${id}/viewers`)).json<
+        components['schemas']['StoryViewerPage']
+      >().items,
+    ).toEqual([]);
+    await request(ME, 'DELETE', `/v1/stories/${id}`);
+    expect((await request(ME, 'GET', `/v1/stories/${id}/viewers`)).statusCode).toBe(404);
+  });
+
+  it('vue anonyme Plus respecte les amis proches et le blocage', async () => {
+    givenPlus(FRIEND);
+    const id = await publish(ME, 'close_friends');
+    expect(
+      (await request(FRIEND, 'POST', `/v1/stories/${id}/view`, { anonymous: true })).statusCode,
+    ).toBe(404);
+    context.relationships.addCloseFriend(ME, FRIEND);
+    expect(
+      (await request(FRIEND, 'POST', `/v1/stories/${id}/view`, { anonymous: true })).statusCode,
+    ).toBe(204);
+    context.relationships.block(ME, FRIEND);
+    expect(
+      (await request(FRIEND, 'POST', `/v1/stories/${id}/view`, { anonymous: true })).statusCode,
+    ).toBe(404);
+  });
+
+  it('curseurs invalides rejetés sur les deux listes ; routes authentifiées', async () => {
+    const id = await publish(ME);
+    for (const path of [`/v1/stories/${id}/viewers`, '/v1/me/stories/archive']) {
+      expect((await request(ME, 'GET', `${path}?cursor=invalid`)).statusCode).toBe(400);
+      expect((await context.app.inject({ method: 'GET', url: path })).statusCode).toBe(401);
+    }
+  });
+
+  it('archive paginée sans doublon lorsque les dates sont égales', async () => {
+    const ids = Array.from({ length: 21 }, () => givenPastStory(ME, 30)).reverse();
+    const first = (await request(ME, 'GET', '/v1/me/stories/archive')).json<
+      components['schemas']['ArchivedStoryPage']
+    >();
+    expect(first.items.map((s: { id: string }) => s.id)).toEqual(ids.slice(0, 20));
+    const second = (
+      await request(
+        ME,
+        'GET',
+        `/v1/me/stories/archive?cursor=${encodeURIComponent(first.nextCursor ?? '')}`,
+      )
+    ).json<components['schemas']['ArchivedStoryPage']>();
+    expect(second.items.map((s: { id: string }) => s.id)).toEqual(ids.slice(20));
+    expect(second.nextCursor).toBeUndefined();
   });
 });

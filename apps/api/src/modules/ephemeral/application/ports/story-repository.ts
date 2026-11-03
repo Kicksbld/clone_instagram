@@ -1,3 +1,5 @@
+import type { Page, PageCursor } from '../../../../shared/domain/pagination.ts';
+import type { StoryViewer } from '../../domain/story.ts';
 import type { Story, StoryAudience, StoryTrayEntry } from '../../domain/story.ts';
 
 export interface NewStory {
@@ -28,6 +30,23 @@ export interface StoryRepository {
  * identifiant ou par auteur est décidée par le use case (ADR-006) ; le bandeau la traduit en SQL.
  */
 export interface StoryReader {
+  listArchived(input: {
+    authorId: string;
+    now: Date;
+    after: PageCursor | null;
+    limit: number;
+  }): Promise<Page<Story>>;
+  /** Story non supprimée appartenant à l’auteur, active ou archivée. */
+  findOwned(id: string, authorId: string): Promise<Story | null>;
+  /** canViewProfile : comptes actifs, aucun blocage dans les deux sens. */
+  listViewers(input: {
+    storyId: string;
+    authorId: string;
+    after: PageCursor | null;
+    q?: string;
+    limit: number;
+  }): Promise<Page<StoryViewer>>;
+
   /** Story non supprimée et active à `now`. */
   findActive(id: string, viewerId: string, now: Date): Promise<Story | null>;
   /** Stories actives d'un auteur, de la plus ancienne à la plus récente, toutes audiences. */

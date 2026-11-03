@@ -182,4 +182,81 @@ struct StoryViewerViewModelTests {
         #expect(stateDuringCall == .finished)
         #expect(service.deleted == ["m1"])
     }
+
+    @Test func `vue anonyme Plus envoyée sans vue normale et préférence refusée aux comptes gratuits`() async {
+        service.storiesByAuthor["alice"] = .success([.fixture(id: "a1", authorId: "alice")])
+        let model = StoryViewerViewModel(
+            viewerId: viewer,
+            authors: [alice],
+            startIndex: 0,
+            service: service,
+            deletions: StoryDeletionStore(service: service),
+            isPlus: { true }
+        )
+        model.setAnonymous(true)
+        await model.start()
+        await display(model)
+        #expect(service.anonymousViews == ["a1"])
+        #expect(service.viewed.isEmpty)
+        let free = makeViewModel([alice])
+        free.setAnonymous(true)
+        #expect(!free.anonymous)
+        #expect(free.needsPlus)
+    }
+
+    @Test func `archive ouvre la story sélectionnée sans charger les stories actives ni envoyer de vue`() async {
+        let archived = [Story.fixture(id: "old", authorId: viewer), .fixture(id: "older", authorId: viewer)]
+        let model = StoryViewerViewModel(
+            viewerId: viewer,
+            authors: [archived[0].author],
+            startIndex: 0,
+            service: service,
+            deletions: StoryDeletionStore(service: service),
+            archivedStories: archived,
+            initialStoryId: "older"
+        )
+        await model.start()
+        await display(model)
+        #expect(model.currentStory?.id == "older")
+        #expect(model.isMine)
+        #expect(service.viewed.isEmpty)
+        await model.previous()
+        #expect(model.currentStory?.id == "old")
+    }
+
+    @Test func `abonnement expiré pendant le viewer affiche le paywall et permet de réessayer`() async {
+        service.storiesByAuthor["alice"] = .success([.fixture(id: "a1", authorId: "alice")])
+        let model = StoryViewerViewModel(
+            viewerId: viewer,
+            authors: [alice],
+            startIndex: 0,
+            service: service,
+            deletions: StoryDeletionStore(service: service),
+            isPlus: { true }
+        )
+        model.setAnonymous(true)
+        await model.start()
+        service.viewError = .plusRequired
+        await display(model)
+        #expect(model.needsPlus)
+        #expect(model.viewErrorMessage != nil)
+        service.viewError = nil
+        model.setAnonymous(false)
+        await model.retryView()
+        #expect(service.viewed == ["a1"])
+        #expect(model.viewErrorMessage == nil)
+    }
+
+    @Test func `préférence anonyme conservée après expiration sans révéler de vue normale`() async {
+        service.storiesByAuthor["alice"] = .success([.fixture(id: "a1", authorId: "alice")])
+        let model = makeViewModel([alice])
+        model.restoreAnonymousPreference()
+        service.viewError = .plusRequired
+        await model.start()
+        await display(model)
+        #expect(model.anonymous)
+        #expect(model.needsPlus)
+        #expect(service.viewed.isEmpty)
+        #expect(service.anonymousViews == ["a1"])
+    }
 }

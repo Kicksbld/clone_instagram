@@ -3,7 +3,7 @@ import SwiftUI
 /// Mon profil (wireframe) : en-tête depuis `GET /v1/me`, « Modifier le profil », carte « Compléter
 /// votre profil », grille des publications. Les écrans « Modifier le profil » et Paramètres sont fournis par
 /// le routeur racine.
-struct MyProfileView<EditProfile: View, Settings: View>: View {
+struct MyProfileView<EditProfile: View, Settings: View, Archive: View>: View {
     let profile: Profile
     let onRefresh: () async -> Void
     /// « Suivre des comptes » : ouvre l'onglet Recherche.
@@ -16,6 +16,9 @@ struct MyProfileView<EditProfile: View, Settings: View>: View {
     /// Menu ☰ : Paramètres et activité.
     @ViewBuilder let settings: () -> Settings
 
+    @ViewBuilder let archive: () -> Archive
+
+    @State private var isShowingArchive = false
     @State private var isEditing = false
     @State private var isShowingSettings = false
 
@@ -31,9 +34,13 @@ struct MyProfileView<EditProfile: View, Settings: View>: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $isEditing, destination: editProfile)
         .navigationDestination(isPresented: $isShowingSettings, destination: settings)
+        .navigationDestination(isPresented: $isShowingArchive, destination: archive)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Paramètres", systemImage: "line.3.horizontal") { isShowingSettings = true }
+                Menu("Menu", systemImage: "line.3.horizontal") {
+                    Button("Paramètres", systemImage: "gearshape") { isShowingSettings = true }
+                    Button("Archive", systemImage: "clock.arrow.circlepath") { isShowingArchive = true }
+                }
             }
         }
     }

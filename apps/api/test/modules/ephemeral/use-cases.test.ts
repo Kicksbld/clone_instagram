@@ -29,9 +29,13 @@ beforeEach(async () => {
     createdAt: TEST_NOW,
     expiresAt: new Date(TEST_NOW.getTime() + 24 * 60 * 60 * 1000),
   });
-  viewStory = new ViewStory(new InMemoryUnitOfWork({ relationships, reader: stories, stories }), {
-    now: () => TEST_NOW,
-  });
+  viewStory = new ViewStory(
+    new InMemoryUnitOfWork({ relationships, reader: stories, stories }),
+    {
+      now: () => TEST_NOW,
+    },
+    { isPlus: () => Promise.resolve(false) },
+  );
 });
 
 const viewCount = () => stories.rows.get(STORY)?.viewCount;
