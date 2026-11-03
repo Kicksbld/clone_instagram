@@ -135,6 +135,7 @@ struct RootView: View {
                                 identity: dependencies.identity,
                                 onUpdated: viewModel.updateProfile
                             ),
+                            closeFriends: CloseFriendsViewModel(viewerId: profile.id, social: dependencies.social),
                             blockedAccounts: BlockedAccountsViewModel(
                                 social: dependencies.social,
                                 blocks: dependencies.blocks

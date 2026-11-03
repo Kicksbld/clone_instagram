@@ -44,6 +44,7 @@ info:
     | `comment_not_found` | 404 | Commentaire inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; commentaire parent d'un autre post ; suppression par quelqu'un qui n'est ni l'auteur du commentaire ni celui du post |
     | `reply_to_reply` | 422 | Réponse à une réponse (un seul niveau de réponse) |
     | `cannot_block_self` | 422 | Se bloquer ou se débloquer soi-même |
+    | `cannot_close_friend_self` | 422 | S'ajouter ou se retirer soi-même de ses amis proches |
     | `cannot_report_self` | 422 | Se signaler soi-même ou signaler son propre post ou commentaire |
     | `admin_required` | 403 | Route d'administration (`/v1/admin/…`) appelée par un compte sans rôle `admin` (ADR-011) |
     | `invalid_status_transition` | 409 | Le statut actuel du compte ne permet pas l'action d'administration (ex. suspendre un compte banni) |
@@ -69,7 +70,7 @@ tags:
   - name: users
     description: Profils des autres utilisateurs, selon la politique de visibilité (ADR-006)
   - name: social
-    description: Abonnements, demandes d'abonnement, listes d'abonnés, blocages et recherche d'utilisateurs (ADR-006)
+    description: Abonnements, demandes d'abonnement, listes d'abonnés, blocages, amis proches et recherche d'utilisateurs (ADR-006)
   - name: posts
     description: Publication et lecture des posts, selon la politique de visibilité (ADR-006)
   - name: feed
@@ -268,6 +269,76 @@ paths:
           $ref: '#/components/responses/InvalidInput'
         '401':
           $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/me/close-friends:
+    get:
+      operationId: listCloseFriends
+      tags: [social]
+      summary: Mes amis proches
+      description: |
+        Ma liste d'amis proches, privée : ajout le plus récent en premier, par pages de 20. Les comptes bloqués dans un sens ou dans l'autre et les comptes non actifs n'apparaissent pas (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page de mes amis proches.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/me/close-friends/{userId}:
+    put:
+      operationId: addCloseFriend
+      tags: [social]
+      summary: Ajouter un compte à mes amis proches
+      description: |
+        Sans notification : le compte ajouté n'est pas prévenu. Idempotent : un compte déjà dans la liste renvoie `204` sans effet. Sans corps.
+        Seul un compte visible peut être ajouté : compte inexistant, bloqué dans un sens ou dans l'autre, ou non actif : `404 user_not_found` (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/CloseFriendId'
+      responses:
+        '204':
+          description: Compte dans mes amis proches.
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: Compte introuvable ou invisible (`user_not_found`), ou onboarding non terminé (`profile_not_found`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          $ref: '#/components/responses/CannotCloseFriendSelf'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: removeCloseFriend
+      tags: [social]
+      summary: Retirer un compte de mes amis proches
+      description: |
+        Il perd aussitôt l'accès à mes contenus réservés aux amis proches, sans être prévenu. Idempotent : un compte absent de la liste renvoie `204` sans effet. Compte inexistant : `404 user_not_found`.
+      parameters:
+        - $ref: '#/components/parameters/CloseFriendId'
+      responses:
+        '204':
+          description: Compte retiré de mes amis proches.
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '422':
+          $ref: '#/components/responses/CannotCloseFriendSelf'
         '500':
           $ref: '#/components/responses/InternalError'
   /v1/me/subscription/refresh:
@@ -2559,6 +2630,14 @@ components:
       schema:
         type: string
         format: uuid
+    CloseFriendId:
+      name: userId
+      in: path
+      required: true
+      description: Identifiant du compte à ajouter à mes amis proches ou à en retirer.
+      schema:
+        type: string
+        format: uuid
     MediaId:
       name: id
       in: path
@@ -2626,6 +2705,12 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     CannotBlockSelf:
       description: On ne peut pas se bloquer soi-même (`cannot_block_self`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    CannotCloseFriendSelf:
+      description: On ne peut ni s'ajouter soi-même à ses amis proches ni s'en retirer (`cannot_close_friend_self`).
       content:
         application/problem+json:
           schema:

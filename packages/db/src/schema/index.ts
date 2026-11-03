@@ -20,9 +20,11 @@ export {
 } from './media.ts';
 export {
   blocks,
+  closeFriends,
   followRequests,
   follows,
   type BlockRow,
+  type CloseFriendRow,
   type FollowRequestRow,
   type FollowRow,
 } from './social.ts';

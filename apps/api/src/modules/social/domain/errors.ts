@@ -23,3 +23,13 @@ export class CannotBlockSelfError extends BusinessRuleError {
     super('cannot_block_self', 'Vous ne pouvez pas vous bloquer vous-même.');
   }
 }
+
+/** On ne s'ajoute pas soi-même à ses amis proches, et on ne s'en retire pas (ADR-006). */
+export class CannotCloseFriendSelfError extends BusinessRuleError {
+  constructor() {
+    super(
+      'cannot_close_friend_self',
+      'Vous ne pouvez pas vous ajouter à vos amis proches ni vous en retirer.',
+    );
+  }
+}

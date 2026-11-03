@@ -75,6 +75,34 @@ export const followRequests = pgTable(
   ],
 ).enableRLS(); // RLS sans policy : refus total hors de l'API (ADR-004).
 
+/**
+ * Amis proches (module `social`, T23) : `owner_id` a ajouté `friend_id` à sa liste privée, sans
+ * notification. Lus par la politique de visibilité (`canViewStory`, notes, ADR-006) ; bloquer retire
+ * des amis proches dans les deux sens.
+ */
+export const closeFriends = pgTable(
+  'close_friends',
+  {
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    friendId: uuid('friend_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ name: 'close_friends_pkey', columns: [table.ownerId, table.friendId] }),
+    // Ma liste, ajout le plus récent en premier (curseur `(created_at, friend_id)`).
+    index('close_friends_owner_created_idx').on(table.ownerId, table.createdAt.desc()),
+    // Retrait dans l'autre sens au blocage.
+    index('close_friends_friend_id_idx').on(table.friendId),
+    // On ne s'ajoute pas soi-même (ADR-006).
+    check('close_friends_not_self', sql`${table.ownerId} <> ${table.friendId}`),
+  ],
+).enableRLS(); // RLS sans policy : refus total hors de l'API (ADR-004).
+
 export type FollowRow = typeof follows.$inferSelect;
 export type BlockRow = typeof blocks.$inferSelect;
 export type FollowRequestRow = typeof followRequests.$inferSelect;
+export type CloseFriendRow = typeof closeFriends.$inferSelect;

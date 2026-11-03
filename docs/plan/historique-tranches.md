@@ -54,3 +54,11 @@ Ce que chaque tranche a posé dans le code, pour retrouver où vit une fonctionn
 - iOS : `VideoPreparer` (AVAssetWriter), `SystemVideoCamera`, file de publication vidéo persistée, repli REST après 120 s ; onglet de profil Reels et `ReelPlayerView` avec pool de deux lecteurs réutilisés, miniature jusqu'à la première image, pause et son coupé par défaut.
 - Seed : trois mires animées CC0 produites localement, envoyées et traitées par la vraie file vidéo (`apps/worker/src/seed-reels.ts`). Worker actif nécessaire.
 - Reste à valider : démo sur iPhone physique, export de 60 s sur iPhone, taille Docker et mémoire Railway.
+
+### T23 — Je gère mes amis proches (#34)
+
+- Contrat : `GET /v1/me/close-friends` (`UserPage`, pages de 20), `PUT` / `DELETE /v1/me/close-friends/{userId}` → `204` idempotents, code `422 cannot_close_friend_self` (ajout et retrait de soi-même).
+- Base : table `close_friends` (migration `0015_close_friends`, clé `(owner_id, friend_id)`, index `(owner_id, created_at DESC)` et `friend_id`, `CHECK` contre soi-même).
+- API, module `social` : `AddCloseFriend` (visibilité `canViewProfile` lue dans la transaction de l'écriture, *scope* `CloseFriendTransaction`), `RemoveCloseFriend`, `ListCloseFriends` (`DrizzleSocialGraphReader.listCloseFriends`, comptes actifs sans blocage) ; `BlockUser` retire des amis proches dans les deux sens (`closeFriends` dans `BlockTransaction`). `RelationshipReader.viewerIsCloseFriend` reste à `false` jusqu'à T24 (stories).
+- iOS : `SocialService` (`listCloseFriends`, `addCloseFriend`, `removeCloseFriend`), Paramètres > « Amis proches » (`Features/Settings/CloseFriendsView`, `CloseFriendsViewModel` : ajout / retrait optimistes sur `OptimisticSync`, recherche par `GET /v1/search/users` sans moi-même). L'état « ami proche » d'un résultat de recherche est celui de la liste chargée (le contrat ne l'expose pas dans `UserSummary`).
+- Reste à valider : démo sur iPhone physique.

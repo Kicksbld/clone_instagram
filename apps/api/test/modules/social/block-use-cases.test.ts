@@ -14,6 +14,7 @@ import { InMemoryProfileRepository } from '../../support/in-memory-profile-repos
 import { InMemoryRelationshipReader } from '../../support/in-memory-relationship-reader.ts';
 import {
   InMemoryBlocks,
+  InMemoryCloseFriends,
   InMemoryFollowRequests,
   InMemorySocialGraph,
 } from '../../support/in-memory-social-graph.ts';
@@ -43,6 +44,7 @@ beforeEach(() => {
       blocks,
       follows: graph,
       requests: new InMemoryFollowRequests(relationships),
+      closeFriends: new InMemoryCloseFriends(relationships),
       counters: graph,
       notifications,
     }),
@@ -99,6 +101,20 @@ describe('BlockUser', () => {
 
     expect(counts(ME)).toEqual({ followerCount: 1, followingCount: 0 });
     expect(counts(OTHER)).toEqual({ followerCount: 0, followingCount: 0 });
+  });
+
+  it('retire des amis proches dans les deux sens ; le déblocage ne les rétablit pas', async () => {
+    profiles.add({ id: THIRD, username: 'ines' });
+    relationships.addCloseFriend(ME, OTHER);
+    relationships.addCloseFriend(OTHER, ME);
+    relationships.addCloseFriend(ME, THIRD);
+
+    await block.execute({ viewerId: ME, userId: OTHER });
+    await unblock.execute({ viewerId: ME, userId: OTHER });
+
+    expect(relationships.closeFriends).toEqual([
+      expect.objectContaining({ ownerId: ME, friendId: THIRD }),
+    ]);
   });
 
   it('double blocage : sans effet', async () => {

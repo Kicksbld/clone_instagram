@@ -77,19 +77,23 @@ import {
   DrizzlePostRepository,
 } from './modules/posts/infrastructure/persistence/drizzle-post-repository.ts';
 import { AcceptFollowRequest } from './modules/social/application/use-cases/accept-follow-request.ts';
+import { AddCloseFriend } from './modules/social/application/use-cases/add-close-friend.ts';
 import { BlockUser } from './modules/social/application/use-cases/block-user.ts';
 import { DeclineFollowRequest } from './modules/social/application/use-cases/decline-follow-request.ts';
 import { FollowUser } from './modules/social/application/use-cases/follow-user.ts';
 import { ListBlocks } from './modules/social/application/use-cases/list-blocks.ts';
+import { ListCloseFriends } from './modules/social/application/use-cases/list-close-friends.ts';
 import { ListFollowRequests } from './modules/social/application/use-cases/list-follow-requests.ts';
 import { ListFollowers } from './modules/social/application/use-cases/list-followers.ts';
 import { ListFollowing } from './modules/social/application/use-cases/list-following.ts';
+import { RemoveCloseFriend } from './modules/social/application/use-cases/remove-close-friend.ts';
 import { RemoveFollower } from './modules/social/application/use-cases/remove-follower.ts';
 import { SearchUsers } from './modules/social/application/use-cases/search-users.ts';
 import { UnblockUser } from './modules/social/application/use-cases/unblock-user.ts';
 import { UnfollowUser } from './modules/social/application/use-cases/unfollow-user.ts';
 import { DrizzleAccountReader } from './modules/social/infrastructure/persistence/drizzle-account-reader.ts';
 import { DrizzleBlockRepository } from './modules/social/infrastructure/persistence/drizzle-block-repository.ts';
+import { DrizzleCloseFriendRepository } from './modules/social/infrastructure/persistence/drizzle-close-friend-repository.ts';
 import {
   DrizzleFollowCounters,
   DrizzleFollowRepository,
@@ -175,8 +179,15 @@ const blockTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   blocks: new DrizzleBlockRepository(tx),
   follows: new DrizzleFollowRepository(tx),
   requests: new DrizzleFollowRequestRepository(tx),
+  closeFriends: new DrizzleCloseFriendRepository(tx),
   counters: new DrizzleFollowCounters(tx),
   notifications: new DrizzleNotificationWriter(tx),
+}));
+// Ajout aux amis proches : visibilité lue dans la transaction de l'écriture (T23).
+const closeFriendTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  accounts: new DrizzleAccountReader(tx),
+  relationships: new DrizzleRelationshipReader(tx),
+  closeFriends: new DrizzleCloseFriendRepository(tx),
 }));
 const postReader = new DrizzlePostReader(database.db);
 const createPostTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
@@ -272,6 +283,12 @@ const app = buildApp({
       listFollowRequests: new ListFollowRequests(socialGraph),
       acceptFollowRequest: new AcceptFollowRequest(followTransaction, notificationDispatcher),
       declineFollowRequest: new DeclineFollowRequest(followTransaction),
+      listCloseFriends: new ListCloseFriends(socialGraph),
+      addCloseFriend: new AddCloseFriend(closeFriendTransaction),
+      removeCloseFriend: new RemoveCloseFriend(
+        accounts,
+        new DrizzleCloseFriendRepository(database.db),
+      ),
     },
     posts: {
       createPost: new CreatePost(createPostTransaction, uuidV7Generator, systemClock, analytics),

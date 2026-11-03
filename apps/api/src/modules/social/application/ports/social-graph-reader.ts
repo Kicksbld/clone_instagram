@@ -23,6 +23,13 @@ export interface FollowRequestListQuery {
   limit: number;
 }
 
+export interface CloseFriendListQuery {
+  /** Propriétaire de la liste. */
+  viewerId: string;
+  after: PageCursor | null;
+  limit: number;
+}
+
 export interface SearchQuery {
   viewerId: string;
   /** Texte normalisé (`normalizeSearchQuery`). */
@@ -45,6 +52,11 @@ export interface SocialGraphReader {
    * `(follow_requests.created_at, id du profil)`, demande la plus récente en premier.
    */
   listFollowRequests(query: FollowRequestListQuery): Promise<Page<UserSummary>>;
+  /**
+   * Amis proches de l'appelant (actifs, sans blocage) ; curseur `(close_friends.created_at, id du
+   * profil)`, ajout le plus récent en premier.
+   */
+  listCloseFriends(query: CloseFriendListQuery): Promise<Page<UserSummary>>;
   /** Tri : username exact, username qui commence par la requête, comptes suivis, similarité, abonnés. */
   search(query: SearchQuery): Promise<UserSummary[]>;
 }

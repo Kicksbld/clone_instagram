@@ -5,8 +5,8 @@ import { CannotBlockSelfError } from '../../domain/errors.ts';
 import type { BlockTransaction } from '../ports/block-transaction.ts';
 
 /**
- * Bloquer un compte (ADR-006) : les abonnements et les demandes d'abonnement sont supprimés dans les
- * deux sens, compteurs compris, dans la même transaction, avec leurs notifications (ADR-026) ; les
+ * Bloquer un compte (ADR-006) : les abonnements, les demandes d'abonnement et les amis proches sont
+ * supprimés dans les deux sens, compteurs compris, dans la même transaction, avec leurs notifications (ADR-026) ; les
  * deux comptes deviennent ensuite mutuellement invisibles. Idempotent : un compte déjà bloqué ne
  * change rien. Compte qui m'a bloqué ou non actif : invisible, donc 404.
  */
@@ -31,6 +31,8 @@ export class BlockUser {
       await removeFollow(scope, target.id, viewerId);
       await removeRequest(scope, viewerId, target.id);
       await removeRequest(scope, target.id, viewerId);
+      await scope.closeFriends.remove(viewerId, target.id);
+      await scope.closeFriends.remove(target.id, viewerId);
     });
   }
 }

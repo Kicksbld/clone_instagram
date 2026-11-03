@@ -27,6 +27,7 @@ import { InMemoryProfileRepository } from '../../support/in-memory-profile-repos
 import { InMemoryRelationshipReader } from '../../support/in-memory-relationship-reader.ts';
 import {
   InMemoryBlocks,
+  InMemoryCloseFriends,
   InMemoryFollowRequests,
   InMemorySocialGraph,
 } from '../../support/in-memory-social-graph.ts';
@@ -76,6 +77,7 @@ beforeEach(() => {
       blocks: new InMemoryBlocks(relationships),
       follows: graph,
       requests,
+      closeFriends: new InMemoryCloseFriends(relationships),
       counters: graph,
       notifications,
     }),

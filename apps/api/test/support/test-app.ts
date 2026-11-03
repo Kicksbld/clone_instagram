@@ -36,13 +36,16 @@ import { DeletePost } from '../../src/modules/posts/application/use-cases/delete
 import { GetPost } from '../../src/modules/posts/application/use-cases/get-post.ts';
 import { ListUserPosts } from '../../src/modules/posts/application/use-cases/list-user-posts.ts';
 import { AcceptFollowRequest } from '../../src/modules/social/application/use-cases/accept-follow-request.ts';
+import { AddCloseFriend } from '../../src/modules/social/application/use-cases/add-close-friend.ts';
 import { BlockUser } from '../../src/modules/social/application/use-cases/block-user.ts';
 import { DeclineFollowRequest } from '../../src/modules/social/application/use-cases/decline-follow-request.ts';
 import { FollowUser } from '../../src/modules/social/application/use-cases/follow-user.ts';
 import { ListBlocks } from '../../src/modules/social/application/use-cases/list-blocks.ts';
+import { ListCloseFriends } from '../../src/modules/social/application/use-cases/list-close-friends.ts';
 import { ListFollowRequests } from '../../src/modules/social/application/use-cases/list-follow-requests.ts';
 import { ListFollowers } from '../../src/modules/social/application/use-cases/list-followers.ts';
 import { ListFollowing } from '../../src/modules/social/application/use-cases/list-following.ts';
+import { RemoveCloseFriend } from '../../src/modules/social/application/use-cases/remove-close-friend.ts';
 import { RemoveFollower } from '../../src/modules/social/application/use-cases/remove-follower.ts';
 import { SearchUsers } from '../../src/modules/social/application/use-cases/search-users.ts';
 import { UnblockUser } from '../../src/modules/social/application/use-cases/unblock-user.ts';
@@ -77,6 +80,7 @@ import { InMemoryRelationshipReader } from './in-memory-relationship-reader.ts';
 import { InMemoryReports } from './in-memory-reports.ts';
 import {
   InMemoryBlocks,
+  InMemoryCloseFriends,
   InMemoryFollowRequests,
   InMemorySocialGraph,
 } from './in-memory-social-graph.ts';
@@ -121,12 +125,14 @@ export function buildTestApp() {
     }),
   });
   const blocks = new InMemoryBlocks(relationships);
+  const closeFriends = new InMemoryCloseFriends(relationships);
   const blockTransaction = new InMemoryUnitOfWork({
     accounts: graph,
     relationships,
     blocks,
     follows: graph,
     requests,
+    closeFriends,
     counters: graph,
     notifications,
   });
@@ -217,6 +223,11 @@ export function buildTestApp() {
         listFollowRequests: new ListFollowRequests(graph),
         acceptFollowRequest: new AcceptFollowRequest(followTransaction, notificationDispatcher),
         declineFollowRequest: new DeclineFollowRequest(followTransaction),
+        listCloseFriends: new ListCloseFriends(graph),
+        addCloseFriend: new AddCloseFriend(
+          new InMemoryUnitOfWork({ accounts: graph, relationships, closeFriends }),
+        ),
+        removeCloseFriend: new RemoveCloseFriend(graph, closeFriends),
       },
       posts: {
         createPost: new CreatePost(
