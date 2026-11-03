@@ -48,6 +48,7 @@ pnpm check:changed          # les mêmes, seulement sur les paquets modifiés de
 pnpm contract:generate      # régénère les clients depuis openapi.yaml
 pnpm contract:breaking      # aucune rupture de compatibilité avec main (oasdiff, ADR-019)
 pnpm db:migrate | pnpm db:seed
+scripts/worktree-setup.sh   # nouveau worktree : fichiers non versionnés du dépôt principal, install, xcodegen, services, migrations, pnpm dev
 ios/scripts/bootstrap.sh    # app iOS : outils Homebrew, puis ios/scripts/sync.sh
 ios/scripts/sync.sh         # après chaque git pull : branche vs main, clés .xcconfig manquantes, xcodegen generate
 ios/scripts/test.sh [Suites] # tests iOS en local (pas de CI macOS), build incrémental, sortie résumée ; voir ios/CLAUDE.md

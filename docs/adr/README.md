@@ -38,4 +38,4 @@ Décisions d'architecture du projet, rédigées selon [Agent ADR Architecte.md](
 | [ADR-030](ADR-030-activite-type-ouvert-cle-groupe-curseur.md) | Activité : type de notification en liste ouverte, clé de groupe et curseur | Proposé |
 | [ADR-031](ADR-031-temps-reel-activite-cycle-session.md) | Activité temps réel : préserver l'ordre des mises à jour de la pastille | Proposé |
 | [ADR-032](ADR-032-demandes-abonnement-contrat-acceptation.md) | Demandes d'abonnement : état `requested`, acceptation partagée et section de l'Activité | Proposé |
-| [ADR-033](ADR-033-niveaux-de-tests-selon-la-tranche.md) | Niveaux de tests de l'API selon la tranche : routes et Postgres toujours, use cases si règle | Proposé |
+| [ADR-033](ADR-033-niveaux-de-tests-selon-la-tranche.md) | Niveaux de tests de l'API selon la tranche : routes et Postgres toujours, use cases si règle | Accepté |

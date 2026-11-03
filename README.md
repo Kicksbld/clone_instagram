@@ -74,6 +74,8 @@ docker compose up -d     # Redis
 pnpm dev                 # API + worker + backoffice (Ctrl+C pour arrêter)
 ```
 
+**Nouveau worktree** (une branche par tranche) : depuis la racine du worktree, `scripts/worktree-setup.sh` copie depuis le dépôt principal (`~/Desktop/Code/Clone-Instagram`, ou `CLONE_MAIN_CHECKOUT`) les fichiers non versionnés (`.env`, `.env.demo`, `supabase/signing_keys.json`, `.xcconfig` et entitlements iOS), lance `pnpm install` et `xcodegen generate`, arrête les `pnpm dev` des autres worktrees, démarre Supabase et Redis s'ils sont arrêtés, applique les migrations de la branche puis lance `pnpm dev`. `--no-dev` s'arrête après la préparation.
+
 **Vérifier que tout tourne :**
 
 | Service | Adresse | Attendu |

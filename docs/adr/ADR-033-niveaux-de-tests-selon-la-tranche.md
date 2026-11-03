@@ -1,7 +1,7 @@
 # ADR-033 — Niveaux de tests de l'API selon la tranche
 
 ## Statut
-Proposé
+Accepté
 
 ## Contexte
 ADR-014 prévoit quatre niveaux de tests pour l'API : domaine, use cases avec adapters en mémoire, adapters sur Postgres réel, routes par `fastify.inject`. Jusqu'ici, chaque règle d'une tranche était testée aux trois derniers niveaux.
