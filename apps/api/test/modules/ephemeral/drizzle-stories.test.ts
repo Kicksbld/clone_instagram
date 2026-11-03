@@ -81,6 +81,14 @@ async function givenProfile(values: { isPrivate?: boolean; status?: 'banned' } =
   return id;
 }
 
+/** Photo de profil `ready` posée sur le compte (comme après `PATCH /v1/me`). */
+async function givenAvatar(profileId: string): Promise<string> {
+  const id = await givenPhoto(profileId);
+  await db.update(media).set({ purpose: 'avatar' }).where(eq(media.id, id));
+  await db.update(profiles).set({ avatarMediaId: id }).where(eq(profiles.id, profileId));
+  return id;
+}
+
 async function givenPhoto(ownerId: string): Promise<string> {
   const id = newId();
   await db.insert(media).values({
@@ -147,6 +155,32 @@ describe('PublishStory sur Postgres', () => {
       expiresAt: new Date('2026-09-26T12:00:00.000Z'),
     });
     expect(plusStory.expiresAt).toEqual(new Date('2026-09-27T12:00:00.000Z'));
+  });
+});
+
+describe('Auteur avec une photo de profil', () => {
+  it('publication, stories de l’auteur et bandeau renvoient ses variantes', async () => {
+    const author = await givenProfile();
+    const viewer = await givenProfile();
+    const avatarId = await givenAvatar(author);
+    await follow(viewer, author);
+    const expected = {
+      thumb: `${avatarId}/t.webp`,
+      medium: `${avatarId}/m.webp`,
+      large: `${avatarId}/l.webp`,
+    };
+
+    const story = await publishStory.execute({
+      authorId: author,
+      mediaId: await givenPhoto(author),
+      audience: 'everyone',
+    });
+    const listed = await reader.listActiveByAuthor(author, viewer, clock.now());
+    const tray = await reader.tray(viewer, clock.now(), 100);
+
+    expect(story.author.avatarVariants).toEqual(expected);
+    expect(listed[0]?.author.avatarVariants).toEqual(expected);
+    expect(tray[0]?.author.avatarVariants).toEqual(expected);
   });
 });
 

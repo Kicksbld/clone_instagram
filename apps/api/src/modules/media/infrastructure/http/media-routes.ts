@@ -33,7 +33,7 @@ function toMediaResponse(media: Media, urls: PublicMediaUrls): MediaResponse {
   return {
     id: media.id,
     kind: inContract(media.kind, ['image', 'video'] as const),
-    purpose: inContract(media.purpose, ['avatar', 'post'] as const),
+    purpose: inContract(media.purpose, ['avatar', 'post', 'story'] as const),
     status: media.status,
     ...(media.status === 'ready' && media.variants && { variants: urls.of(media.variants) }),
     ...(media.status === 'failed' && media.failureReason && { failureReason: media.failureReason }),

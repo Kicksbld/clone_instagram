@@ -122,6 +122,15 @@ describe('POST /v1/media/{id}/complete', () => {
     expect(context.jobs.imageProcessing.has(PHOTO)).toBe(true);
   });
 
+  it('photo de story (T24) → 200 uploaded, purpose story', async () => {
+    context.media.add({ id: PHOTO, ownerId: ME, purpose: 'story' });
+
+    const response = await complete(PHOTO);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ purpose: 'story', status: 'uploaded' });
+  });
+
   it('transition invalide → 409 media_invalid_transition', async () => {
     context.media.addReady({ id: PHOTO, ownerId: ME });
     const response = await complete(PHOTO);
@@ -158,6 +167,15 @@ describe('GET /v1/media/{id}', () => {
       status: 'ready',
       variants: variantsOf(PHOTO),
     });
+  });
+
+  it('photo de story prête (T24) → 200, purpose story', async () => {
+    context.media.addReady({ id: PHOTO, ownerId: ME, purpose: 'story' });
+
+    const response = await get(PHOTO);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ purpose: 'story', status: 'ready' });
   });
 
   it('média en échec → motif, sans variantes', async () => {
