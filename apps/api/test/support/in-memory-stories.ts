@@ -1,3 +1,6 @@
+import type { Page, PageCursor } from '../../src/shared/domain/pagination.ts';
+import type { StoryViewer } from '../../src/modules/ephemeral/domain/story.ts';
+import { canViewProfile } from '../../src/shared/domain/visibility.ts';
 import type {
   NewStory,
   StoryReader,
@@ -56,6 +59,96 @@ export class InMemoryStories implements StoryRepository, StoryReader {
     const row = this.rows.get(storyId);
     if (row) row.viewCount += 1;
     return Promise.resolve();
+  }
+
+  listArchived(input: {
+    authorId: string;
+    now: Date;
+    after: PageCursor | null;
+    limit: number;
+  }): Promise<Page<Story>> {
+    const rows = [...this.rows.values()]
+      .filter((r) => r.authorId === input.authorId && !r.deletedAt && r.expiresAt <= input.now)
+      .filter(
+        (r) =>
+          !input.after ||
+          r.createdAt < input.after.createdAt ||
+          (r.createdAt.getTime() === input.after.createdAt.getTime() && r.id < input.after.id),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id));
+    const items = rows.slice(0, input.limit).map((r) => this.toStory(r, input.authorId));
+    const last = items.at(-1);
+    return Promise.resolve({
+      items,
+      next: rows.length > input.limit && last ? { createdAt: last.createdAt, id: last.id } : null,
+    });
+  }
+
+  findOwned(id: string, authorId: string): Promise<Story | null> {
+    const row = this.rows.get(id);
+    return Promise.resolve(
+      row && !row.deletedAt && row.authorId === authorId ? this.toStory(row, authorId) : null,
+    );
+  }
+
+  async listViewers(input: {
+    storyId: string;
+    authorId: string;
+    after: PageCursor | null;
+    q?: string;
+    limit: number;
+  }): Promise<Page<StoryViewer>> {
+    const items: StoryViewer[] = [];
+    for (const [key, viewedAt] of this.views) {
+      const [storyId, viewerId] = key.split(':');
+      if (storyId !== input.storyId || !viewerId) continue;
+      const profile = this.profiles.rows.get(viewerId);
+      if (
+        !profile ||
+        !canViewProfile(
+          input.authorId,
+          profile,
+          await this.relationships.between(input.authorId, viewerId),
+        )
+      )
+        continue;
+      const q = input.q?.toLowerCase();
+      if (
+        q !== undefined &&
+        !profile.username.toLowerCase().includes(q) &&
+        !profile.fullName.toLowerCase().includes(q)
+      )
+        continue;
+      const after = input.after;
+      if (
+        after &&
+        (viewedAt > after.createdAt ||
+          (viewedAt.getTime() === after.createdAt.getTime() && viewerId >= after.id))
+      )
+        continue;
+      items.push({
+        viewer: {
+          id: viewerId,
+          username: profile.username,
+          fullName: profile.fullName,
+          avatarVariants: profile.avatar?.variants ?? null,
+        },
+        viewedAt,
+      });
+    }
+    items.sort(
+      (a, b) =>
+        b.viewedAt.getTime() - a.viewedAt.getTime() || b.viewer.id.localeCompare(a.viewer.id),
+    );
+    const page = items.slice(0, input.limit);
+    const last = page.at(-1);
+    return {
+      items: page,
+      next:
+        items.length > input.limit && last
+          ? { createdAt: last.viewedAt, id: last.viewer.id }
+          : null,
+    };
   }
 
   findActive(id: string, viewerId: string, now: Date): Promise<Story | null> {

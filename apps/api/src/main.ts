@@ -1,3 +1,5 @@
+import { ListArchivedStories } from './modules/ephemeral/application/use-cases/list-archived-stories.ts';
+import { ListStoryViewers } from './modules/ephemeral/application/use-cases/list-story-viewers.ts';
 // Composition root (ADR-005) : configuration, puis assemblage manuel des dépendances.
 import { createDatabase, type Executor } from '@clone/db';
 import { StorageClient } from '@supabase/storage-js';
@@ -262,7 +264,7 @@ const deleteStoryTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor)
   stories: new DrizzleStoryRepository(tx),
 }));
 const storyReader = new DrizzleStoryReader(database.db);
-// Règle `isPlus` du module `billing` (ADR-012), lue à la publication d'une story.
+// Règle `isPlus` du module `billing` (ADR-012), relue pour chaque avantage demandé.
 const plusStatus = {
   isPlus: async (userId: string) => (await getPlan.execute({ userId })).plan === 'plus',
 };
@@ -330,6 +332,8 @@ const app = buildApp({
       getFeed: new GetFeed(new DrizzleFeedReader(database.db)),
     },
     stories: {
+      listArchivedStories: new ListArchivedStories(storyReader, systemClock),
+      listStoryViewers: new ListStoryViewers(storyReader, plusStatus),
       publishStory: new PublishStory(
         publishStoryTransaction,
         plusStatus,
@@ -338,7 +342,7 @@ const app = buildApp({
       ),
       getStoryTray: new GetStoryTray(storyReader, systemClock),
       getUserStories: new GetUserStories(accounts, relationships, storyReader, systemClock),
-      viewStory: new ViewStory(viewStoryTransaction, systemClock),
+      viewStory: new ViewStory(viewStoryTransaction, systemClock, plusStatus),
       deleteStory: new DeleteStory(deleteStoryTransaction),
     },
     engagement: {

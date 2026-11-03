@@ -50,4 +50,34 @@ struct APIStoryServiceTests {
             try await service.markViewed(storyId: "0199a1b2-0000-7000-e100-000000000001")
         }
     }
+
+    @Test func `vue anonyme sans abonnement → plusRequired`() async throws {
+        let problem = #"{"type":"about:blank","title":"x","status":403,"detail":"x","code":"plus_required"}"#
+        let service = try makeService(.response(status: 403, contentType: "application/problem+json", body: problem))
+        await #expect(throws: StoryServiceError.plusRequired) {
+            try await service.markViewed(storyId: "0199a1b2-0000-7000-8100-000000000001", anonymous: true)
+        }
+    }
+
+    @Test func `liste des vues convertit compte date et curseur`() async throws {
+        let body = """
+        {"items":[{"viewer":{"id":"b","username":"bruno","fullName":"Bruno"},\
+        "viewedAt":"2026-09-25T12:00:00.000Z"}],"nextCursor":"next"}
+        """
+        let service = try makeService(.response(status: 200, contentType: "application/json", body: body))
+        let page = try await service.viewers(storyId: "story", cursor: "previous", query: "bruno")
+        #expect(page.items.first?.account.username == "bruno")
+        #expect(page.items.first?.fullName == "Bruno")
+        #expect(page.nextCursor == "next")
+    }
+
+    @Test func `archive vide et curseur invalide convertis`() async throws {
+        let service = try makeService(.response(status: 200, contentType: "application/json", body: #"{"items":[]}"#))
+        let page = try await service.archive(cursor: nil)
+        #expect(page.items.isEmpty)
+        #expect(page.nextCursor == nil)
+        let problem = #"{"type":"about:blank","title":"x","status":400,"detail":"x","code":"invalid_cursor"}"#
+        let invalid = try makeService(.response(status: 400, contentType: "application/problem+json", body: problem))
+        await #expect(throws: StoryServiceError.invalidInput) { try await invalid.archive(cursor: "bad") }
+    }
 }

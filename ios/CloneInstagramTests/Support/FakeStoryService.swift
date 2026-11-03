@@ -8,6 +8,9 @@ final class FakeStoryService: StoryService {
     var storiesByAuthor: [String: Result<[Story], StoryServiceError>] = [:]
     var publishError: StoryServiceError?
     var deleteError: StoryServiceError?
+    var viewersResult: Result<StoryViewerPage, StoryServiceError> = .success(.init(items: [], nextCursor: nil))
+    var archiveResult: Result<ArchivedStoryPage, StoryServiceError> = .success(.init(items: [], nextCursor: nil))
+    private(set) var anonymousViews: [String] = []
     var viewError: StoryServiceError?
     /// Appelé pendant `delete`, avant la réponse (état affiché pendant l'appel).
     var duringDelete: (() async -> Void)?
@@ -34,11 +37,23 @@ final class FakeStoryService: StoryService {
         try (storiesByAuthor[userId] ?? .success([])).get()
     }
 
-    func markViewed(storyId: String) async throws(StoryServiceError) {
-        viewed.append(storyId)
+    func markViewed(storyId: String, anonymous: Bool) async throws(StoryServiceError) {
+        if anonymous {
+            anonymousViews.append(storyId)
+        } else {
+            viewed.append(storyId)
+        }
         if let viewError {
             throw viewError
         }
+    }
+
+    func viewers(storyId _: String, cursor _: String?, query _: String?) async throws(StoryServiceError) -> StoryViewerPage {
+        try viewersResult.get()
+    }
+
+    func archive(cursor _: String?) async throws(StoryServiceError) -> ArchivedStoryPage {
+        try archiveResult.get()
     }
 
     func delete(storyId: String) async throws(StoryServiceError) {

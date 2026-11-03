@@ -52,6 +52,7 @@ const viewStory = new ViewStory(
     stories: new DrizzleStoryRepository(tx),
   })),
   clock,
+  { isPlus: () => Promise.resolve(plus) },
 );
 const deleteStory = new DeleteStory(
   new DrizzleUnitOfWork(db, (tx: Executor) => ({
@@ -279,5 +280,77 @@ describe('DrizzleStoryRepository', () => {
       .from(media)
       .where(eq(media.id, row?.mediaId ?? ''));
     expect(photo?.detachedAt).not.toBeNull();
+  });
+});
+
+describe('Lectures T25 sur Postgres', () => {
+  it('vues paginées à date égale, recherche nom/username et exclusions après blocage', async () => {
+    const author = await givenProfile();
+    const viewers = [await givenProfile(), await givenProfile(), await givenProfile()];
+    const storyId = await givenStory(author);
+    for (const viewerId of viewers) await viewStory.execute({ viewerId, storyId });
+    const first = await reader.listViewers({ storyId, authorId: author, after: null, limit: 2 });
+    const second = await reader.listViewers({
+      storyId,
+      authorId: author,
+      after: first.next,
+      limit: 2,
+    });
+    expect([...first.items, ...second.items].map((v) => v.viewer.id)).toEqual(
+      [...viewers].sort().reverse(),
+    );
+    expect(second.next).toBeNull();
+    await db
+      .update(profiles)
+      .set({ fullName: 'Camille Exemple' })
+      .where(eq(profiles.id, viewers[0] ?? ''));
+    expect(
+      (
+        await reader.listViewers({
+          storyId,
+          authorId: author,
+          after: null,
+          q: 'CAMILLE',
+          limit: 20,
+        })
+      ).items.map((v) => v.viewer.id),
+    ).toEqual([viewers[0]]);
+    await db.insert(blocks).values({ blockerId: viewers[0] ?? '', blockedId: author });
+    await db.insert(blocks).values({ blockerId: author, blockedId: viewers[1] ?? '' });
+    await db
+      .update(profiles)
+      .set({ status: 'suspended' })
+      .where(eq(profiles.id, viewers[2] ?? ''));
+    expect(
+      (await reader.listViewers({ storyId, authorId: author, after: null, limit: 20 })).items,
+    ).toEqual([]);
+  });
+
+  it('archive privée paginée, expiration exacte, story supprimée exclue et vues conservées', async () => {
+    const author = await givenProfile();
+    const viewer = await givenProfile();
+    const older = await givenStory(author, 40);
+    const newer = await givenStory(author, 24);
+    const deleted = await givenStory(author, 30);
+    await givenStory(author, 2);
+    await givenStory(viewer, 30);
+    await deleteStory.execute({ authorId: author, storyId: deleted });
+    const first = await reader.listArchived({
+      authorId: author,
+      now: clock.now(),
+      after: null,
+      limit: 1,
+    });
+    const second = await reader.listArchived({
+      authorId: author,
+      now: clock.now(),
+      after: first.next,
+      limit: 1,
+    });
+    expect(first.items.map((s) => s.id)).toEqual([newer]);
+    expect(second.items.map((s) => s.id)).toEqual([older]);
+    expect(second.next).toBeNull();
+    expect(await reader.findOwned(newer, viewer)).toBeNull();
+    expect(await reader.findOwned(newer, author)).toMatchObject({ id: newer });
   });
 });

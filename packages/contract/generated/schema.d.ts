@@ -707,6 +707,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/stories/{id}/viewers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Liste des vues de ma story active ou archivée
+         * @description Auteur seulement (404 pour les autres). Comptes bloqués et non actifs exclus. Curseur (viewed_at, viewer_id), vues les plus récentes en premier. Recherche par username ou nom réservée à Clone Plus (403 plus_required).
+         */
+        get: operations["listStoryViewers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/stories/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mes stories archivées, de la plus récente à la plus ancienne
+         * @description Stories expirées non supprimées de l’appelant uniquement. Curseur (created_at, id).
+         */
+        get: operations["listArchivedStories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/stories/{id}/view": {
         parameters: {
             query?: never;
@@ -1432,10 +1472,10 @@ export interface components {
         };
         ViewStoryRequest: {
             /**
-             * @description Seule la vue normale (`false`, par défaut) est acceptée.
+             * @description Vue anonyme réservée à Clone Plus ; aucune vue enregistrée ni comptée. Par défaut false.
              * @enum {boolean}
              */
-            anonymous?: false;
+            anonymous?: false | true;
         };
         /** @description Photo de la story ; `width` et `height` (en pixels) donnent son ratio. */
         StoryMedia: {
@@ -1458,6 +1498,28 @@ export interface components {
              * @description Fin de la période active (24 h, ou 48 h pour une story publiée en Clone Plus).
              */
             expiresAt: string;
+        };
+        StoryViewerAccount: {
+            /** Format: uuid */
+            id: string;
+            username: string;
+            fullName: string;
+            avatar?: components["schemas"]["ImageVariants"];
+        };
+        StoryViewer: {
+            viewer: components["schemas"]["StoryViewerAccount"];
+            /** Format: date-time */
+            viewedAt: string;
+        };
+        StoryViewerPage: {
+            items: components["schemas"]["StoryViewer"][];
+            /** @description Curseur opaque ; absent sur la dernière page. */
+            nextCursor?: string;
+        };
+        ArchivedStoryPage: {
+            items: components["schemas"]["Story"][];
+            /** @description Curseur opaque ; absent sur la dernière page. */
+            nextCursor?: string;
         };
         StoryList: {
             /** @description De la plus ancienne à la plus récente. */
@@ -1843,6 +1905,15 @@ export interface components {
         };
         /** @description Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`). */
         PostNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
+        /** @description Avantage réservé à Clone Plus (`403 plus_required`). */
+        PlusRequired: {
             headers: {
                 [name: string]: unknown;
             };
@@ -3134,6 +3205,64 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    listStoryViewers: {
+        parameters: {
+            query?: {
+                /** @description Recherche réservée à Clone Plus, même si vide. */
+                q?: string;
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["StoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de résultats. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoryViewerPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PlusRequired"];
+            404: components["responses"]["StoryNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listArchivedStories: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de résultats. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchivedStoryPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     viewStory: {
         parameters: {
             query?: never;
@@ -3159,6 +3288,7 @@ export interface operations {
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["PlusRequired"];
             404: components["responses"]["StoryNotFound"];
             500: components["responses"]["InternalError"];
         };

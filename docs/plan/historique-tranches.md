@@ -73,3 +73,11 @@ Ce que chaque tranche a posé dans le code, pour retrouver où vit une fonctionn
 - Bandeau vérifié par `EXPLAIN ANALYZE` sur le seed : 0,9 ms.
 - Reste à valider : démo sur iPhone physique.
 
+
+### T25 — Je vois qui a regardé ma story et je retrouve mes stories archivées (#36)
+
+- Contrat : `GET /v1/stories/{id}/viewers` (`StoryViewerPage`, curseur `(viewed_at, viewer_id)`, recherche `q` par username ou nom), `GET /v1/me/stories/archive` (`ArchivedStoryPage`, curseur `(created_at, id)`), `anonymous: true` accepté par `POST /v1/stories/{id}/view` ; `403 plus_required` pour les avantages sans abonnement actif. Clients régénérés, sans rupture de compatibilité.
+- API, module `ephemeral` : `ListStoryViewers` (auteur seulement, active ou archivée ; comptes actifs sans blocage), `ListArchivedStories` (archive privée, expiration filtrée à la lecture), `ViewStory` (Plus relu au moment de la vue anonyme, aucune écriture ni compteur). Aucune nouvelle table ni migration.
+- iOS : feuille « Vues » paginée avec recherche Plus et paywall, réglage de vue anonyme dans le viewer, Profil > menu > « Archive » (grille paginée, ouverture dans le viewer et accès aux vues). Le paywall est fourni par `App` via l’environnement ; le plan est relu depuis le routeur pour débloquer l’écran après un achat. Une préférence anonyme conservée après expiration ne devient jamais une vue normale silencieusement.
+- Décisions : application d’ADR-025, ADR-012, ADR-006 et ADR-007 ; aucune nouvelle décision d’architecture.
+- Reste à valider : parcours de démo sur iPhone physique (A publie, B regarde normalement, C Plus anonymement ; A voit seulement B puis retrouve sa story et ses vues dans l’Archive après expiration).

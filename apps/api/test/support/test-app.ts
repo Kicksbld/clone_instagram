@@ -1,3 +1,5 @@
+import { ListArchivedStories } from '../../src/modules/ephemeral/application/use-cases/list-archived-stories.ts';
+import { ListStoryViewers } from '../../src/modules/ephemeral/application/use-cases/list-story-viewers.ts';
 import { RealtimeBroker } from '../../src/shared/infrastructure/realtime/realtime.ts';
 import { buildApp } from '../../src/app.ts';
 import { GetActivity } from '../../src/modules/activity/application/use-cases/get-activity.ts';
@@ -251,6 +253,10 @@ export function buildTestApp() {
         getFeed: new GetFeed(new InMemoryFeedReader(posts, relationships)),
       },
       stories: {
+        listArchivedStories: new ListArchivedStories(stories, clock),
+        listStoryViewers: new ListStoryViewers(stories, {
+          isPlus: async (userId) => (await getPlan.execute({ userId })).plan === 'plus',
+        }),
         publishStory: new PublishStory(
           new InMemoryUnitOfWork({ accounts: graph, media, stories, reader: stories }),
           { isPlus: async (userId) => (await getPlan.execute({ userId })).plan === 'plus' },
@@ -262,6 +268,7 @@ export function buildTestApp() {
         viewStory: new ViewStory(
           new InMemoryUnitOfWork({ relationships, reader: stories, stories }),
           clock,
+          { isPlus: async (userId) => (await getPlan.execute({ userId })).plan === 'plus' },
         ),
         deleteStory: new DeleteStory(new InMemoryUnitOfWork({ media, stories })),
       },

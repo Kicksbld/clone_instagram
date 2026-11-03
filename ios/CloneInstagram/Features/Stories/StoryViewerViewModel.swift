@@ -28,6 +28,41 @@ final class StoryViewerViewModel {
     /// Photo de la story affichée chargée : le temps s'écoule.
     private(set) var isPhotoDisplayed = false
 
+    private(set) var anonymous = false
+    var viewErrorMessage: String?
+    var needsPlus = false
+    private let plusStatus: () -> Bool
+    private let archivedStories: [Story]?
+    private let initialStoryId: String?
+
+    var isPlus: Bool {
+        plusStatus()
+    }
+
+    var viewersService: any StoryService {
+        service
+    }
+
+    func setAnonymous(_ enabled: Bool) {
+        guard !enabled || isPlus else { needsPlus = true; return }
+        anonymous = enabled
+    }
+
+    /// Une préférence privée reste anonyme après expiration : seul un choix explicite peut envoyer une vue normale.
+    func restoreAnonymousPreference() {
+        anonymous = true
+        if !isPlus {
+            needsPlus = true
+        }
+    }
+
+    func retryView() async {
+        guard let id = currentStory?.id else { return }
+        viewErrorMessage = nil
+        isPhotoDisplayed = false
+        await photoDidAppear(storyId: id)
+    }
+
     private let viewerId: String
     private let authors: [PostAuthor]
     private var authorIndex: Int
@@ -39,8 +74,14 @@ final class StoryViewerViewModel {
         authors: [PostAuthor],
         startIndex: Int,
         service: any StoryService,
-        deletions: StoryDeletionStore
+        deletions: StoryDeletionStore,
+        isPlus: @escaping () -> Bool = { false },
+        archivedStories: [Story]? = nil,
+        initialStoryId: String? = nil
     ) {
+        plusStatus = isPlus
+        self.archivedStories = archivedStories
+        self.initialStoryId = initialStoryId
         self.viewerId = viewerId
         self.authors = authors
         authorIndex = min(max(startIndex, 0), max(authors.count - 1, 0))
@@ -136,7 +177,11 @@ final class StoryViewerViewModel {
         }
         state = .loading
         do {
-            loadedStories = try await service.stories(of: author.id)
+            if let archivedStories {
+                loadedStories = archivedStories
+            } else {
+                loadedStories = try await service.stories(of: author.id)
+            }
         } catch .userNotFound {
             loadedStories = []
         } catch {
@@ -149,7 +194,7 @@ final class StoryViewerViewModel {
         }
         state = .showing
         let firstUnseen = startAtUnseen ? stories.firstIndex { !$0.isSeen } : nil
-        await show(firstUnseen ?? 0)
+        await show(stories.firstIndex { $0.id == initialStoryId } ?? firstUnseen ?? 0)
     }
 
     /// Photo de la story chargée et affichée : le temps démarre et la vue est envoyée ; un échec d'envoi
@@ -157,14 +202,26 @@ final class StoryViewerViewModel {
     func photoDidAppear(storyId: String) async {
         guard let story = currentStory, story.id == storyId, !isPhotoDisplayed else { return }
         isPhotoDisplayed = true
-        guard !story.isSeen else { return }
+        guard !isMine, anonymous || !story.isSeen else { return }
+        do {
+            try await service.markViewed(storyId: story.id, anonymous: anonymous)
+        } catch {
+            if error == .plusRequired {
+                needsPlus = true
+            }
+            guard currentStory?.id == story.id else { return }
+            viewErrorMessage = error == .plusRequired
+                ? "Votre abonnement Plus a expiré. Renouvelez-le ou désactivez la vue anonyme, puis réessayez."
+                : "La vue n’a pas pu être envoyée. Vérifiez votre connexion et réessayez."
+            return
+        }
         if let index = loadedStories.firstIndex(where: { $0.id == story.id }) {
             loadedStories[index].isSeen = true
         }
-        try? await service.markViewed(storyId: story.id)
     }
 
     private func show(_ index: Int) async {
+        viewErrorMessage = nil
         currentStoryId = stories[index].id
         progress = 0
         isPhotoDisplayed = false

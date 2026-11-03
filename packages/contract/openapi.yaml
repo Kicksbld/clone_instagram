@@ -52,7 +52,7 @@ info:
     | `report_not_found` | 404 | Signalement inexistant (backoffice) |
     | `report_already_resolved` | 409 | Le signalement n'est plus ouvert : déjà supprimé ou classé, seul ou avec les autres signalements du même contenu |
     | `cannot_remove_user` | 422 | `remove_content` sur le signalement d'un compte : seul le classement est possible, la sanction passe par la fiche du compte |
-    | `plus_required` | 403 | Avantage réservé à Clone Plus demandé sans abonnement actif (ADR-012) ; aucune route P0 ne le renvoie encore |
+    | `plus_required` | 403 | Avantage réservé à Clone Plus demandé sans abonnement actif (ADR-012) |
     | `story_not_found` | 404 | Story inexistante, supprimée, expirée ou invisible pour l'appelant (ADR-006, ADR-025) ; suppression de la story d'un autre auteur |
 
     Pagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).
@@ -1124,6 +1124,59 @@ paths:
           $ref: '#/components/responses/StoryNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v1/stories/{id}/viewers:
+    get:
+      operationId: listStoryViewers
+      tags: [stories]
+      summary: Liste des vues de ma story active ou archivée
+      description: Auteur seulement (404 pour les autres). Comptes bloqués et non actifs exclus. Curseur (viewed_at, viewer_id), vues les plus récentes en premier. Recherche par username ou nom réservée à Clone Plus (403 plus_required).
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+        - in: query
+          name: q
+          description: Recherche réservée à Clone Plus, même si vide.
+          schema:
+            type: string
+            maxLength: 100
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page de résultats.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryViewerPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/PlusRequired'
+        '404':
+          $ref: '#/components/responses/StoryNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/me/stories/archive:
+    get:
+      operationId: listArchivedStories
+      tags: [stories]
+      summary: Mes stories archivées, de la plus récente à la plus ancienne
+      description: Stories expirées non supprimées de l’appelant uniquement. Curseur (created_at, id).
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page de résultats.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArchivedStoryPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/stories/{id}/view:
     post:
       operationId: viewStory
@@ -1148,6 +1201,8 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/PlusRequired'
         '404':
           $ref: '#/components/responses/StoryNotFound'
         '500':
@@ -2324,8 +2379,8 @@ components:
       properties:
         anonymous:
           type: boolean
-          description: Seule la vue normale (`false`, par défaut) est acceptée.
-          enum: [false]
+          description: Vue anonyme réservée à Clone Plus ; aucune vue enregistrée ni comptée. Par défaut false.
+          enum: [false, true]
     StoryMedia:
       type: object
       description: Photo de la story ; `width` et `height` (en pixels) donnent son ratio.
@@ -2362,6 +2417,50 @@ components:
           type: string
           format: date-time
           description: Fin de la période active (24 h, ou 48 h pour une story publiée en Clone Plus).
+    StoryViewerAccount:
+      type: object
+      required: [id, username, fullName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        fullName:
+          type: string
+        avatar:
+          $ref: '#/components/schemas/ImageVariants'
+    StoryViewer:
+      type: object
+      required: [viewer, viewedAt]
+      properties:
+        viewer:
+          $ref: '#/components/schemas/StoryViewerAccount'
+        viewedAt:
+          type: string
+          format: date-time
+    StoryViewerPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StoryViewer'
+        nextCursor:
+          type: string
+          description: Curseur opaque ; absent sur la dernière page.
+    ArchivedStoryPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Story'
+        nextCursor:
+          type: string
+          description: Curseur opaque ; absent sur la dernière page.
     StoryList:
       type: object
       required: [items]
@@ -2973,6 +3072,12 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     PostNotFound:
       description: Post inexistant, supprimé ou invisible pour l'appelant (`post_not_found`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    PlusRequired:
+      description: Avantage réservé à Clone Plus (`403 plus_required`).
       content:
         application/problem+json:
           schema:

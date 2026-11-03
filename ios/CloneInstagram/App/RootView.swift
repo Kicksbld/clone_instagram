@@ -105,6 +105,7 @@ struct RootView: View {
                     storyTray(for: profile)
                 }
                 .environment(\.openComments, openComments)
+                .environment(\.plusPaywall) { AnyView(paywall(for: profile, onClose: nil)) }
                 .modifier(SocialDestinations(
                     dependencies: dependencies,
                     viewerId: profile.id,
@@ -154,8 +155,16 @@ struct RootView: View {
                         ) {
                             paywall(for: profile, onClose: nil)
                         }
+                    },
+                    archive: {
+                        StoryArchiveView(
+                            viewerId: profile.id,
+                            service: dependencies.stories,
+                            isPlus: { hasActivePlus }
+                        )
                     }
                 )
+                .environment(\.plusPaywall) { AnyView(paywall(for: profile, onClose: nil)) }
                 .modifier(SocialDestinations(
                     dependencies: dependencies,
                     viewerId: profile.id,
@@ -228,21 +237,6 @@ struct RootView: View {
         }
     }
 
-    /// Paywall Clone Plus : fin de l'onboarding (`onClose` = « Plus tard ») ou Paramètres > Clone Plus.
-    private func paywall(for profile: Profile, onClose: (() -> Void)?) -> some View {
-        PaywallView(
-            viewModel: PaywallViewModel(
-                planStatus: profile.planStatus,
-                purchases: dependencies.purchases,
-                subscriptions: dependencies.subscriptions,
-                analytics: dependencies.analytics,
-                source: onClose == nil ? .settings : .onboarding,
-                onPlanChanged: viewModel.updatePlan
-            ),
-            onClose: onClose
-        )
-    }
-
     /// Change à chaque post publié.
     private var postsRevision: Int {
         dependencies.publishQueue.publishedCount
@@ -277,6 +271,30 @@ struct RootView: View {
 }
 
 private extension RootView {
+    /// Paywall Clone Plus : fin de l'onboarding (`onClose` = « Plus tard ») ou Paramètres > Clone Plus.
+    private func paywall(for profile: Profile, onClose: (() -> Void)?) -> some View {
+        PaywallView(
+            viewModel: PaywallViewModel(
+                planStatus: profile.planStatus,
+                purchases: dependencies.purchases,
+                subscriptions: dependencies.subscriptions,
+                analytics: dependencies.analytics,
+                source: onClose == nil ? .settings : .onboarding,
+                onPlanChanged: viewModel.updatePlan
+            ),
+            onClose: onClose
+        )
+    }
+
+    /// Lu à chaque accès : un achat depuis un viewer déjà ouvert débloque immédiatement ses avantages.
+    private var hasActivePlus: Bool {
+        switch viewModel.route {
+        case let .home(profile), let .paywall(profile):
+            profile.isPlus && (profile.planStatus.expiresAt.map { $0 > Date() } ?? false)
+        default: false
+        }
+    }
+
     /// Bandeau des stories en haut du feed (feature `Stories`), rechargé avec le feed et après un blocage.
     func storyTray(for profile: Profile) -> some View {
         let currentUser = PostAuthor(id: profile.id, username: profile.username, avatar: profile.avatar)
@@ -290,7 +308,8 @@ private extension RootView {
                     authors: authors,
                     startIndex: index,
                     service: dependencies.stories,
-                    deletions: deletions
+                    deletions: deletions,
+                    isPlus: { hasActivePlus }
                 )
             },
             makeCreate: { onPublished in

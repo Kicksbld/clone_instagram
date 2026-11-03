@@ -4,6 +4,7 @@ import OpenAPIRuntime
 
 nonisolated enum StoryServiceError: Error, Equatable {
     /// Story supprimée, expirée ou invisible pour moi (`404 story_not_found`, ADR-006).
+    case plusRequired
     case storyNotFound
     /// Auteur inexistant ou invisible (`404 user_not_found`).
     case userNotFound
@@ -32,7 +33,9 @@ protocol StoryService: Sendable {
     /// `GET /v1/users/{id}/stories` : de la plus ancienne à la plus récente.
     func stories(of userId: String) async throws(StoryServiceError) -> [Story]
     /// `POST /v1/stories/{id}/view` : idempotent.
-    func markViewed(storyId: String) async throws(StoryServiceError)
+    func markViewed(storyId: String, anonymous: Bool) async throws(StoryServiceError)
+    func viewers(storyId: String, cursor: String?, query: String?) async throws(StoryServiceError) -> StoryViewerPage
+    func archive(cursor: String?) async throws(StoryServiceError) -> ArchivedStoryPage
     /// `DELETE /v1/stories/{id}` : une de mes stories.
     func delete(storyId: String) async throws(StoryServiceError)
 }
@@ -101,9 +104,9 @@ struct APIStoryService: StoryService {
         }
     }
 
-    func markViewed(storyId: String) async throws(StoryServiceError) {
+    func markViewed(storyId: String, anonymous: Bool) async throws(StoryServiceError) {
         let output = try await call {
-            try await client.viewStory(path: .init(id: storyId), body: .json(.init()))
+            try await client.viewStory(path: .init(id: storyId), body: .json(.init(anonymous: anonymous)))
         }
         switch output {
         case .noContent:
@@ -112,12 +115,54 @@ struct APIStoryService: StoryService {
             throw Self.error(400) { try response.body.applicationProblemJson }
         case let .unauthorized(response):
             throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .forbidden(response):
+            throw Self.error(403) { try response.body.applicationProblemJson }
         case let .notFound(response):
             throw Self.error(404) { try response.body.applicationProblemJson }
         case .internalServerError:
             throw .unexpectedResponse(statusCode: 500)
         case let .undocumented(statusCode, _):
             throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
+    func viewers(storyId: String, cursor: String?, query: String?) async throws(StoryServiceError) -> StoryViewerPage {
+        let output = try await call {
+            try await client.listStoryViewers(path: .init(id: storyId), query: .init(q: query, cursor: cursor))
+        }
+        switch output {
+        case let .ok(response):
+            let page = try Self.unwrap { try response.body.json }
+            return StoryViewerPage(items: page.items.map {
+                StoryViewer(
+                    account: PostAuthor(
+                        id: $0.viewer.id,
+                        username: $0.viewer.username,
+                        avatar: $0.viewer.avatar.flatMap(ImageVariants.init)
+                    ),
+                    fullName: $0.viewer.fullName,
+                    viewedAt: $0.viewedAt
+                )
+            }, nextCursor: page.nextCursor)
+        case let .badRequest(response): throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response): throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .forbidden(response): throw Self.error(403) { try response.body.applicationProblemJson }
+        case let .notFound(response): throw Self.error(404) { try response.body.applicationProblemJson }
+        case .internalServerError: throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(status, _): throw .unexpectedResponse(statusCode: status)
+        }
+    }
+
+    func archive(cursor: String?) async throws(StoryServiceError) -> ArchivedStoryPage {
+        let output = try await call { try await client.listArchivedStories(query: .init(cursor: cursor)) }
+        switch output {
+        case let .ok(response):
+            let page = try Self.unwrap { try response.body.json }
+            return try ArchivedStoryPage(items: page.items.map(Story.init), nextCursor: page.nextCursor)
+        case let .badRequest(response): throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response): throw Self.error(401) { try response.body.applicationProblemJson }
+        case .internalServerError: throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(status, _): throw .unexpectedResponse(statusCode: status)
         }
     }
 
@@ -159,13 +204,14 @@ struct APIStoryService: StoryService {
     /// Erreur de l'app selon le `code` stable du Problem Details (ADR-003).
     private static func error(_ status: Int, _ problem: () throws -> Components.Schemas.ProblemDetails) -> StoryServiceError {
         switch (try? problem())?.code {
+        case "plus_required": .plusRequired
         case "story_not_found": .storyNotFound
         case "user_not_found": .userNotFound
         case "profile_not_found": .profileNotFound
         case "media_not_found", "media_not_ready", "media_already_attached", "media_kind_mismatch",
              "media_purpose_mismatch": .mediaRejected
         case "unauthenticated": .unauthenticated
-        case "validation_failed": .invalidInput
+        case "validation_failed", "invalid_cursor": .invalidInput
         default: .unexpectedResponse(statusCode: status)
         }
     }
@@ -185,7 +231,15 @@ struct UnavailableStoryService: StoryService {
         throw .unreachable
     }
 
-    func markViewed(storyId _: String) async throws(StoryServiceError) {
+    func markViewed(storyId _: String, anonymous _: Bool) async throws(StoryServiceError) {
+        throw .unreachable
+    }
+
+    func viewers(storyId _: String, cursor _: String?, query _: String?) async throws(StoryServiceError) -> StoryViewerPage {
+        throw .unreachable
+    }
+
+    func archive(cursor _: String?) async throws(StoryServiceError) -> ArchivedStoryPage {
         throw .unreachable
     }
 
@@ -223,5 +277,11 @@ private extension StoryTrayItem {
             hasCloseFriendsStory: dto.hasCloseFriendsStory,
             latestStoryAt: dto.latestStoryAt
         )
+    }
+}
+
+extension StoryService {
+    func markViewed(storyId: String) async throws(StoryServiceError) {
+        try await markViewed(storyId: storyId, anonymous: false)
     }
 }

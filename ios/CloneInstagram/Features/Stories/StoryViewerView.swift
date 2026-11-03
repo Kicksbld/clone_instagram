@@ -9,6 +9,10 @@ struct StoryViewerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var dragOffset: CGFloat = 0
     @State private var isConfirmingDelete = false
+    @State private var viewersStory: Story?
+    @State private var isShowingPlus = false
+    @AppStorage("anonymousStoryViews") private var anonymousPreference = false
+    @Environment(\.plusPaywall) private var plusPaywall
 
     /// Pas de l'horloge du viewer.
     private static let tick = 0.05
@@ -34,7 +38,12 @@ struct StoryViewerView: View {
                     }
                 }
         )
-        .task { await viewModel.start() }
+        .task {
+            if anonymousPreference {
+                viewModel.restoreAnonymousPreference()
+            }
+            await viewModel.start()
+        }
         .task(id: viewModel.currentStory?.id) { await runClock() }
         .onChange(of: viewModel.state) { _, state in
             if state == .finished {
@@ -61,6 +70,31 @@ struct StoryViewerView: View {
         } message: {
             Text(viewModel.deletions.errorMessage ?? "")
         }
+        .sheet(item: $viewersStory) { story in
+            StoryViewersView(
+                viewModel: StoryViewersViewModel(storyId: story.id, service: viewModel.viewersService),
+                isPlus: { viewModel.isPlus }
+            )
+        }
+        .sheet(isPresented: $isShowingPlus) { plusPaywall() }
+        .onChange(of: viewersStory) { _, value in updatePause(hasViewers: value != nil) }
+        .onChange(of: isShowingPlus) { _, _ in updatePause(hasViewers: viewersStory != nil) }
+        .onChange(of: viewModel.needsPlus) { _, needed in
+            if needed {
+                isShowingPlus = true; viewModel.needsPlus = false
+            }
+        }
+        .alert("Vue non envoyée", isPresented: Binding(
+            get: { viewModel.viewErrorMessage != nil && !isShowingPlus },
+            set: {
+                if !$0 {
+                    viewModel.viewErrorMessage = nil
+                }
+            }
+        )) {
+            Button("Réessayer") { Task { await viewModel.retryView() } }
+            Button("Fermer", role: .cancel) { viewModel.viewErrorMessage = nil }
+        } message: { Text(viewModel.viewErrorMessage ?? "") }
         .preferredColorScheme(.dark)
         .statusBarHidden()
     }
@@ -84,6 +118,9 @@ struct StoryViewerView: View {
                 VStack(spacing: 8) {
                     canvas(story)
                         .overlay(alignment: .top) { header(story) }
+                    if viewModel.isMine {
+                        Button("Vues", systemImage: "eye") { viewersStory = story }
+                    }
                     Spacer(minLength: 0)
                 }
             }
@@ -150,6 +187,20 @@ struct StoryViewerView: View {
                         .font(.caption)
                 }
                 Spacer()
+                if !viewModel.isMine {
+                    Menu("Vue anonyme", systemImage: viewModel.anonymous ? "eye.slash.fill" : "eye") {
+                        Toggle("Vue anonyme (Clone Plus)", isOn: Binding(
+                            get: { viewModel.anonymous },
+                            set: { enabled in
+                                viewModel.setAnonymous(enabled)
+                                if !enabled || viewModel.isPlus {
+                                    anonymousPreference = enabled
+                                }
+                            }
+                        ))
+                        Text("S’applique aux prochaines vues. Une vue déjà envoyée reste visible.")
+                    }.labelStyle(.iconOnly)
+                }
                 if viewModel.isMine {
                     Menu("Options", systemImage: "ellipsis") {
                         Button("Supprimer", systemImage: "trash", role: .destructive) { isConfirmingDelete = true }
@@ -162,6 +213,10 @@ struct StoryViewerView: View {
         }
         .padding(10)
         .background(LinearGradient(colors: [.black.opacity(0.4), .clear], startPoint: .top, endPoint: .bottom))
+    }
+
+    private func updatePause(hasViewers: Bool) {
+        viewModel.isPaused = hasViewers || isShowingPlus || isConfirmingDelete
     }
 
     private func barValue(_ index: Int) -> Double {
