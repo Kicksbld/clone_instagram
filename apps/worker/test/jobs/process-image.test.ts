@@ -61,6 +61,21 @@ describe('process-image', () => {
     });
   });
 
+  it('photo de message → variantes dans media-private, jamais dans media-public (ADR-023)', async () => {
+    const ownerId = await rows.profile();
+    const media = await rows.media(ownerId, { purpose: 'message' });
+    storage.put(STORAGE_BUCKETS.uploads, media.originalPath, await png(800, 600));
+
+    await run(media.id);
+
+    const { thumb, medium, large } = variantPaths(media.id);
+    for (const path of [thumb, medium, large]) {
+      expect(storage.has(STORAGE_BUCKETS.private, path)).toBe(true);
+      expect(storage.has(STORAGE_BUCKETS.public, path)).toBe(false);
+    }
+    await expect(findMediaById(db, media.id)).resolves.toMatchObject({ status: 'ready' });
+  });
+
   it('petite image PNG → variantes jamais agrandies', async () => {
     const { id } = await uploaded(await png(100, 80));
 

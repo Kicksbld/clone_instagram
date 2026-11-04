@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 struct MessagesView: View {
@@ -31,7 +32,7 @@ struct MessagesView: View {
                             VStack(alignment: .leading) {
                                 Text(conversation.otherMember.username).bold(conversation.unreadCount > 0)
                                 if let message = conversation.lastMessage {
-                                    Text(message.body).lineLimit(1).foregroundStyle(.secondary)
+                                    Text(message.summary).lineLimit(1).foregroundStyle(.secondary)
                                 }
                             }
                             if conversation.unreadCount > 0 {
@@ -110,6 +111,9 @@ struct ConversationView: View {
     let conversation: Conversation
     let viewerId: String
     @State private var draft = ""
+    @State private var photoSelection: PhotosPickerItem?
+    @State private var isShowingCamera = false
+    @State private var photoLoadFailed = false
     @Environment(\.moderation) private var moderation
     @Environment(\.blockedUserIds) private var blockedUserIds
     @Environment(\.dismiss) private var dismiss
@@ -136,7 +140,7 @@ struct ConversationView: View {
                                 if message.senderId == viewerId {
                                     Spacer(minLength: 48)
                                 }
-                                Text(message.body).padding(8).background(.quaternary, in: .rect(cornerRadius: 12))
+                                bubble(message)
                                 if message.senderId != viewerId {
                                     Spacer(minLength: 48)
                                 }
@@ -149,7 +153,11 @@ struct ConversationView: View {
                     }
                     ForEach(store.pending.filter { $0.conversationId == conversation.id }) { pending in
                         VStack(alignment: .trailing) {
-                            Text(pending.body)
+                            if let photo = pending.photo {
+                                PendingPhotoView(data: photo)
+                            } else {
+                                Text(pending.body)
+                            }
                             if pending.state == .failed {
                                 Button("Non envoyé — Réessayer") { Task { await store.retry(clientId: pending.id) } }
                             } else {
@@ -169,7 +177,15 @@ struct ConversationView: View {
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             HStack {
+                if SystemPhotoCamera.isAvailable {
+                    Button("Caméra", systemImage: "camera") { isShowingCamera = true }
+                        .labelStyle(.iconOnly)
+                }
                 TextField("Message…", text: $draft, axis: .vertical).lineLimit(1 ... 5)
+                PhotosPicker(selection: $photoSelection, matching: .images) {
+                    Label("Photothèque", systemImage: "photo")
+                }
+                .labelStyle(.iconOnly)
                 Button("Envoyer", systemImage: "arrow.up") {
                     let body = draft
                     draft = ""
@@ -193,6 +209,31 @@ struct ConversationView: View {
                 }
             }
         }
+        .onChange(of: photoSelection) { _, item in
+            guard let item else { return }
+            photoSelection = nil
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self) {
+                    await store.sendPhoto(conversationId: conversation.id, data: data)
+                } else {
+                    photoLoadFailed = true
+                }
+            }
+        }
+        .sheet(isPresented: $isShowingCamera) {
+            SystemPhotoCamera { data in
+                isShowingCamera = false
+                if let data {
+                    Task { await store.sendPhoto(conversationId: conversation.id, data: data) }
+                }
+            }
+            .ignoresSafeArea()
+        }
+        .alert("Photo illisible", isPresented: $photoLoadFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(UploadError.message(for: .unreadableImage))
+        }
         .task { await store.enter(conversation.id) }
         .onDisappear { store.leave(conversation.id) }
         .onChange(of: blockedUserIds) {
@@ -208,5 +249,21 @@ struct ConversationView: View {
             Button("Réessayer") { Task { await store.loadHistory(conversation.id) } }
             Button("Fermer", role: .cancel) {}
         } message: { Text(store.errorMessage ?? "") }
+    }
+}
+
+private extension ConversationView {
+    @ViewBuilder
+    func bubble(_ message: ChatMessage) -> some View {
+        if let mediaId = message.mediaId {
+            VStack(alignment: message.senderId == viewerId ? .trailing : .leading, spacing: 4) {
+                MessagePhotoView(mediaId: mediaId, photos: store.photos)
+                if !message.body.isEmpty {
+                    Text(message.body).padding(8).background(.quaternary, in: .rect(cornerRadius: 12))
+                }
+            }
+        } else {
+            Text(message.body).padding(8).background(.quaternary, in: .rect(cornerRadius: 12))
+        }
     }
 }

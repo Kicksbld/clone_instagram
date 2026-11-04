@@ -7,6 +7,7 @@ export {
   MEDIA_KINDS,
   MEDIA_PURPOSES,
   MEDIA_STATUSES,
+  variantsBucket,
   type ImageVariantPaths,
   type VideoVariantPaths,
   type MediaVariantPaths,

@@ -4,6 +4,8 @@ import { ListMessages } from './modules/messaging/application/use-cases/list-mes
 import { MarkConversationRead } from './modules/messaging/application/use-cases/mark-conversation-read.ts';
 import { SendMessage } from './modules/messaging/application/use-cases/send-message.ts';
 import { DrizzleMessagingRepository } from './modules/messaging/infrastructure/persistence/drizzle-messaging-repository.ts';
+import { GetMessagePhotoUrl } from './modules/messaging/application/use-cases/get-message-photo-url.ts';
+import { SupabasePrivateMediaUrls } from './modules/messaging/infrastructure/storage/supabase-private-media-urls.ts';
 import { ListArchivedStories } from './modules/ephemeral/application/use-cases/list-archived-stories.ts';
 import { ListStoryViewers } from './modules/ephemeral/application/use-cases/list-story-viewers.ts';
 // Composition root (ADR-005) : configuration, puis assemblage manuel des dépendances.
@@ -167,6 +169,7 @@ const messagingRepository = new DrizzleMessagingRepository(database.db);
 const messagingTransaction = new DrizzleUnitOfWork(database.db, (tx) => ({
   repository: new DrizzleMessagingRepository(tx),
   relationships: new DrizzleRelationshipReader(tx),
+  media: new DrizzleMediaRepository(tx),
 }));
 const profiles = new DrizzleProfileRepository(database.db);
 const media = new DrizzleMediaRepository(database.db);
@@ -279,11 +282,15 @@ const storyReader = new DrizzleStoryReader(database.db);
 const plusStatus = {
   isPlus: async (userId: string) => (await getPlan.execute({ userId })).plan === 'plus',
 };
-const storage = new SupabaseMediaStorage(
-  new StorageClient(new URL('/storage/v1', config.SUPABASE_URL).toString(), {
-    apikey: secretKey,
-    Authorization: `Bearer ${secretKey}`,
-  }),
+const storageClient = new StorageClient(new URL('/storage/v1', config.SUPABASE_URL).toString(), {
+  apikey: secretKey,
+  Authorization: `Bearer ${secretKey}`,
+});
+const storage = new SupabaseMediaStorage(storageClient, config.PUBLIC_MEDIA_BASE_URL, () =>
+  systemClock.now(),
+);
+const privateMediaUrls = new SupabasePrivateMediaUrls(
+  storageClient,
   config.PUBLIC_MEDIA_BASE_URL,
   () => systemClock.now(),
 );
@@ -301,6 +308,11 @@ const app = buildApp({
       listMessages: new ListMessages(messagingRepository, relationships),
       sendMessage: new SendMessage(messagingTransaction, uuidV7Generator, systemClock, realtime),
       markConversationRead: new MarkConversationRead(messagingTransaction, realtime),
+      getMessagePhotoUrl: new GetMessagePhotoUrl(
+        messagingRepository,
+        relationships,
+        privateMediaUrls,
+      ),
     },
     realtime,
     tokenVerifier: createJwtVerifier({

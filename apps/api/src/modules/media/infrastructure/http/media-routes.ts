@@ -7,7 +7,7 @@ import type { PublicMediaUrls } from '../../../../shared/infrastructure/http/pub
 import type { CompleteUpload } from '../../application/use-cases/complete-upload.ts';
 import type { GetMedia } from '../../application/use-cases/get-media.ts';
 import type { RequestUpload } from '../../application/use-cases/request-upload.ts';
-import type { Media } from '../../domain/media.ts';
+import { hasPublicVariants, type Media } from '../../domain/media.ts';
 
 export interface MediaUseCases {
   requestUpload: RequestUpload;
@@ -33,9 +33,11 @@ function toMediaResponse(media: Media, urls: PublicMediaUrls): MediaResponse {
   return {
     id: media.id,
     kind: inContract(media.kind, ['image', 'video'] as const),
-    purpose: inContract(media.purpose, ['avatar', 'post', 'story'] as const),
+    purpose: inContract(media.purpose, ['avatar', 'post', 'story', 'message'] as const),
     status: media.status,
-    ...(media.status === 'ready' && media.variants && { variants: urls.of(media.variants) }),
+    ...(media.status === 'ready' &&
+      media.variants &&
+      hasPublicVariants(media) && { variants: urls.of(media.variants) }),
     ...(media.status === 'failed' && media.failureReason && { failureReason: media.failureReason }),
   };
 }

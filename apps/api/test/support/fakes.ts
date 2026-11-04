@@ -1,3 +1,4 @@
+import type { PrivateMediaUrls } from '../../src/modules/messaging/application/ports/private-media-urls.ts';
 import type {
   AnalyticsEvent,
   AnalyticsTracker,
@@ -64,6 +65,18 @@ export class FakeMediaStorage implements MediaStorage {
     return Promise.resolve({
       url: `https://storage.test/upload/uploads/${path}?token=test`,
       expiresAt: new Date(this.now().getTime() + 2 * 60 * 60 * 1000),
+    });
+  }
+}
+
+/** URL signées de `media-private` valables 1 h, comme Supabase Storage (ADR-023). */
+export class FakePrivateMediaUrls implements PrivateMediaUrls {
+  constructor(private readonly now: () => Date) {}
+
+  sign(path: string): Promise<{ url: string; expiresAt: Date }> {
+    return Promise.resolve({
+      url: `https://storage.test/sign/media-private/${path}?token=test`,
+      expiresAt: new Date(this.now().getTime() + 60 * 60 * 1000),
     });
   }
 }

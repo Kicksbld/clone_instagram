@@ -8,6 +8,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { profiles } from './profiles.ts';
@@ -46,7 +47,7 @@ export const messages = pgTable(
       .notNull()
       .references(() => profiles.id, { onDelete: 'cascade' }),
     clientId: uuid('client_id').notNull(),
-    kind: text('kind', { enum: ['text'] }).notNull(),
+    kind: text('kind', { enum: ['text', 'image'] }).notNull(),
     body: text('body').notNull(),
     mediaId: uuid('media_id').references(() => media.id),
     sharedPostId: uuid('shared_post_id').references(() => posts.id),
@@ -56,10 +57,18 @@ export const messages = pgTable(
   (t) => [
     unique('messages_sender_client_key').on(t.senderId, t.clientId),
     unique('messages_conversation_id_key').on(t.conversationId, t.id),
+    // Colonnes renseignées selon `kind` (ADR-023) ; photo sans texte : `body` vide.
     check(
       'messages_kind_fields',
-      sql`${t.kind} = 'text' AND char_length(${t.body}) BETWEEN 1 AND 1000 AND ${t.mediaId} IS NULL AND ${t.sharedPostId} IS NULL AND ${t.storyId} IS NULL`,
+      sql`${t.sharedPostId} IS NULL AND ${t.storyId} IS NULL AND (
+        (${t.kind} = 'text' AND char_length(${t.body}) BETWEEN 1 AND 1000 AND ${t.mediaId} IS NULL)
+        OR (${t.kind} = 'image' AND char_length(${t.body}) <= 1000 AND ${t.mediaId} IS NOT NULL)
+      )`,
     ),
+    // Un média ne sert qu'à un message ; lecture de l'URL signée par média (ADR-023).
+    uniqueIndex('messages_media_id_key')
+      .on(t.mediaId)
+      .where(sql`${t.mediaId} IS NOT NULL`),
     index('messages_history_idx').on(t.conversationId, t.createdAt.desc(), t.id.desc()),
   ],
 ).enableRLS();

@@ -101,3 +101,14 @@ Ce que chaque tranche a posé dans le code, pour retrouver où vit une fonctionn
 - iOS : `MessagingStore` (pastille `unreadConversationCount` relue par REST au premier plan et après reconnexion, ajustée à chaque `message.created` ; lecture du dernier message à l'affichage d'une conversation et à chaque message reçu pendant qu'elle est ouverte, échec silencieux réessayé à l'affichage suivant ; « Vu » sous mon dernier message lu par l'autre, jamais en arrière), `RealtimeClient` (`conversation.read`), pastille `.badge` sur l'onglet Messages, conversation non lue en gras avec pastille dans la liste.
 - Décisions : application d'ADR-023 et ADR-021 ; points à confirmer par le lead dev listés dans la PR.
 - Reste à valider : démo sur deux iPhone physiques (A écrit, la pastille de B s'allume, B ouvre, A voit « Vu »).
+
+
+## T28 — J'envoie une photo dans une conversation (#39)
+
+- Contrat : `purpose = message` (rupture validée par le lead dev le 2026-11-04, `oasdiff-err-ignore.txt`), `POST …/messages` accepte `SendImageMessage` (`kind = image`, `mediaId`, `body` facultatif ; `oneOf` sans `discriminator`, non pris en charge par Ajv), `Message.mediaId`, `body` vide pour une photo sans texte, `GET /v1/media/{id}/signed-url?variant=` → `SignedMediaUrl`. Variantes absentes de `GET /v1/media/{id}` et de `media.ready` pour `message` (`MediaReady.data.variants` facultatif, validé le 2026-11-04). Clients régénérés.
+- Base : migration `0018_message_images` (`CHECK` par `kind` de `messages`, index unique partiel `messages_media_id_key`). Aucune nouvelle table.
+- Stockage : `variantsBucket(purpose)` (`packages/db`) choisit `media-private` pour `message` et `instant` ; utilisé par `process-image`, `purge-orphan-media` et `purge-account`.
+- API : `SendMessage` (photo de l'expéditeur, `image`, rattachée par `attachMediaOrThrow` dans la transaction du message ; renvoi du même `clientId` sans nouveau rattachement), `GetMessagePhotoUrl` (module `messaging` : message de la photo → `requireConversation`, invisible → `404 media_not_found`), port `PrivateMediaUrls` (adapter `SupabasePrivateMediaUrls`, 1 h), `hasPublicVariants` (module `media`) : aucune URL publique pour une photo de message.
+- iOS : `MessagingStore.sendPhoto` (bulle optimiste depuis le fichier choisi, upload `purpose` `message` par `UploadService`, `mediaId` conservé pour les renvois avec le même `clientId`, nouvel upload si la photo est refusée), `MediaStatus.privateReady` (`media.ready` sans variantes), `Core/Messaging/MessagePhotoURLs` (URL signées réutilisées jusqu'à une minute de leur expiration, `ImageRequest.imageID` par média et variante, pipeline Nuke `withDataCache` dédié), `MessagePhotoView` / `PendingPhotoView` et boutons Caméra / Photothèque de la barre de saisie (feature `Messages`), aperçu « Photo » dans la liste.
+- Reste à valider : démo sur deux iPhone physiques (A envoie une photo, B la voit ; l'URL copiée expire au bout d'une heure).
+

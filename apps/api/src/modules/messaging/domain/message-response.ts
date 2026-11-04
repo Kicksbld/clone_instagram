@@ -8,6 +8,7 @@ export function messageResponse(message: Message) {
     clientId: message.clientId,
     kind: message.kind,
     body: message.body,
+    ...(message.mediaId && { mediaId: message.mediaId }),
     createdAt: message.createdAt.toISOString(),
   };
 }

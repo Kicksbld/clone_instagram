@@ -22,13 +22,26 @@ export interface ImageVariantPaths {
 
 /**
  * Buckets Supabase Storage (ADR-008) : `original_path` est relatif à `uploads`, les chemins de
- * `variants` à `media-public` (images de messages et instants dans `media-private`, P1).
+ * `variants` au bucket donné par `variantsBucket` (`media-public`, ou `media-private` pour les
+ * photos de messages et les instants).
  */
 export const STORAGE_BUCKETS = {
   uploads: 'uploads',
   public: 'media-public',
   private: 'media-private',
 } as const;
+
+/**
+ * Bucket des variantes selon l'usage (ADR-008, ADR-023) : photos de messages et instants dans
+ * `media-private` (URL signées délivrées par l'API), le reste dans `media-public`.
+ */
+export function variantsBucket(
+  purpose: MediaPurpose,
+): typeof STORAGE_BUCKETS.public | typeof STORAGE_BUCKETS.private {
+  return purpose === 'message' || purpose === 'instant'
+    ? STORAGE_BUCKETS.private
+    : STORAGE_BUCKETS.public;
+}
 
 export interface VideoVariantPaths {
   hls: string;

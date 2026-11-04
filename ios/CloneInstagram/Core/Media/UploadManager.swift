@@ -98,7 +98,7 @@ struct UploadManager: UploadService, MediaUploading {
         do {
             while true {
                 switch try await media.fetchStatus(mediaId: mediaId) {
-                case .ready, .videoReady:
+                case .ready, .videoReady, .privateReady:
                     return
                 case let .failed(reason):
                     throw UploadError.rejected(reason)
@@ -129,7 +129,7 @@ struct UploadManager: UploadService, MediaUploading {
                 // Offline: keep waiting; foreground, reconnection or the timer will retry.
             }
             switch status {
-            case .ready, .videoReady: return
+            case .ready, .videoReady, .privateReady: return
             case let .failed(reason): throw UploadError.rejected(reason)
             default: break
             }
@@ -147,7 +147,7 @@ struct UploadManager: UploadService, MediaUploading {
                     }
                 }
                 switch status {
-                case .ready, .videoReady: return
+                case .ready, .videoReady, .privateReady: return
                 case let .failed(reason): throw UploadError.rejected(reason)
                 default: break
                 }

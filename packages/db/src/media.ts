@@ -123,6 +123,7 @@ function purgeable(): SQL | undefined {
 
 export interface PurgeableMedia {
   id: string;
+  purpose: MediaPurpose;
   originalPath: string;
   variants: MediaVariantPaths | null;
 }
@@ -130,7 +131,12 @@ export interface PurgeableMedia {
 /** Médias à purger (`purge-orphan-media`), les plus anciens d'abord. */
 export function findPurgeableMedia(db: Database, limit: number): Promise<PurgeableMedia[]> {
   return db
-    .select({ id: media.id, originalPath: media.originalPath, variants: media.variants })
+    .select({
+      id: media.id,
+      purpose: media.purpose,
+      originalPath: media.originalPath,
+      variants: media.variants,
+    })
     .from(media)
     .where(purgeable())
     .orderBy(asc(media.createdAt), asc(media.id))
@@ -148,6 +154,7 @@ export async function deletePurgeableMedia(db: Executor, id: string): Promise<bo
 
 export interface OwnerMediaFiles {
   id: string;
+  purpose: MediaPurpose;
   originalPath: string;
   variants: MediaVariantPaths | null;
 }
@@ -155,7 +162,12 @@ export interface OwnerMediaFiles {
 /** Fichiers de tous les médias d'un propriétaire, quel que soit leur état (`purge-account`, T13). */
 export function listOwnerMediaFiles(db: Executor, ownerId: string): Promise<OwnerMediaFiles[]> {
   return db
-    .select({ id: media.id, originalPath: media.originalPath, variants: media.variants })
+    .select({
+      id: media.id,
+      purpose: media.purpose,
+      originalPath: media.originalPath,
+      variants: media.variants,
+    })
     .from(media)
     .where(eq(media.ownerId, ownerId));
 }
@@ -166,7 +178,12 @@ export function listOwnerMediaFiles(db: Executor, ownerId: string): Promise<Owne
  */
 export function listDetachedPostMedia(db: Executor, postId: string): Promise<PurgeableMedia[]> {
   return db
-    .select({ id: media.id, originalPath: media.originalPath, variants: media.variants })
+    .select({
+      id: media.id,
+      purpose: media.purpose,
+      originalPath: media.originalPath,
+      variants: media.variants,
+    })
     .from(postMedia)
     .innerJoin(media, eq(media.id, postMedia.mediaId))
     .where(and(eq(postMedia.postId, postId), isNotNull(media.detachedAt)))

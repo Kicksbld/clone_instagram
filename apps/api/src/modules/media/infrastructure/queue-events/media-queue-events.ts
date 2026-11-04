@@ -4,6 +4,7 @@ import { Queue, QueueEvents } from 'bullmq';
 import type { RealtimePublisher } from '../../../../shared/application/realtime-publisher.ts';
 import type { PublicMediaUrls } from '../../../../shared/infrastructure/http/public-media-urls.ts';
 import type { MediaRepository } from '../../application/ports/media-repository.ts';
+import { hasPublicVariants } from '../../domain/media.ts';
 
 /** Queue notifications are hints: only the persisted status and owner authorize publication. */
 export class MediaCompletionEvents {
@@ -26,7 +27,11 @@ export class MediaCompletionEvents {
       return;
     this.realtime.publish([media.ownerId], {
       type: 'media.ready',
-      data: { mediaId: media.id, variants: this.urls.of(media.variants) },
+      data: {
+        mediaId: media.id,
+        // A message photo is private: no public URL, the app asks for a signed one (ADR-023).
+        ...(hasPublicVariants(media) && { variants: this.urls.of(media.variants) }),
+      },
     });
   }
 

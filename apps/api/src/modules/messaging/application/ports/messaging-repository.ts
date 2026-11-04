@@ -1,4 +1,5 @@
 import type { Page, PageCursor } from '../../../../shared/domain/pagination.ts';
+import type { ImageVariantPaths } from '../../../../shared/domain/image-variants.ts';
 import type { VisibilitySubject } from '../../../../shared/domain/visibility.ts';
 import type { Conversation, ConversationPreview, Message } from '../../domain/conversation.ts';
 
@@ -19,6 +20,12 @@ export interface MessagingRepository {
   /** Moves the read position forward to `message` only if it is newer; returns whether it moved. */
   markRead(userId: string, message: Message): Promise<boolean>;
   findMessage(id: string): Promise<Message | null>;
+  /** The sender's message already sent with this `clientId` (idempotent retry, ADR-023). */
+  findByClientId(senderId: string, clientId: string): Promise<Message | null>;
+  /** Conversation of the message carrying this photo, with its variant paths; `null` if none. */
+  findMessagePhoto(
+    mediaId: string,
+  ): Promise<{ conversationId: string; variants: ImageVariantPaths } | null>;
   insertMessage(message: Message): Promise<{ message: Message; created: boolean }>;
   listMessages(
     conversationId: string,

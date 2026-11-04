@@ -4,6 +4,7 @@ import {
   markProcessing,
   markReady,
   STORAGE_BUCKETS,
+  variantsBucket,
   type Database,
   type ImageVariantPaths,
   type MediaFailureReason,
@@ -38,7 +39,7 @@ function isLastAttempt(job: Job): boolean {
 
 /**
  * `process-image` (ADR-008) : revalide l'image réelle, écrit les variantes WebP sans EXIF dans
- * `media-public`, passe le média en `ready` puis supprime l'original. Idempotent : relit l'état en base.
+ * le bucket de son usage (`media-private` pour une photo de message, ADR-023), passe le média en `ready` puis supprime l'original. Idempotent : relit l'état en base.
  */
 export function processImage({ db, storage, logger }: ProcessImageDependencies): JobHandler {
   async function fail(mediaId: string, reason: MediaFailureReason): Promise<never> {
@@ -75,9 +76,10 @@ export function processImage({ db, storage, logger }: ProcessImageDependencies):
 
     const rendered = await renderVariants(original);
     const paths = variantPaths(mediaId);
+    const bucket = variantsBucket(media.purpose);
     await Promise.all(
       (Object.keys(paths) as (keyof ImageVariantPaths)[]).map((name) =>
-        storage.upload(STORAGE_BUCKETS.public, paths[name], rendered[name], 'image/webp'),
+        storage.upload(bucket, paths[name], rendered[name], 'image/webp'),
       ),
     );
 

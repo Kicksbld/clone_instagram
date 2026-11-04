@@ -10,6 +10,7 @@ import type { ListConversations } from '../../application/use-cases/list-convers
 import type { MarkConversationRead } from '../../application/use-cases/mark-conversation-read.ts';
 import type { ListMessages } from '../../application/use-cases/list-messages.ts';
 import type { SendMessage } from '../../application/use-cases/send-message.ts';
+import type { GetMessagePhotoUrl } from '../../application/use-cases/get-message-photo-url.ts';
 import type { ConversationPreview } from '../../domain/conversation.ts';
 import { messageResponse } from '../../domain/message-response.ts';
 export interface MessagingUseCases {
@@ -18,6 +19,7 @@ export interface MessagingUseCases {
   listMessages: ListMessages;
   sendMessage: SendMessage;
   markConversationRead: MarkConversationRead;
+  getMessagePhotoUrl: GetMessagePhotoUrl;
 }
 export function registerMessagingRoutes(
   app: FastifyInstance,
@@ -82,7 +84,10 @@ export function registerMessagingRoutes(
       };
     },
   );
-  app.post<{ Params: { id: string }; Body: components['schemas']['SendTextMessage'] }>(
+  app.post<{
+    Params: { id: string };
+    Body: components['schemas']['SendTextMessage'] | components['schemas']['SendImageMessage'];
+  }>(
     '/v1/conversations/:id/messages',
     {
       schema: routeSchemaFor('sendMessage'),
@@ -93,9 +98,31 @@ export function registerMessagingRoutes(
         viewerId: authenticatedUserId(request),
         conversationId: request.params.id,
         clientId: request.body.clientId,
-        body: request.body.body,
+        content:
+          request.body.kind === 'image'
+            ? {
+                kind: 'image',
+                mediaId: request.body.mediaId,
+                ...(request.body.body !== undefined && { body: request.body.body }),
+              }
+            : { kind: 'text', body: request.body.body },
       });
       return reply.code(result.created ? 201 : 200).send(messageResponse(result.message));
+    },
+  );
+  app.get<{
+    Params: { id: string };
+    Querystring: { variant: components['schemas']['ImageVariantName'] };
+  }>(
+    '/v1/media/:id/signed-url',
+    { schema: routeSchemaFor('getMediaSignedUrl') },
+    async (request): Promise<components['schemas']['SignedMediaUrl']> => {
+      const signed = await useCases.getMessagePhotoUrl.execute({
+        viewerId: authenticatedUserId(request),
+        mediaId: request.params.id,
+        variant: request.query.variant,
+      });
+      return { url: signed.url, expiresAt: signed.expiresAt.toISOString() };
     },
   );
   app.post<{ Params: { id: string }; Body: components['schemas']['MarkConversationReadRequest'] }>(

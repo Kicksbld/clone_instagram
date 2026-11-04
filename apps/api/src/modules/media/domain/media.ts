@@ -28,6 +28,14 @@ export function originalPathFor(ownerId: string, mediaId: string): string {
   return `${ownerId}/${mediaId}`;
 }
 
+/**
+ * Variantes dans `media-public` (ADR-008) : jamais pour une photo de message ni un instant, lus
+ * par URL signée (ADR-023). Aucune URL publique ne doit en être construite.
+ */
+export function hasPublicVariants(media: Pick<Media, 'purpose'>): boolean {
+  return media.purpose !== 'message' && media.purpose !== 'instant';
+}
+
 /** Un média n'existe que pour son propriétaire : celui d'un autre est introuvable (404). */
 export function isOwnedBy(media: Media | null, userId: string): media is Media {
   return media !== null && media.ownerId === userId;

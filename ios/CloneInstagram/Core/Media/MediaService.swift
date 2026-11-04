@@ -8,6 +8,8 @@ nonisolated enum MediaPurpose: Equatable {
     case post
     /// Photo de story (T24).
     case story
+    /// Photo de message (T28), lue par URL signée (ADR-023).
+    case message
 }
 
 /// Motif d'échec du traitement d'un média par le worker.
@@ -29,6 +31,8 @@ nonisolated enum MediaStatus: Equatable {
     case processing
     case ready(ImageVariants)
     case videoReady
+    /// Photo de message prête : aucune URL publique, lue par URL signée (ADR-023).
+    case privateReady
     case failed(MediaFailureReason)
 }
 
@@ -174,6 +178,7 @@ private extension Components.Schemas.MediaPurpose {
         case .avatar: self = .avatar
         case .post: self = .post
         case .story: self = .story
+        case .message: self = .message
         }
     }
 }
@@ -190,6 +195,10 @@ private extension MediaStatus {
         case .ready:
             if let variants = dto.variants, case .VideoVariants = variants {
                 self = .videoReady
+                return
+            }
+            if dto.purpose == .message, dto.variants == nil {
+                self = .privateReady
                 return
             }
             guard let payload = dto.variants, case let .ImageVariants(image) = payload, let variants = ImageVariants(image) else {

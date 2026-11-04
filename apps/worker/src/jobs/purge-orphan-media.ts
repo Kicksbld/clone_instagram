@@ -2,6 +2,7 @@ import {
   deletePurgeableMedia,
   findPurgeableMedia,
   STORAGE_BUCKETS,
+  variantsBucket,
   type Database,
 } from '@clone/db';
 import type { Logger } from 'pino';
@@ -35,7 +36,7 @@ export function purgeOrphanMedia({
       const candidates = await findPurgeableMedia(db, BATCH_SIZE);
       for (const media of candidates) {
         await storage.remove(STORAGE_BUCKETS.uploads, [media.originalPath]);
-        await storage.removeDirectory(STORAGE_BUCKETS.public, media.id);
+        await storage.removeDirectory(variantsBucket(media.purpose), media.id);
         if (await deletePurgeableMedia(db, media.id)) purged++;
       }
       if (candidates.length < BATCH_SIZE) break;

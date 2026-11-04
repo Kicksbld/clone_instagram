@@ -121,11 +121,16 @@ final class RealtimeClient {
     }
 
     private func receiveReady(_ event: Components.Schemas.MediaReady) {
-        if case .VideoVariants = event.data.variants {
+        guard let payload = event.data.variants else {
+            // A message photo has no public variants: only its signed URL is readable (ADR-023).
+            mediaEvents?.receive(mediaId: event.data.mediaId, status: .privateReady)
+            return
+        }
+        if case .VideoVariants = payload {
             mediaEvents?.receive(mediaId: event.data.mediaId, status: .videoReady)
             return
         }
-        guard case let .ImageVariants(value) = event.data.variants, let variants = ImageVariants(value) else { return }
+        guard case let .ImageVariants(value) = payload, let variants = ImageVariants(value) else { return }
         mediaEvents?.receive(mediaId: event.data.mediaId, status: .ready(variants))
     }
 

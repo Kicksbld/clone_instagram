@@ -11,6 +11,10 @@ final class MessagingStore {
         let conversationId: String
         let body: String
         var state: PendingMessageState
+        /// Photo chosen by me, shown in the bubble until the message is confirmed (ADR-023).
+        var photo: Data?
+        /// Its uploaded `ready` media: a retry sends it again without a new upload.
+        var mediaId: String?
     }
 
     private(set) var conversations: [Conversation] = []
@@ -38,10 +42,15 @@ final class MessagingStore {
     private var messageRevision = 0
     private var accessRevision = 0
     private let service: any MessagingService
+    private let uploads: (any UploadService)?
     private var sending = OptimisticSync<String, Bool>()
+    /// Signed URLs of message photos, shared by every conversation screen.
+    let photos: MessagePhotoURLs
 
-    init(service: any MessagingService) {
+    init(service: any MessagingService, uploads: (any UploadService)? = nil) {
         self.service = service
+        self.uploads = uploads
+        photos = MessagePhotoURLs(service: service)
     }
 
     func setAccount(_ id: String?) {
@@ -68,6 +77,7 @@ final class MessagingStore {
         markedRead = [:]
         markingRead = []
         readRequested = []
+        photos.reset()
     }
 
     func refresh(loadMore: Bool = false) async {
@@ -227,7 +237,11 @@ final class MessagingStore {
             pending[index].state = .sending
         }
         let send: (Bool) async throws -> Bool = { _ in
-            let message = try await self.service.send(conversationId: item.conversationId, clientId: clientId, body: item.body)
+            let message = if let photo = item.photo {
+                try await self.sendPhoto(photo, clientId: clientId, conversationId: item.conversationId, started: started)
+            } else {
+                try await self.service.send(conversationId: item.conversationId, clientId: clientId, body: item.body)
+            }
             if started == self.revision {
                 self.receive(message)
             }
@@ -240,11 +254,46 @@ final class MessagingStore {
                 handle(error, conversationId: item.conversationId)
             } else if let index = pending.firstIndex(where: { $0.id == clientId }) {
                 pending[index].state = .failed
-                errorMessage = "Message non envoyé. Appuyez sur Réessayer pour le renvoyer."
+                errorMessage = switch error {
+                case let upload as UploadError: UploadError.message(for: upload)
+                case MessagingError.photoRejected: "La photo n'a pas pu être envoyée. Appuyez sur Réessayer pour la renvoyer."
+                default: "Message non envoyé. Appuyez sur Réessayer pour le renvoyer."
+                }
             }
         }
         if case .confirmed = outcome {
             await refresh()
+        }
+    }
+
+    /// A photo: optimistic bubble at once, then upload (waiting for `media.ready`) and message (ADR-023).
+    func sendPhoto(conversationId: String, data: Data) async {
+        let id = UUID().uuidString.lowercased()
+        pending.append(Pending(id: id, conversationId: conversationId, body: "", state: .sending, photo: data))
+        await retry(clientId: id)
+    }
+
+    /// Uploads the photo once, then sends its media with the same `clientId` on every retry.
+    private func sendPhoto(_ photo: Data, clientId: String, conversationId: String, started: Int) async throws -> ChatMessage {
+        guard let uploads else { throw MessagingError.unavailable }
+        var mediaId = pending.first { $0.id == clientId }?.mediaId
+        if mediaId == nil {
+            let uploaded = try await uploads.uploadImage(photo, purpose: .message)
+            guard started == revision else { throw CancellationError() }
+            if let index = pending.firstIndex(where: { $0.id == clientId }) {
+                pending[index].mediaId = uploaded
+            }
+            mediaId = uploaded
+        }
+        guard let mediaId else { throw MessagingError.unavailable }
+        do {
+            return try await service.sendPhoto(conversationId: conversationId, clientId: clientId, mediaId: mediaId)
+        } catch MessagingError.photoRejected {
+            // Not attachable any more: the next retry uploads the photo again.
+            if started == revision, let index = pending.firstIndex(where: { $0.id == clientId }) {
+                pending[index].mediaId = nil
+            }
+            throw MessagingError.photoRejected
         }
     }
 

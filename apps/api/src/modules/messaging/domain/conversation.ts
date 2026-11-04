@@ -1,14 +1,23 @@
 import type { ImageVariantPaths } from '../../../shared/domain/image-variants.ts';
 
+export type MessageKind = 'text' | 'image';
+
 export interface Message {
   id: string;
   conversationId: string;
   senderId: string;
   clientId: string;
-  kind: 'text';
+  kind: MessageKind;
+  /** Empty for a photo sent without text (ADR-023). */
   body: string;
+  /** Photo of an `image` message, read through a signed URL only. */
+  mediaId: string | null;
   createdAt: Date;
 }
+
+/** Content of a message to send, by `kind` (ADR-023). */
+export type MessageContent =
+  { kind: 'text'; body: string } | { kind: 'image'; mediaId: string; body?: string };
 export interface Conversation {
   id: string;
   memberLowId: string;

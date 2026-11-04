@@ -3,6 +3,7 @@ import {
   profiles,
   purgeAccountData,
   STORAGE_BUCKETS,
+  variantsBucket,
   type Database,
 } from '@clone/db';
 import { PURGE_ACCOUNT } from '@clone/jobs';
@@ -67,7 +68,9 @@ export function purgeAccount({
         STORAGE_BUCKETS.uploads,
         files.map((file) => file.originalPath),
       );
-      for (const file of files) await storage.removeDirectory(STORAGE_BUCKETS.public, file.id);
+      for (const file of files) {
+        await storage.removeDirectory(variantsBucket(file.purpose), file.id);
+      }
       await db.transaction((tx) => purgeAccountData(tx, profileId));
     }
 
