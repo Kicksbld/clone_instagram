@@ -18,6 +18,9 @@ struct PostView: View {
     let collapsesCaption: Bool
     /// Reel : lecture sur place (le feed ne l'accorde qu'au seul reel visible) ; sinon sa miniature.
     let playsReel: Bool
+    /// Reel : la vidéo (pas la cellule entière) devient visible aux deux tiers ou cesse de l'être. Pas
+    /// d'appel à la disparition de la vue : le plein écran ne doit pas céder la lecture à un autre reel.
+    let onReelVisibilityChange: (Bool) -> Void
     /// Photo affichée du carrousel.
     @State private var page = 0
     @State private var isCaptionExpanded = false
@@ -35,7 +38,8 @@ struct PostView: View {
         onToggleLike: @escaping () -> Void,
         onDoubleTapLike: @escaping () -> Void,
         collapsesCaption: Bool = false,
-        playsReel: Bool = false
+        playsReel: Bool = false,
+        onReelVisibilityChange: @escaping (Bool) -> Void = { _ in }
     ) {
         self.post = post
         self.onDelete = onDelete
@@ -43,6 +47,7 @@ struct PostView: View {
         self.onDoubleTapLike = onDoubleTapLike
         self.collapsesCaption = collapsesCaption
         self.playsReel = playsReel
+        self.onReelVisibilityChange = onReelVisibilityChange
     }
 
     var body: some View {
@@ -141,6 +146,7 @@ struct PostView: View {
         ReelPlayerView(media: media, isActive: playsReel && !isShowingFullScreenReel, showsCloseButton: false)
             .aspectRatio(max(media.aspectRatio, 4.0 / 5.0), contentMode: .fit)
             .clipped()
+            .onScrollVisibilityChange(threshold: 0.66, onReelVisibilityChange)
             .contentShape(.rect)
             .onTapGesture(count: 2) {
                 doubleTapCount += 1

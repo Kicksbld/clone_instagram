@@ -147,12 +147,11 @@ struct FeedView<Header: View>: View {
             onToggleLike: { Task { await viewModel.toggleLike(post) } },
             onDoubleTapLike: { Task { await viewModel.likeFromDoubleTap(post) } },
             collapsesCaption: true,
-            playsReel: viewModel.playingReelId == post.id
+            playsReel: viewModel.playingReelId == post.id,
+            // Vidéo visible aux deux tiers : candidate à la lecture ; une seule joue (`playingReelId`).
+            onReelVisibilityChange: { viewModel.reelVisibilityChanged(post, isVisible: $0) }
         )
         .task { await viewModel.postAppeared(post) }
-        // Reel visible aux deux tiers : candidat à la lecture ; un seul joue (`playingReelId`).
-        .onScrollVisibilityChange(threshold: 0.66) { viewModel.reelVisibilityChanged(post, isVisible: $0) }
-        .onDisappear { viewModel.reelVisibilityChanged(post, isVisible: false) }
     }
 
     /// Repère d'Instagram après les nouvelles publications ; les plus anciennes restent accessibles.
