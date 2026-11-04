@@ -27,12 +27,21 @@ struct MessagesView: View {
                     NavigationLink {
                         ConversationView(store: viewModel.store, conversation: conversation, viewerId: viewerId)
                     } label: {
-                        VStack(alignment: .leading) {
-                            Text(conversation.otherMember.username)
-                            if let message = conversation.lastMessage {
-                                Text(message.body).lineLimit(1).foregroundStyle(.secondary)
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(conversation.otherMember.username).bold(conversation.unreadCount > 0)
+                                if let message = conversation.lastMessage {
+                                    Text(message.body).lineLimit(1).foregroundStyle(.secondary)
+                                }
+                            }
+                            if conversation.unreadCount > 0 {
+                                Spacer()
+                                // Pastille de non-lus (wireframe : sans couleur).
+                                Circle().frame(width: 8, height: 8)
                             }
                         }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityValue(conversation.unreadCount > 0 ? "\(conversation.unreadCount) non lus" : "")
                     }
                 }
                 if viewModel.store.nextConversationCursor != nil {
@@ -120,14 +129,20 @@ struct ConversationView: View {
                     if store.historyCursors[conversation.id] != nil {
                         Button("Messages précédents") { Task { await store.loadHistory(conversation.id, older: true) } }
                     }
+                    let seenId = store.seenMessageId(in: conversation.id)
                     ForEach(store.messages[conversation.id, default: []]) { message in
-                        HStack {
-                            if message.senderId == viewerId {
-                                Spacer(minLength: 48)
+                        VStack(alignment: .trailing, spacing: 4) {
+                            HStack {
+                                if message.senderId == viewerId {
+                                    Spacer(minLength: 48)
+                                }
+                                Text(message.body).padding(8).background(.quaternary, in: .rect(cornerRadius: 12))
+                                if message.senderId != viewerId {
+                                    Spacer(minLength: 48)
+                                }
                             }
-                            Text(message.body).padding(8).background(.quaternary, in: .rect(cornerRadius: 12))
-                            if message.senderId != viewerId {
-                                Spacer(minLength: 48)
+                            if message.id == seenId {
+                                Text("Vu").font(.caption).foregroundStyle(.secondary)
                             }
                         }
                         .id(message.id)

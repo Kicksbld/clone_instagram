@@ -48,6 +48,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/conversations/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Marquer la conversation comme lue jusqu'à ce message
+         * @description La position de lecture n'avance jamais ; un message plus ancien que la position actuelle est ignoré (204 sans effet). Message d'une autre conversation ou inexistant → 404. Après validation, conversation.read à l'autre membre si la position a avancé.
+         */
+        post: operations["markConversationRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ws": {
         parameters: {
             query?: never;
@@ -1203,10 +1225,23 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             lastMessage?: components["schemas"]["Message"];
+            /** @description Messages de l'autre membre plus récents que ma position de lecture. */
+            unreadCount: number;
+            /**
+             * Format: uuid
+             * @description Position de lecture de l'autre membre (« Vu »), absente s'il n'a encore rien lu.
+             */
+            otherMemberLastReadMessageId?: string;
         };
         ConversationPage: {
             items: components["schemas"]["Conversation"][];
             nextCursor?: string;
+            /** @description Nombre total de conversations visibles non lues (pastille de l'onglet Messages), toutes pages confondues. */
+            unreadConversationCount: number;
+        };
+        MarkConversationReadRequest: {
+            /** Format: uuid */
+            messageId: string;
         };
         MessagePage: {
             items: components["schemas"]["Message"][];
@@ -1219,6 +1254,21 @@ export interface components {
              */
             type: "message.created";
             data: components["schemas"]["Message"];
+        };
+        ConversationRead: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "conversation.read";
+            data: {
+                /** Format: uuid */
+                conversationId: string;
+                /** Format: uuid */
+                userId: string;
+                /** Format: uuid */
+                lastReadMessageId: string;
+            };
         };
         RealtimeAuth: {
             /**
@@ -1269,7 +1319,7 @@ export interface components {
                 reason: components["schemas"]["MediaFailureReason"];
             };
         };
-        RealtimeEvent: components["schemas"]["MessageCreated"] | components["schemas"]["RealtimeAuthOK"] | components["schemas"]["ActivityCreated"] | components["schemas"]["MediaReady"] | components["schemas"]["MediaFailed"];
+        RealtimeEvent: components["schemas"]["MessageCreated"] | components["schemas"]["ConversationRead"] | components["schemas"]["RealtimeAuthOK"] | components["schemas"]["ActivityCreated"] | components["schemas"]["MediaReady"] | components["schemas"]["MediaFailed"];
         RealtimeClientMessage: components["schemas"]["RealtimeAuth"];
         Health: {
             /** @constant */
@@ -2252,6 +2302,34 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Message"];
                 };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["ConversationNotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    markConversationRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkConversationReadRequest"];
+            };
+        };
+        responses: {
+            /** @description Position de lecture enregistrée (ou déjà plus récente). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];

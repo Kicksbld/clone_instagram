@@ -18,6 +18,8 @@ struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View,
     let publishQueue: PublishQueue
     /// Groupes non lus de l'Activité : pastille du cœur.
     let unreadActivityCount: Int
+    /// Conversations non lues : pastille de l'onglet Messages (ADR-023).
+    var unreadConversationCount = 0
     @ViewBuilder let feed: (_ openSearch: @escaping () -> Void) -> Feed
     @ViewBuilder let profileTab: (_ openSearch: @escaping () -> Void) -> ProfileTab
     @ViewBuilder let searchTab: () -> SearchTab
@@ -65,6 +67,7 @@ struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View,
             Tab("Messages", systemImage: "paperplane", value: TabID.messages) {
                 NavigationStack(root: messages)
             }
+            .badge(unreadConversationCount)
             Tab("Recherche", systemImage: "magnifyingglass", value: TabID.search) {
                 NavigationStack(root: searchTab)
             }

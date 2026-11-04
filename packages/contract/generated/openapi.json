@@ -103,7 +103,8 @@
                 "schema": {
                   "type": "object",
                   "required": [
-                    "items"
+                    "items",
+                    "unreadConversationCount"
                   ],
                   "properties": {
                     "items": {
@@ -113,7 +114,8 @@
                         "required": [
                           "id",
                           "otherMember",
-                          "createdAt"
+                          "createdAt",
+                          "unreadCount"
                         ],
                         "properties": {
                           "id": {
@@ -214,12 +216,27 @@
                                 "format": "date-time"
                               }
                             }
+                          },
+                          "unreadCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Messages de l'autre membre plus récents que ma position de lecture."
+                          },
+                          "otherMemberLastReadMessageId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "description": "Position de lecture de l'autre membre (« Vu »), absente s'il n'a encore rien lu."
                           }
                         }
                       }
                     },
                     "nextCursor": {
                       "type": "string"
+                    },
+                    "unreadConversationCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Nombre total de conversations visibles non lues (pastille de l'onglet Messages), toutes pages confondues."
                     }
                   }
                 }
@@ -435,7 +452,8 @@
                   "required": [
                     "id",
                     "otherMember",
-                    "createdAt"
+                    "createdAt",
+                    "unreadCount"
                   ],
                   "properties": {
                     "id": {
@@ -536,6 +554,16 @@
                           "format": "date-time"
                         }
                       }
+                    },
+                    "unreadCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Messages de l'autre membre plus récents que ma position de lecture."
+                    },
+                    "otherMemberLastReadMessageId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Position de lecture de l'autre membre (« Vu »), absente s'il n'a encore rien lu."
                     }
                   }
                 }
@@ -551,7 +579,8 @@
                   "required": [
                     "id",
                     "otherMember",
-                    "createdAt"
+                    "createdAt",
+                    "unreadCount"
                   ],
                   "properties": {
                     "id": {
@@ -652,6 +681,16 @@
                           "format": "date-time"
                         }
                       }
+                    },
+                    "unreadCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Messages de l'autre membre plus récents que ma position de lecture."
+                    },
+                    "otherMemberLastReadMessageId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Position de lecture de l'autre membre (« Vu »), absente s'il n'a encore rien lu."
                     }
                   }
                 }
@@ -1406,6 +1445,277 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Conversation absente ou invisible (conversation_not_found).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Trop de requêtes (`rate_limited`) ; réessayer après `Retry-After` secondes.",
+            "headers": {
+              "Retry-After": {
+                "description": "Délai avant de réessayer, en secondes.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/conversations/{id}/read": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "markConversationRead",
+        "tags": [
+          "messaging"
+        ],
+        "summary": "Marquer la conversation comme lue jusqu'à ce message",
+        "description": "La position de lecture n'avance jamais ; un message plus ancien que la position actuelle est ignoré (204 sans effet). Message d'une autre conversation ou inexistant → 404. Après validation, conversation.read à l'autre membre si la position a avancé.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "messageId"
+                ],
+                "properties": {
+                  "messageId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Position de lecture enregistrée (ou déjà plus récente)."
           },
           "400": {
             "description": "Entrée non conforme au schéma (`validation_failed`).",
@@ -24009,7 +24319,8 @@
         "required": [
           "id",
           "otherMember",
-          "createdAt"
+          "createdAt",
+          "unreadCount"
         ],
         "properties": {
           "id": {
@@ -24110,13 +24421,24 @@
                 "format": "date-time"
               }
             }
+          },
+          "unreadCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Messages de l'autre membre plus récents que ma position de lecture."
+          },
+          "otherMemberLastReadMessageId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Position de lecture de l'autre membre (« Vu »), absente s'il n'a encore rien lu."
           }
         }
       },
       "ConversationPage": {
         "type": "object",
         "required": [
-          "items"
+          "items",
+          "unreadConversationCount"
         ],
         "properties": {
           "items": {
@@ -24126,7 +24448,8 @@
               "required": [
                 "id",
                 "otherMember",
-                "createdAt"
+                "createdAt",
+                "unreadCount"
               ],
               "properties": {
                 "id": {
@@ -24227,12 +24550,40 @@
                       "format": "date-time"
                     }
                   }
+                },
+                "unreadCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Messages de l'autre membre plus récents que ma position de lecture."
+                },
+                "otherMemberLastReadMessageId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Position de lecture de l'autre membre (« Vu »), absente s'il n'a encore rien lu."
                 }
               }
             }
           },
           "nextCursor": {
             "type": "string"
+          },
+          "unreadConversationCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Nombre total de conversations visibles non lues (pastille de l'onglet Messages), toutes pages confondues."
+          }
+        }
+      },
+      "MarkConversationReadRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "messageId"
+        ],
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -24342,6 +24693,43 @@
               "createdAt": {
                 "type": "string",
                 "format": "date-time"
+              }
+            }
+          }
+        }
+      },
+      "ConversationRead": {
+        "type": "object",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "conversation.read"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "conversationId",
+              "userId",
+              "lastReadMessageId"
+            ],
+            "properties": {
+              "conversationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "userId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "lastReadMessageId": {
+                "type": "string",
+                "format": "uuid"
               }
             }
           }
@@ -24584,6 +24972,43 @@
           {
             "type": "object",
             "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "conversation.read"
+                ]
+              },
+              "data": {
+                "type": "object",
+                "required": [
+                  "conversationId",
+                  "userId",
+                  "lastReadMessageId"
+                ],
+                "properties": {
+                  "conversationId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "lastReadMessageId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
               "type"
             ],
             "properties": {
@@ -24742,6 +25167,7 @@
           "propertyName": "type",
           "mapping": {
             "message.created": "#/components/schemas/MessageCreated",
+            "conversation.read": "#/components/schemas/ConversationRead",
             "auth.ok": "#/components/schemas/RealtimeAuthOK",
             "activity.created": "#/components/schemas/ActivityCreated",
             "media.ready": "#/components/schemas/MediaReady",

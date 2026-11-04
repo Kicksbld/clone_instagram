@@ -34,6 +34,7 @@ it('opens an empty private conversation, sends idempotently, and returns a compl
   expect((await open()).statusCode).toBe(200);
   expect((await context.app.inject({ url: '/v1/conversations', headers: auth })).json()).toEqual({
     items: [],
+    unreadConversationCount: 0,
   });
   const id = created.json<components['schemas']['Conversation']>().id;
   const input = {
@@ -72,7 +73,7 @@ it('hides blocked conversations in both directions and restores history after un
   expect((await history(id, '', otherAuth)).statusCode).toBe(404);
   expect(
     (await context.app.inject({ url: '/v1/conversations', headers: otherAuth })).json(),
-  ).toEqual({ items: [] });
+  ).toEqual({ items: [], unreadConversationCount: 0 });
   expect((await open()).statusCode).toBe(404);
   await context.app.inject({ method: 'DELETE', url: `/v1/users/${B}/block`, headers: auth });
   expect((await history(id)).json<components['schemas']['MessagePage']>().items).toHaveLength(1);
@@ -140,4 +141,112 @@ it('delivers the committed REST message to both authenticated members only', asy
   });
   expect(outsiderEvents).toEqual([]);
   for (const socket of sockets) socket.close();
+});
+
+const send = (id: string, body: string, clientId: string, headers = auth) =>
+  context.app.inject({
+    method: 'POST',
+    url: `/v1/conversations/${id}/messages`,
+    headers,
+    payload: { clientId, kind: 'text', body },
+  });
+const read = (id: string, messageId: string, headers: { authorization: string }) =>
+  context.app.inject({
+    method: 'POST',
+    url: `/v1/conversations/${id}/read`,
+    headers,
+    payload: { messageId },
+  });
+const list = async (headers: { authorization: string }) =>
+  (await context.app.inject({ url: '/v1/conversations', headers })).json<
+    components['schemas']['ConversationPage']
+  >();
+
+it('counts unread conversations for the recipient and shows "Vu" to the sender after reading', async () => {
+  await context.app.ready();
+  const bob = { authorization: `Bearer ${await signTestToken(B)}` };
+  const socket = await context.app.injectWS('/v1/ws');
+  const ready = once(socket, 'message');
+  socket.send(JSON.stringify({ type: 'auth', token: await signTestToken(A) }));
+  await ready;
+  const id = (await open()).json<components['schemas']['Conversation']>().id;
+  await send(id, 'Un', '0199a1b2-0000-7000-8000-0000000000c1');
+  const last = (await send(id, 'Deux', '0199a1b2-0000-7000-8000-0000000000c2')).json<
+    components['schemas']['Message']
+  >();
+  const unread = await list(bob);
+  expect(unread.unreadConversationCount).toBe(1);
+  expect(unread.items[0]).toMatchObject({ unreadCount: 2 });
+  expect(unread.items[0]?.otherMemberLastReadMessageId).toBeUndefined();
+  const sender = await list(auth);
+  expect(sender.unreadConversationCount).toBe(0);
+  expect(sender.items[0]).toMatchObject({ unreadCount: 0 });
+  expect(sender.items[0]?.otherMemberLastReadMessageId).toBeUndefined();
+
+  const event = once(socket, 'message');
+  expect((await read(id, last.id, bob)).statusCode).toBe(204);
+  expect(JSON.parse(String((await event)[0]))).toEqual({
+    type: 'conversation.read',
+    data: { conversationId: id, userId: B, lastReadMessageId: last.id },
+  });
+  expect((await list(auth)).items[0]?.otherMemberLastReadMessageId).toBe(last.id);
+  const after = await list(bob);
+  expect(after.unreadConversationCount).toBe(0);
+  expect(after.items[0]).toMatchObject({ unreadCount: 0 });
+  socket.close();
+});
+
+it('never moves the read position backwards and publishes nothing for an older message', async () => {
+  const bob = { authorization: `Bearer ${await signTestToken(B)}` };
+  const id = (await open()).json<components['schemas']['Conversation']>().id;
+  const first = (await send(id, 'Un', '0199a1b2-0000-7000-8000-0000000000c1')).json<
+    components['schemas']['Message']
+  >();
+  const second = (await send(id, 'Deux', '0199a1b2-0000-7000-8000-0000000000c2')).json<
+    components['schemas']['Message']
+  >();
+  expect((await read(id, second.id, bob)).statusCode).toBe(204);
+  const published: unknown[] = [];
+  const original = context.realtime.publish.bind(context.realtime);
+  context.realtime.publish = (...args) => {
+    published.push(args);
+    original(...args);
+  };
+  expect((await read(id, first.id, bob)).statusCode).toBe(204);
+  expect((await read(id, second.id, bob)).statusCode).toBe(204);
+  expect(published).toEqual([]);
+  expect((await list(auth)).items[0]?.otherMemberLastReadMessageId).toBe(second.id);
+  const third = (await send(id, 'Trois', '0199a1b2-0000-7000-8000-0000000000c3')).json<
+    components['schemas']['Message']
+  >();
+  expect((await list(bob)).items[0]).toMatchObject({ unreadCount: 1 });
+  // Reading my own message is allowed and only counts the other member's messages.
+  expect((await read(id, third.id, auth)).statusCode).toBe(204);
+});
+
+it('refuses reads of foreign messages, third-party and blocked conversations', async () => {
+  const bob = { authorization: `Bearer ${await signTestToken(B)}` };
+  const charlie = { authorization: `Bearer ${await signTestToken(C)}` };
+  const id = (await open()).json<components['schemas']['Conversation']>().id;
+  const message = (await send(id, 'Un', '0199a1b2-0000-7000-8000-0000000000c1')).json<
+    components['schemas']['Message']
+  >();
+  const otherId = (await open(C)).json<components['schemas']['Conversation']>().id;
+  const foreign = (await send(otherId, 'Autre', '0199a1b2-0000-7000-8000-0000000000c2')).json<
+    components['schemas']['Message']
+  >();
+  expect((await read(id, foreign.id, bob)).json()).toMatchObject({
+    code: 'conversation_not_found',
+  });
+  expect((await read(id, C, bob)).statusCode).toBe(404);
+  expect((await read(id, message.id, charlie)).statusCode).toBe(404);
+  const invalid = await context.app.inject({
+    method: 'POST',
+    url: `/v1/conversations/${id}/read`,
+    headers: bob,
+    payload: { messageId: message.id, extra: true },
+  });
+  expect(invalid.statusCode).toBe(400);
+  await context.app.inject({ method: 'PUT', url: `/v1/users/${B}/block`, headers: auth });
+  expect((await read(id, message.id, bob)).statusCode).toBe(404);
 });
