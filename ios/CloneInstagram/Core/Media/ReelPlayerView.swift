@@ -2,17 +2,21 @@ import AVFoundation
 import NukeUI
 import SwiftUI
 
-/// Deux lecteurs réutilisés ; un seul joue, même lors d'une ouverture successive de reels.
+/// Deux lecteurs réutilisés par l'onglet Reels, le feed et le plein écran ; un seul joue, même lors d'une
+/// ouverture successive de reels.
 @Observable
 final class ReelPlayerPool {
     static let shared = ReelPlayerPool()
     private let players = [AVPlayer(), AVPlayer()]
     private var urls: [URL?] = [nil, nil]
     private var activeIndex: Int?
+    /// Vue qui a lancé la lecture en cours : le même reel peut passer du feed au plein écran (même lecteur).
+    private var activeOwner: UUID?
     private var preloadObservation: NSKeyValueObservation?
 
-    func play(_ url: URL, reload: Bool = false) -> AVPlayer {
+    func play(_ url: URL, reload: Bool = false, owner: UUID = UUID()) -> AVPlayer {
         pause()
+        activeOwner = owner
         preloadObservation = nil
         let index = urls.firstIndex(of: url) ?? 0
         if reload {
@@ -52,7 +56,18 @@ final class ReelPlayerPool {
         urls[index] = url
     }
 
+    /// Arrêt demandé par une vue : sans effet si une autre vue a repris la lecture depuis.
+    func stop(owner: UUID) {
+        guard isPlaying(owner: owner) else { return }
+        pause()
+    }
+
+    func isPlaying(owner: UUID) -> Bool {
+        activeOwner == owner
+    }
+
     func pause() {
+        activeOwner = nil
         for player in players {
             player.pause()
         }
@@ -69,6 +84,8 @@ struct ReelPlayerView: View {
     @State private var hasFailed = false
     @State private var isReady = false
     @State private var isMuted = true
+    /// Identifie cette vue auprès du pool : son arrêt ne coupe pas un reel repris ailleurs.
+    @State private var owner = UUID()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
 
@@ -80,19 +97,30 @@ struct ReelPlayerView: View {
                     .id(ownedItem.map(ObjectIdentifier.init))
                     .ignoresSafeArea()
             }
-            if hasFailed {
-                ContentUnavailableView { Label("Lecture impossible", systemImage: "wifi.exclamationmark") }
-                    description: { Text("Vérifiez votre connexion et réessayez.") }
-                    actions: { Button("Réessayer", action: start) }
-                    .foregroundStyle(.white)
-            } else if !isReady {
+            // Miniature (Nuke) en attendant la première image, et sous le message d'échec (ADR-024).
+            if hasFailed || !isReady {
                 LazyImage(url: media.variants.large) { state in
                     if let image = state.image {
                         image.resizable().scaledToFit()
-                    } else {
+                    } else if !hasFailed {
                         ProgressView().tint(.white)
                     }
                 }
+            }
+            if hasFailed {
+                VStack(spacing: 8) {
+                    Label("Lecture impossible", systemImage: "wifi.exclamationmark")
+                        .font(.headline)
+                    Text("Vérifiez votre connexion et réessayez.")
+                        .font(.subheadline)
+                        .multilineTextAlignment(.center)
+                    Button("Réessayer", action: start)
+                        .buttonStyle(.borderedProminent)
+                }
+                .foregroundStyle(.white)
+                .padding()
+                .background(.black.opacity(0.6), in: .rect(cornerRadius: 12))
+                .padding()
             }
         }
         .overlay(alignment: .topLeading) {
@@ -129,7 +157,8 @@ struct ReelPlayerView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .AVPlayerItemDidPlayToEndTime)) { notification in
             guard isActive, scenePhase == .active, let item = notification.object as? AVPlayerItem,
-                  item === ownedItem, item === player?.currentItem else { return }
+                  item === ownedItem, item === player?.currentItem,
+                  ReelPlayerPool.shared.isPlaying(owner: owner) else { return }
             player?.seek(to: .zero)
             player?.play()
         }
@@ -138,7 +167,7 @@ struct ReelPlayerView: View {
     private func stop() {
         // Une cellule disparue ne doit pas arrêter un lecteur déjà réutilisé ailleurs.
         if let ownedItem, player?.currentItem === ownedItem {
-            player?.pause()
+            ReelPlayerPool.shared.stop(owner: owner)
         }
         player = nil
         ownedItem = nil
@@ -152,7 +181,7 @@ struct ReelPlayerView: View {
         hasFailed = false
         isMuted = true
         if let url = media.hls {
-            player = ReelPlayerPool.shared.play(url, reload: retry)
+            player = ReelPlayerPool.shared.play(url, reload: retry, owner: owner)
             ownedItem = player?.currentItem
             if let nextURL {
                 ReelPlayerPool.shared.preload(nextURL)
@@ -169,6 +198,8 @@ private struct ReelPlayerSurface: UIViewRepresentable {
     let onFailure: () -> Void
     func makeUIView(context _: Context) -> PlayerLayerView {
         let view = PlayerLayerView()
+        // Les appuis vont aux gestes SwiftUI (plein écran, double tap) du conteneur.
+        view.isUserInteractionEnabled = false
         view.playerLayer.player = player
         view.ready = onReady
         view.failed = onFailure

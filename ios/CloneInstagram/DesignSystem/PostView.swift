@@ -3,7 +3,9 @@ import SwiftUI
 
 /// Un post comme dans le feed et le détail d'Instagram (wireframe) : en-tête (auteur, menu « … »), photos
 /// (carrousel) au ratio de la première, actions, mentions J'aime, légende, lien vers les commentaires et
-/// date. Partagé par les features Feed et Post ; les commentaires s'ouvrent par `openComments`.
+/// date. Partagé par les features Feed et Post ; les commentaires s'ouvrent par `openComments`. Un reel se
+/// lit sur place, son coupé, avec le pool d'`AVPlayer` de `Core/Media` (ADR-024) ; un appui l'ouvre en
+/// plein écran.
 struct PostView: View {
     let post: Post
     /// Menu « … » → « Supprimer » ; `nil` si le post n'est pas à moi (« Signaler » et « Bloquer » à la place).
@@ -14,12 +16,15 @@ struct PostView: View {
     let onDoubleTapLike: () -> Void
     /// Feed : légende sur 2 lignes, « plus » pour la déplier ; détail : légende entière.
     let collapsesCaption: Bool
+    /// Reel : lecture sur place (le feed ne l'accorde qu'au seul reel visible) ; sinon sa miniature.
+    let playsReel: Bool
     /// Photo affichée du carrousel.
     @State private var page = 0
     @State private var isCaptionExpanded = false
     @State private var captionHeights = CaptionHeights()
     /// Incrémenté à chaque double tap : déclenche le cœur sur la photo.
     @State private var doubleTapCount = 0
+    @State private var isShowingFullScreenReel = false
     @Environment(\.openSharePost) private var openSharePost
     @Environment(\.openComments) private var openComments
     @Environment(\.moderation) private var moderation
@@ -29,13 +34,15 @@ struct PostView: View {
         onDelete: (() -> Void)?,
         onToggleLike: @escaping () -> Void,
         onDoubleTapLike: @escaping () -> Void,
-        collapsesCaption: Bool = false
+        collapsesCaption: Bool = false,
+        playsReel: Bool = false
     ) {
         self.post = post
         self.onDelete = onDelete
         self.onToggleLike = onToggleLike
         self.onDoubleTapLike = onDoubleTapLike
         self.collapsesCaption = collapsesCaption
+        self.playsReel = playsReel
     }
 
     var body: some View {
@@ -60,7 +67,9 @@ struct PostView: View {
             }
             .padding(.horizontal)
 
-            if let cover = post.cover {
+            if post.kind == .reel, let cover = post.cover {
+                reel(cover)
+            } else if let cover = post.cover {
                 carousel(ratio: cover.aspectRatio)
             }
 
@@ -122,6 +131,30 @@ struct PostView: View {
                     .accessibilityHidden(true)
             }
         }
+    }
+
+    /**
+     Reel au ratio de la vidéo, au plus 4:5 comme les photos (bandes noires au-delà), son coupé ; en pause
+     pendant le plein écran, qui reprend le même lecteur du pool. Double tap : J'aime ; appui : plein écran.
+     */
+    private func reel(_ media: PostMediaItem) -> some View {
+        ReelPlayerView(media: media, isActive: playsReel && !isShowingFullScreenReel, showsCloseButton: false)
+            .aspectRatio(max(media.aspectRatio, 4.0 / 5.0), contentMode: .fit)
+            .clipped()
+            .contentShape(.rect)
+            .onTapGesture(count: 2) {
+                doubleTapCount += 1
+                onDoubleTapLike()
+            }
+            .onTapGesture { isShowingFullScreenReel = true }
+            .overlay { DoubleTapHeart(trigger: doubleTapCount) }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(post.caption.isEmpty ? "Reel" : post.caption)
+            .accessibilityAction(named: "Ouvrir en plein écran") { isShowingFullScreenReel = true }
+            .accessibilityAction(named: "J'aime") { onDoubleTapLike() }
+            .fullScreenCover(isPresented: $isShowingFullScreenReel) {
+                ReelPlayerView(media: media)
+            }
     }
 
     /// Variante `large` (ADR-010) : la largeur de l'écran dépasse 640 px sur tous les iPhone, et le feed

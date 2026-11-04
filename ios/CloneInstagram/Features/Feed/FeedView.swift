@@ -146,9 +146,13 @@ struct FeedView<Header: View>: View {
             onDelete: viewModel.canDelete(post) ? { postToDelete = post } : nil,
             onToggleLike: { Task { await viewModel.toggleLike(post) } },
             onDoubleTapLike: { Task { await viewModel.likeFromDoubleTap(post) } },
-            collapsesCaption: true
+            collapsesCaption: true,
+            playsReel: viewModel.playingReelId == post.id
         )
         .task { await viewModel.postAppeared(post) }
+        // Reel visible aux deux tiers : candidat à la lecture ; un seul joue (`playingReelId`).
+        .onScrollVisibilityChange(threshold: 0.66) { viewModel.reelVisibilityChanged(post, isVisible: $0) }
+        .onDisappear { viewModel.reelVisibilityChanged(post, isVisible: false) }
     }
 
     /// Repère d'Instagram après les nouvelles publications ; les plus anciennes restent accessibles.

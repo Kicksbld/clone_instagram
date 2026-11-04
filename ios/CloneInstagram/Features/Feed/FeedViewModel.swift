@@ -38,6 +38,8 @@ final class FeedViewModel {
     private var nextCursor: String?
     /// Révision des comptes bloqués déjà prise en compte.
     private var loadedRevision: Int?
+    /// Reels assez visibles à l'écran pour jouer (`reelVisibilityChanged`).
+    private var visibleReelIds: Set<String> = []
 
     init(
         viewerId: String,
@@ -90,6 +92,21 @@ final class FeedViewModel {
     /// Posts affichés : les récents, puis les anciens une fois demandés.
     var visiblePosts: [Post] {
         isShowingOlder ? posts : recentPosts
+    }
+
+    /// Seul reel qui joue (ADR-024) : le premier du feed parmi ceux assez visibles à l'écran ; `nil` si aucun.
+    var playingReelId: String? {
+        visiblePosts.first { $0.kind == .reel && visibleReelIds.contains($0.id) }?.id
+    }
+
+    /// Un reel entre à l'écran ou en sort : le reel qui joue en dépend (`playingReelId`).
+    func reelVisibilityChanged(_ post: Post, isVisible: Bool) {
+        guard post.kind == .reel else { return }
+        if isVisible {
+            visibleReelIds.insert(post.id)
+        } else {
+            visibleReelIds.remove(post.id)
+        }
     }
 
     /// Menu « … » : « Supprimer » seulement sur mes posts.
@@ -203,7 +220,8 @@ final class FeedViewModel {
         }
     }
 
-    /// Variante `large`, celle qu'affiche `PostView` : `LazyImage` la retrouve dans le cache.
+    /// Variante `large`, celle qu'affiche `PostView` (miniature pour un reel) : `LazyImage` la retrouve dans
+    /// le cache.
     private func prefetch(_ posts: some Sequence<Post>) {
         let urls = posts.flatMap { $0.media.map(\.variants.large) }
         if !urls.isEmpty {
