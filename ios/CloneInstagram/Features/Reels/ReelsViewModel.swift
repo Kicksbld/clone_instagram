@@ -1,7 +1,8 @@
 import Foundation
 import Observation
 
-/// Onglet Reels : pages chronologiques, likes et compteurs partagés avec le reste de l'app.
+/// Onglet Reels : sous-onglets « Reels » (chronologique) et « Amis » (reels créés, aimés ou commentés par
+/// mes abonnés mutuels, ADR-029) ; likes et compteurs partagés avec le reste de l'app.
 @Observable
 final class ReelsViewModel {
     enum State: Equatable {
@@ -10,7 +11,13 @@ final class ReelsViewModel {
         case failed
     }
 
+    enum Tab: Equatable, CaseIterable {
+        case reels
+        case friends
+    }
+
     private(set) var state: State = .loading
+    private(set) var tab: Tab = .reels
     private(set) var posts: [Post] = []
     private(set) var isLoadingMore = false
     private(set) var loadMoreFailed = false
@@ -38,12 +45,21 @@ final class ReelsViewModel {
         await load()
     }
 
+    /// Change de sous-onglet : la liste repart de la première page.
+    func select(_ tab: Tab) async {
+        guard tab != self.tab else { return }
+        self.tab = tab
+        posts = []
+        nextCursor = nil
+        await load()
+    }
+
     func load() async {
         generation += 1
         let requestGeneration = generation
         state = .loading
         do {
-            let page = try await service.listReelsFeed(cursor: nil)
+            let page = try await fetch(cursor: nil)
             guard requestGeneration == generation else { return }
             record(page)
             posts = page.items
@@ -61,7 +77,7 @@ final class ReelsViewModel {
         isLoadingMore = true
         defer { isLoadingMore = false }
         do {
-            let page = try await service.listReelsFeed(cursor: cursor)
+            let page = try await fetch(cursor: cursor)
             guard requestGeneration == generation else { return }
             record(page)
             let known = Set(posts.map(\.id))
@@ -79,6 +95,11 @@ final class ReelsViewModel {
         await loadMore()
     }
 
+    /// Feuille des amis d'un reel de l'onglet Amis.
+    func friendInteractions(of reelId: String) -> FriendInteractionsViewModel {
+        FriendInteractionsViewModel(reelId: reelId, posts: service)
+    }
+
     func displayed(_ post: Post) -> Post {
         commentCounts.displayed(likes.displayed(post))
     }
@@ -91,9 +112,58 @@ final class ReelsViewModel {
         }
     }
 
+    private func fetch(cursor: String?) async throws(PostServiceError) -> PostPage {
+        switch tab {
+        case .reels: try await service.listReelsFeed(cursor: cursor)
+        case .friends: try await service.listFriendsReels(cursor: cursor)
+        }
+    }
+
     private func record(_ page: PostPage) {
         likes.record(page.items)
         commentCounts.record(page.items)
         nextCursor = page.nextCursor
+    }
+}
+
+extension Post {
+    /// Phrase de l'onglet Amis : « léa a aimé », « léa et 2 autres amis ont interagi » ; `nil` hors de
+    /// l'onglet Amis. Les amis bloqués depuis le chargement (`hiding`) ne sont ni nommés ni comptés.
+    func friendsSummary(hiding hidden: Set<String> = []) -> String? {
+        let visible = friendInteractions.filter { !hidden.contains($0.user.id) }
+        guard let first = visible.first else { return nil }
+        let hiddenCount = friendInteractions.count - visible.count
+        let others = friendInteractionCount - hiddenCount - 1
+        if others > 0 {
+            return "\(first.user.username) et \(others) \(others == 1 ? "autre ami" : "autres amis") ont interagi"
+        }
+        return "\(first.user.username) \(first.verb)"
+    }
+}
+
+extension FriendInteraction {
+    /// « a aimé », « a commenté », « a créé » ; plusieurs interactions → « a interagi ».
+    var verb: String {
+        guard kinds.count == 1, let kind = kinds.first else { return "a interagi" }
+        return switch kind {
+        case .created: "a créé"
+        case .liked: "a aimé"
+        case .commented: "a commenté"
+        }
+    }
+
+    /// Ligne de la feuille des amis : « a aimé », « a créé et commenté : texte »…
+    var detail: String {
+        let participles = kinds.map { kind in
+            switch kind {
+            case .created: "créé"
+            case .liked: "aimé"
+            case .commented: "commenté"
+            }
+        }
+        guard let last = participles.last else { return "a interagi" }
+        let joined = participles.count > 1 ? participles.dropLast().joined(separator: ", ") + " et " + last : last
+        guard kinds.contains(.commented), let commentText else { return "a \(joined)" }
+        return "a \(joined) : \(commentText)"
     }
 }

@@ -7,8 +7,10 @@ import type { Executor } from '../client.ts';
 import {
   blocks,
   closeFriends,
+  comments,
   follows,
   media,
+  postLikes,
   postMedia,
   posts,
   profiles,
@@ -162,7 +164,25 @@ export async function writeSeed(
       .onConflictDoNothing();
   }
 
+  for (const batch of chunks(plan.likes)) {
+    await db.insert(postLikes).values(batch).onConflictDoNothing();
+  }
+  for (const batch of chunks(plan.comments)) {
+    await db.insert(comments).values(batch).onConflictDoNothing({ target: comments.id });
+  }
+
   await writeMessagingSeed(db, viewerId);
+
+  // Compteurs de J'aime et de commentaires recalculés pour les posts touchés (ADR-007).
+  for (const batch of chunks(plan.posts.map((post) => post.id))) {
+    await db
+      .update(posts)
+      .set({
+        likeCount: sql`(SELECT count(*) FROM ${postLikes} WHERE ${postLikes.postId} = ${posts.id})::int`,
+        commentCount: sql`(SELECT count(*) FROM ${comments} WHERE ${comments.postId} = ${posts.id} AND ${comments.deletedAt} IS NULL)::int`,
+      })
+      .where(inArray(posts.id, batch));
+  }
 
   // Compteurs dénormalisés (ADR-007) recalculés à partir de `follows` et `posts`.
   const touched = plan.profiles.map((p) => p.id);

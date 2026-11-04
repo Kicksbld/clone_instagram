@@ -40,6 +40,7 @@ export class InMemoryProfileRepository
       followingCount: 0,
       postCount: 0,
       avatar: null,
+      friendsTabActivity: 'mutuals',
       createdAt: this.now(),
       ...profile,
     };

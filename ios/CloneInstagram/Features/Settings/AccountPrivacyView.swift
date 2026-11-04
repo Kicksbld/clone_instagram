@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Paramètres > Confidentialité du compte (wireframe, comme Instagram) : interrupteur « Compte privé »,
-/// avec confirmation dans les deux sens.
+/// avec confirmation dans les deux sens, et « Activité dans l'onglet Amis » (ADR-029).
 struct AccountPrivacyView: View {
     @State private var viewModel: AccountPrivacyViewModel
     /// Valeur demandée par l'interrupteur, en attente de confirmation.
@@ -27,6 +27,24 @@ struct AccountPrivacyView: View {
                     Lorsque votre compte est privé, seuls vos abonnés peuvent voir ce que vous partagez. Vos \
                     abonnés actuels ne sont pas concernés.
                     """
+                )
+            }
+            Section {
+                Picker(
+                    "Activité dans l’onglet Amis",
+                    selection: Binding(
+                        get: { viewModel.friendsTabActivity },
+                        set: { activity in Task { await viewModel.setFriendsTabActivity(activity) } }
+                    )
+                ) {
+                    Text("Abonnés mutuels").tag(FriendsTabActivity.mutuals)
+                    Text("Personne").tag(FriendsTabActivity.nobody)
+                }
+                .pickerStyle(.navigationLink)
+            } footer: {
+                Text(
+                    "Choisissez qui peut voir les reels que vous aimez ou commentez dans l’onglet Amis des Reels. "
+                        + "Les reels que vous publiez y restent visibles de vos abonnés mutuels."
                 )
             }
         }

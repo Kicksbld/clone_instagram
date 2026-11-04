@@ -1,19 +1,33 @@
 import SwiftUI
 
 /// Pager vertical plein écran ; seul l'élément sélectionné reçoit un lecteur du pool de Core/Media.
+/// Sous-onglets « Reels » et « Amis » (ADR-029) ; dans « Amis », les amis qui ont interagi ouvrent une
+/// feuille dont chaque ligne mène au profil (destination fournie par `App`).
 struct ReelsView: View {
     @State private var viewModel: ReelsViewModel
     let revision: Int
     let isActive: Bool
+    let profileDestination: (ProfileRoute) -> AnyView
     @State private var selectedId: String?
+    @State private var friendsSheet: FriendsSheet?
     @Environment(\.blockedUserIds) private var blockedIds
     @Environment(\.openComments) private var openComments
     @Environment(\.openSharePost) private var openSharePost
 
-    init(viewModel: ReelsViewModel, revision: Int, isActive: Bool) {
+    init(
+        viewModel: ReelsViewModel,
+        revision: Int,
+        isActive: Bool,
+        profileDestination: @escaping (ProfileRoute) -> AnyView = { _ in AnyView(EmptyView()) }
+    ) {
         _viewModel = State(initialValue: viewModel)
         self.revision = revision
         self.isActive = isActive
+        self.profileDestination = profileDestination
+    }
+
+    private struct FriendsSheet: Identifiable {
+        let id: String
     }
 
     private var visiblePosts: [Post] {
@@ -22,12 +36,23 @@ struct ReelsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Reels").bold().accessibilityAddTraits(.isSelected)
-                Button("Amis") {}.disabled(true)
+            Picker("Sous-onglet", selection: Binding(
+                get: { viewModel.tab },
+                set: { tab in Task { await viewModel.select(tab) } }
+            )) {
+                Text("Reels").tag(ReelsViewModel.Tab.reels)
+                Text("Amis").tag(ReelsViewModel.Tab.friends)
             }
+            .pickerStyle(.segmented)
             .padding()
             content
+        }
+        .sheet(item: $friendsSheet) { sheet in
+            FriendInteractionsView(
+                viewModel: viewModel.friendInteractions(of: sheet.id),
+                profileDestination: profileDestination
+            )
+            .presentationDetents([.medium, .large])
         }
         .task(id: revision) { await viewModel.appear(revision: revision) }
         .onChange(of: selectedId) { _, id in
@@ -63,9 +88,11 @@ struct ReelsView: View {
             }
         case .loaded where visiblePosts.isEmpty:
             ContentUnavailableView {
-                Label("Aucun reel", systemImage: "play.rectangle")
+                Label("Aucun reel", systemImage: viewModel.tab == .friends ? "person.2" : "play.rectangle")
             } description: {
-                Text("Les reels des comptes publics et des comptes suivis apparaîtront ici.")
+                Text(viewModel.tab == .friends
+                    ? "Les reels que vos amis publient, aiment ou commentent apparaîtront ici."
+                    : "Les reels des comptes publics et des comptes suivis apparaîtront ici.")
             } actions: {
                 Button("Actualiser") { Task { await viewModel.load() } }
             }
@@ -106,18 +133,38 @@ struct ReelsView: View {
         return visiblePosts[index + 1].cover?.hls
     }
 
+    /// Onglet Amis : jusqu'à 3 photos d'amis et la phrase ; un appui ouvre la feuille des amis.
+    @ViewBuilder private func friendsSummary(_ post: Post) -> some View {
+        if let summary = post.friendsSummary(hiding: blockedIds) {
+            Button {
+                friendsSheet = FriendsSheet(id: post.id)
+            } label: {
+                HStack(spacing: 6) {
+                    HStack(spacing: -8) {
+                        ForEach(post.friendInteractions.filter { !blockedIds.contains($0.user.id) }) {
+                            AvatarView(avatar: $0.user.avatar, size: 24)
+                        }
+                    }
+                    Text(summary).font(.footnote)
+                }
+            }
+            .accessibilityHint("Affiche les amis qui ont interagi avec ce reel")
+        }
+    }
+
     private func reel(_ post: Post, nextURL: URL?) -> some View {
         ZStack(alignment: .bottom) {
             if let media = post.cover {
                 ReelPlayerView(
                     media: media,
-                    isActive: isActive && selectedId == post.id,
+                    isActive: isActive && friendsSheet == nil && selectedId == post.id,
                     showsCloseButton: false,
                     nextURL: nextURL
                 )
             }
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading) {
+                    friendsSummary(post)
                     Text(post.author.username).bold()
                     Text(post.caption).lineLimit(3)
                 }

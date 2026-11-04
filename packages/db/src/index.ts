@@ -20,3 +20,4 @@ export {
 } from './media.ts';
 export { transitionProfileStatus, type ProfileStatus } from './profile-status.ts';
 export * from './schema/index.ts';
+export { writeFriendsReelsSeed } from './seed/friends-reels.ts';

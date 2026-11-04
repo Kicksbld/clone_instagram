@@ -9,6 +9,12 @@ export interface Avatar {
   variants: ImageVariantPaths;
 }
 
+/**
+ * Qui voit mes J'aime et commentaires dans l'onglet Amis des Reels (ADR-029) : mes abonnés mutuels
+ * ou personne ; mes reels publiés y restent visibles dans les deux cas.
+ */
+export type FriendsTabActivity = 'mutuals' | 'nobody';
+
 /** Profil de l'utilisateur, tel que le module `identity` le manipule. */
 export interface Profile {
   /** Identifiant Supabase Auth (ADR-004). */
@@ -24,6 +30,7 @@ export interface Profile {
   followingCount: number;
   postCount: number;
   avatar: Avatar | null;
+  friendsTabActivity: FriendsTabActivity;
   createdAt: Date;
 }
 

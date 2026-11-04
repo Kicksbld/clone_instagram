@@ -40,6 +40,10 @@ export const profiles = pgTable(
     followerCount: integer('follower_count').notNull().default(0),
     followingCount: integer('following_count').notNull().default(0),
     postCount: integer('post_count').notNull().default(0),
+    // Qui voit mes J'aime et commentaires dans l'onglet Amis des Reels (ADR-029).
+    friendsTabActivity: text('friends_tab_activity', { enum: ['mutuals', 'nobody'] })
+      .notNull()
+      .default('mutuals'),
     createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   },
@@ -55,6 +59,10 @@ export const profiles = pgTable(
       sql`char_length(${table.fullName}) BETWEEN 1 AND 30 AND ${table.fullName} ~ '\\S'`,
     ),
     check('profiles_bio_length', sql`char_length(${table.bio}) <= 150`),
+    check(
+      'profiles_friends_tab_activity',
+      sql`${table.friendsTabActivity} IN ('mutuals', 'nobody')`,
+    ),
     check('profiles_status', sql`${table.status} IN ('active', 'suspended', 'banned', 'deleted')`),
     check(
       'profiles_counts_positive',

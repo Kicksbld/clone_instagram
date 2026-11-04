@@ -6,7 +6,7 @@ struct APIIdentityServiceTests {
     private static let meJSON = """
     {"id":"0199a1b2-0000-7000-8000-000000000001","username":"killian","fullName":"Killian","bio":"Dev",\
     "birthDate":"2000-01-31","isPrivate":false,"status":"active","followerCount":1,"followingCount":2,\
-    "postCount":3,"plan":"free","createdAt":"2026-09-25T12:00:00.000Z"}
+    "postCount":3,"plan":"free","friendsTabActivity":"mutuals","createdAt":"2026-09-25T12:00:00.000Z"}
     """
 
     private func makeService(_ reply: StubTransport.Reply) throws -> APIIdentityService {
@@ -200,6 +200,15 @@ struct APIIdentityServiceTests {
         let profile = try await service.updateSettings(isPrivate: true)
 
         #expect(profile.isPrivate)
+    }
+
+    @Test func `PATCH /me/settings friendsTabActivity → profil avec le réglage enregistré`() async throws {
+        let body = Self.meJSON.replacingOccurrences(of: #""friendsTabActivity":"mutuals""#, with: #""friendsTabActivity":"nobody""#)
+        let service = try makeService(.response(status: 200, contentType: "application/json", body: body))
+
+        let profile = try await service.updateFriendsTabActivity(.nobody)
+
+        #expect(profile.friendsTabActivity == .nobody)
     }
 
     @Test func `PATCH /me/settings sans profil → profileNotFound`() async throws {

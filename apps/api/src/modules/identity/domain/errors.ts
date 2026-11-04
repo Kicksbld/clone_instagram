@@ -1,4 +1,9 @@
-import { BusinessRuleError, ConflictError, NotFoundError } from '../../../shared/domain/errors.ts';
+import {
+  BadRequestError,
+  BusinessRuleError,
+  ConflictError,
+  NotFoundError,
+} from '../../../shared/domain/errors.ts';
 
 /** L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé). */
 export class ProfileNotFoundError extends NotFoundError {
@@ -46,5 +51,12 @@ export class CannotModerateSelfError extends BusinessRuleError {
       'cannot_moderate_self',
       'Vous ne pouvez pas appliquer cette action à votre propre compte.',
     );
+  }
+}
+
+/** `PATCH /v1/me/settings` sans aucun paramètre : le contrat en exige au moins un. */
+export class EmptySettingsError extends BadRequestError {
+  constructor() {
+    super('validation_failed', 'Indiquez au moins un paramètre à modifier.');
   }
 }

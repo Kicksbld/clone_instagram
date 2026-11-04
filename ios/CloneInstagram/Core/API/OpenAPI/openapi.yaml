@@ -407,7 +407,7 @@ paths:
       operationId: updateSettings
       tags: [identity]
       summary: Modifier mes paramètres
-      description: Passe mon compte en privé ou en public. Passer en privé conserve mes abonnés ; seuls eux voient ensuite mes contenus (ADR-006). Passer en public accepte toutes les demandes d'abonnement en attente, dans la même transaction (compteurs compris).
+      description: Passe mon compte en privé ou en public, et choisit qui voit mes J'aime et commentaires dans l'onglet Amis des Reels (`friendsTabActivity`, ADR-029) ; seuls les champs présents sont modifiés. Passer en privé conserve mes abonnés ; seuls eux voient ensuite mes contenus (ADR-006). Passer en public accepte toutes les demandes d'abonnement en attente, dans la même transaction (compteurs compris).
       requestBody:
         required: true
         content:
@@ -1428,6 +1428,54 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v1/reels/friends:
+    get:
+      operationId: getFriendsReels
+      tags: [feed]
+      summary: Onglet Amis des Reels
+      description: |
+        Reels créés, aimés ou commentés (commentaire non supprimé) par mes amis, c'est-à-dire mes abonnés mutuels, calculés à la lecture (ADR-029). Un reel n'apparaît qu'une fois, à la date de l'interaction d'ami la plus récente, du plus récent au plus ancien, par pages de 10 ; curseur opaque sur `(date d'activité, id)`.
+        Les J'aime et commentaires d'un ami dont `friendsTabActivity` vaut `nobody` ne comptent pas ; ses reels créés, si. Exclus : mes propres reels et interactions, reels supprimés, reels invisibles pour moi (`canViewContent` de l'auteur), amis et auteurs bloqués dans un sens ou dans l'autre ou non actifs (ADR-006).
+        Chaque élément porte `friendInteractions` (3 au plus) et `friendInteractionCount`.
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page de l'onglet Amis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/reels/{id}/friend-interactions:
+    get:
+      operationId: listReelFriendInteractions
+      tags: [feed]
+      summary: Amis qui ont interagi avec un reel
+      description: |
+        Liste complète de mes amis (abonnés mutuels) qui ont créé, aimé ou commenté ce reel, interaction la plus récente en premier, avec les mêmes règles que `GET /v1/reels/friends` (ADR-029). Reel inexistant, supprimé, photo (`kind` `post`) ou invisible pour moi → `404 post_not_found`, jamais `403` (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      responses:
+        '200':
+          description: Les amis et leur interaction.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FriendInteractionList'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/PostNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/search/users:
     get:
       operationId: searchUsers
@@ -2377,6 +2425,7 @@ components:
           followingCount,
           postCount,
           plan,
+          friendsTabActivity,
           createdAt,
         ]
       properties:
@@ -2416,6 +2465,8 @@ components:
           type: string
           format: date-time
           description: Fin de la période payée de Clone Plus ; absente si le plan est `free`.
+        friendsTabActivity:
+          $ref: '#/components/schemas/FriendsTabActivity'
         createdAt:
           type: string
           format: date-time
@@ -2465,12 +2516,16 @@ components:
           description: Nouvelle photo de profil ; le retrait passe par `DELETE /v1/me/avatar`.
     UpdateSettingsRequest:
       type: object
+      description: Au moins un champ ; un corps vide → `400 validation_failed` (vérifié par l'API).
       additionalProperties: false
-      required: [isPrivate]
+      # Ni `minProperties` (faux positif d'oasdiff : `isPrivate` était obligatoire), ni `anyOf` (type
+      # TypeScript `unknown`), ni `not` (schéma ignoré par swift-openapi-generator).
       properties:
         isPrivate:
           type: boolean
           description: Compte privé (`true`) ou public (`false`).
+        friendsTabActivity:
+          $ref: '#/components/schemas/FriendsTabActivity'
     UsernameAvailability:
       type: object
       required: [username, available, suggestions]
@@ -2832,6 +2887,49 @@ components:
         createdAt:
           type: string
           format: date-time
+        friendInteractions:
+          type: array
+          description: "Onglet Amis des Reels seulement (ADR-029) : jusqu'à 3 amis qui ont interagi avec ce reel, le plus récent en premier ; absent ailleurs."
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/FriendInteraction'
+        friendInteractionCount:
+          type: integer
+          minimum: 1
+          description: "Onglet Amis des Reels seulement : nombre total d'amis qui ont interagi avec ce reel ; absent ailleurs."
+    FriendInteraction:
+      type: object
+      description: Un ami (abonné mutuel) et ce qu'il a fait d'un reel (ADR-029).
+      required: [user, kinds]
+      properties:
+        user:
+          $ref: '#/components/schemas/PostAuthor'
+        kinds:
+          type: array
+          description: Interactions de cet ami, sans doublon.
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FriendInteractionKind'
+        commentText:
+          type: string
+          description: Texte de son commentaire non supprimé le plus récent sur ce reel ; présent seulement si `kinds` contient `commented`.
+    FriendInteractionKind:
+      type: string
+      description: |
+        `created` (l'ami a publié le reel), `liked` (il l'aime), `commented` (il l'a commenté). Liste ouverte : `reposted` arrive en P2 (ADR-028) ; le client ignore une valeur qu'il ne connaît pas (ADR-019).
+      examples: [liked]
+    FriendInteractionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FriendInteraction'
+    FriendsTabActivity:
+      type: string
+      description: "Qui voit mes J'aime et commentaires dans l'onglet Amis des Reels : `mutuals` (mes abonnés mutuels, par défaut) ou `nobody` (personne ; mes reels publiés y restent visibles, ADR-029)."
+      enum: [mutuals, nobody]
     PostPage:
       type: object
       required: [items]

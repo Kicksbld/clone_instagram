@@ -1,4 +1,4 @@
-import type { AccountStatus, Profile } from '../../domain/profile.ts';
+import type { AccountStatus, FriendsTabActivity, Profile } from '../../domain/profile.ts';
 
 export interface NewProfile {
   id: string;
@@ -12,6 +12,7 @@ export interface ProfileChanges {
   fullName?: string;
   bio?: string;
   isPrivate?: boolean;
+  friendsTabActivity?: FriendsTabActivity;
   /** `null` retire la photo ; le média doit avoir été attaché dans la même transaction. */
   avatarMediaId?: string | null;
 }

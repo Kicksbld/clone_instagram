@@ -47,9 +47,46 @@ describe('GET /v1/me', () => {
       followingCount: 0,
       postCount: 0,
       plan: 'free',
+      friendsTabActivity: 'mutuals',
       createdAt: '2026-09-25T12:00:00.000Z',
     });
   });
+});
+
+describe('PATCH /v1/me/settings — activité dans l’onglet Amis (ADR-029)', () => {
+  const patchSettings = (payload: Record<string, unknown>) =>
+    context.app.inject({ method: 'PATCH', url: '/v1/me/settings', headers: auth, payload });
+
+  beforeEach(() => {
+    context.profiles.add({ id: ME, username: 'killian', isPrivate: true });
+  });
+
+  it('friendsTabActivity seul : modifié, isPrivate inchangé, renvoyé par GET /v1/me', async () => {
+    const response = await patchSettings({ friendsTabActivity: 'nobody' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ friendsTabActivity: 'nobody', isPrivate: true });
+    const me = await context.app.inject({ method: 'GET', url: '/v1/me', headers: auth });
+    expect(me.json()).toMatchObject({ friendsTabActivity: 'nobody' });
+  });
+
+  it('isPrivate seul : friendsTabActivity inchangé', async () => {
+    await patchSettings({ friendsTabActivity: 'nobody' });
+
+    const response = await patchSettings({ isPrivate: false });
+
+    expect(response.json()).toMatchObject({ friendsTabActivity: 'nobody', isPrivate: false });
+  });
+
+  it.each([[{}], [{ friendsTabActivity: 'everyone' }], [{ isPrivate: true, extra: 1 }]])(
+    'corps %j → 400 validation_failed',
+    async (payload) => {
+      const response = await patchSettings(payload);
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toMatchObject({ code: 'validation_failed' });
+    },
+  );
 });
 
 describe('DELETE /v1/me', () => {

@@ -70,6 +70,25 @@ final class FakePostService: PostService {
         return try reelsFeedResults.removeFirst().get()
     }
 
+    /// Réponses successives de `listFriendsReels` ; page vide quand la liste est vide.
+    var friendsReelsResults: [Result<PostPage, PostServiceError>] = []
+    private(set) var friendsReelsRequests: [String?] = []
+    /// Réponses successives de `listReelFriendInteractions` ; liste vide quand la liste est vide.
+    var friendInteractionsResults: [Result<[FriendInteraction], PostServiceError>] = []
+    private(set) var friendInteractionsRequests: [String] = []
+
+    func listFriendsReels(cursor: String?) async throws(PostServiceError) -> PostPage {
+        friendsReelsRequests.append(cursor)
+        guard !friendsReelsResults.isEmpty else { return PostPage(items: [], nextCursor: nil) }
+        return try friendsReelsResults.removeFirst().get()
+    }
+
+    func listReelFriendInteractions(reelId: String) async throws(PostServiceError) -> [FriendInteraction] {
+        friendInteractionsRequests.append(reelId)
+        guard !friendInteractionsResults.isEmpty else { return [] }
+        return try friendInteractionsResults.removeFirst().get()
+    }
+
     func listFeed(cursor: String?) async throws(PostServiceError) -> PostPage {
         feedRequests.append(cursor)
         guard !feedResults.isEmpty else { return PostPage(items: [], nextCursor: nil) }

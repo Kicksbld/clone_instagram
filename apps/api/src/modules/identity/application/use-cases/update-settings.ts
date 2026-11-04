@@ -1,13 +1,14 @@
 import type { NotificationDispatcher } from '../../../../shared/application/notification-dispatcher.ts';
 import type { UnitOfWork } from '../../../../shared/application/unit-of-work.ts';
-import { ProfileNotFoundError } from '../../domain/errors.ts';
-import type { Profile } from '../../domain/profile.ts';
+import { EmptySettingsError, ProfileNotFoundError } from '../../domain/errors.ts';
+import type { FriendsTabActivity, Profile } from '../../domain/profile.ts';
 import type { SettingsTransaction } from '../ports/settings-transaction.ts';
 
 /**
- * Passe mon compte en privé ou en public (ADR-006). Passer en privé conserve mes abonnés. Passer en
- * public accepte toutes les demandes d'abonnement en attente dans la même transaction, compteurs et
- * notifications compris (ADR-026) ; les notifications sont diffusées après elle.
+ * Modifie mes paramètres ; seuls les champs présents changent (le contrat en exige au moins un).
+ * Compte privé ou public (ADR-006) : passer en privé conserve mes abonnés ; passer en public accepte
+ * toutes les demandes d'abonnement en attente dans la même transaction, compteurs et notifications
+ * compris (ADR-026), notifications diffusées après elle. Activité dans l'onglet Amis (ADR-029).
  */
 export class UpdateSettings {
   constructor(
@@ -15,12 +16,22 @@ export class UpdateSettings {
     private readonly notifications: NotificationDispatcher,
   ) {}
 
-  async execute(input: { userId: string; isPrivate: boolean }): Promise<Profile> {
+  async execute(input: {
+    userId: string;
+    isPrivate?: boolean;
+    friendsTabActivity?: FriendsTabActivity;
+  }): Promise<Profile> {
+    if (input.isPrivate === undefined && input.friendsTabActivity === undefined) {
+      throw new EmptySettingsError();
+    }
     const { profile, created } = await this.transaction.run(async (scope) => {
       // Profil modifié d'abord : sa ligne reste verrouillée jusqu'à la fin de la transaction.
-      const updated = await scope.profiles.update(input.userId, { isPrivate: input.isPrivate });
+      const updated = await scope.profiles.update(input.userId, {
+        ...(input.isPrivate !== undefined && { isPrivate: input.isPrivate }),
+        ...(input.friendsTabActivity && { friendsTabActivity: input.friendsTabActivity }),
+      });
       if (!updated) throw new ProfileNotFoundError();
-      if (input.isPrivate) return { profile: updated, created: [] };
+      if (input.isPrivate !== false) return { profile: updated, created: [] };
 
       const created = await scope.followRequests.acceptAll(input.userId);
       // Compteur d'abonnés relu après les acceptations.
