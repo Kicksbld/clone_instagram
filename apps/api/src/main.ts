@@ -1,4 +1,6 @@
 import { GetReelsFeed } from './modules/feed/application/use-cases/get-reels-feed.ts';
+import { GetFriendsReels } from './modules/feed/application/use-cases/get-friends-reels.ts';
+import { ListReelFriendInteractions } from './modules/feed/application/use-cases/list-reel-friend-interactions.ts';
 import { DrizzleSharedStoryReader } from './modules/messaging/infrastructure/persistence/drizzle-shared-story-reader.ts';
 import { MessageReferences } from './modules/messaging/application/message-references.ts';
 import { DrizzleSharedPostReader } from './modules/messaging/infrastructure/persistence/drizzle-shared-post-reader.ts';
@@ -382,6 +384,11 @@ const app = buildApp({
     feed: {
       getFeed: new GetFeed(new DrizzleFeedReader(database.db)),
       getReelsFeed: new GetReelsFeed(new DrizzleFeedReader(database.db)),
+      getFriendsReels: new GetFriendsReels(new DrizzleFeedReader(database.db)),
+      listReelFriendInteractions: new ListReelFriendInteractions(
+        new DrizzleFeedReader(database.db),
+        relationships,
+      ),
     },
     stories: {
       listArchivedStories: new ListArchivedStories(storyReader, systemClock),

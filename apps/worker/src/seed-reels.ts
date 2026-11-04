@@ -5,7 +5,15 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { createDatabase, media, posts, postMedia, profiles, STORAGE_BUCKETS } from '@clone/db';
+import {
+  createDatabase,
+  media,
+  posts,
+  postMedia,
+  profiles,
+  STORAGE_BUCKETS,
+  writeFriendsReelsSeed,
+} from '@clone/db';
 import { DEFAULT_JOB_OPTIONS, PROCESS_VIDEO, processVideoJobId } from '@clone/jobs';
 import { Queue, QueueEvents } from 'bullmq';
 import { eq, sql } from 'drizzle-orm';
@@ -107,6 +115,9 @@ try {
     });
     console.info(`db:seed — reel ${index}/3 prêt`);
   }
+  // Onglet Amis des Reels (T33) : J'aime de Léa et commentaires de Hugo, une fois les reels prêts.
+  const engaged = await writeFriendsReelsSeed(database.db);
+  console.info(`db:seed — ${engaged} reels aimés ou commentés par Léa et Hugo`);
 } finally {
   await rm(directory, { recursive: true, force: true });
   await events.close();

@@ -93,6 +93,22 @@ final class FakeIdentityService: IdentityService {
         return .fixture(isPrivate: isPrivate)
     }
 
+    private(set) var friendsTabActivityUpdates: [FriendsTabActivity] = []
+
+    func updateFriendsTabActivity(_ activity: FriendsTabActivity) async throws(IdentityServiceError) -> Profile {
+        friendsTabActivityUpdates.append(activity)
+        if let duringSettingsUpdate {
+            self.duringSettingsUpdate = nil
+            await duringSettingsUpdate()
+        }
+        if let settingsError {
+            throw settingsError
+        }
+        var profile = Profile.fixture()
+        profile.friendsTabActivity = activity
+        return profile
+    }
+
     func fetchUserProfile(username: String) async throws(IdentityServiceError) -> UserProfile {
         fetchedUsernames.append(username)
         guard !userProfileResults.isEmpty else { throw .userNotFound }

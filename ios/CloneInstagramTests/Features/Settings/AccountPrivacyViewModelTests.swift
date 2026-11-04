@@ -54,4 +54,28 @@ struct AccountPrivacyViewModelTests {
 
         #expect(identity.settingsUpdates.isEmpty)
     }
+
+    @Test func `activité dans l’onglet Amis → Personne, enregistrée et profil mis à jour`() async {
+        var updated: Profile?
+        let viewModel = AccountPrivacyViewModel(isPrivate: false, identity: identity) { updated = $0 }
+
+        await viewModel.setFriendsTabActivity(.nobody)
+
+        #expect(identity.friendsTabActivityUpdates == [.nobody])
+        #expect(viewModel.friendsTabActivity == .nobody)
+        #expect(updated?.friendsTabActivity == .nobody)
+    }
+
+    @Test func `activité dans l’onglet Amis : échec → valeur précédente et message`() async {
+        identity.settingsError = .unreachable
+        let viewModel = AccountPrivacyViewModel(isPrivate: false, friendsTabActivity: .nobody, identity: identity)
+        var duringCall: FriendsTabActivity?
+        identity.duringSettingsUpdate = { duringCall = viewModel.friendsTabActivity }
+
+        await viewModel.setFriendsTabActivity(.mutuals)
+
+        #expect(duringCall == .mutuals)
+        #expect(viewModel.friendsTabActivity == .nobody)
+        #expect(viewModel.errorMessage != nil)
+    }
 }

@@ -21,6 +21,14 @@ struct PlanStatus: Equatable {
     static let free = PlanStatus(plan: .free, expiresAt: nil)
 }
 
+/// Qui voit mes J'aime et commentaires dans l'onglet Amis des Reels (ADR-029) ; mes reels publiés y
+/// restent visibles de mes amis dans les deux cas.
+enum FriendsTabActivity: Equatable {
+    /// Mes abonnés mutuels (par défaut).
+    case mutuals
+    case nobody
+}
+
 /// Mon profil, modèle de l'app (distinct du type généré).
 struct Profile: Equatable, Identifiable {
     let id: String
@@ -38,6 +46,8 @@ struct Profile: Equatable, Identifiable {
     var avatar: ImageVariants?
     /// Plan Clone Plus renvoyé par l'API (`GET /v1/me`, `POST /v1/me/subscription/refresh`).
     var planStatus: PlanStatus = .free
+    /// Paramètres > Confidentialité > Activité dans l'onglet Amis.
+    var friendsTabActivity: FriendsTabActivity = .mutuals
 
     var isPlus: Bool {
         planStatus.plan == .plus

@@ -181,7 +181,7 @@ export interface paths {
         head?: never;
         /**
          * Modifier mes paramètres
-         * @description Passe mon compte en privé ou en public. Passer en privé conserve mes abonnés ; seuls eux voient ensuite mes contenus (ADR-006). Passer en public accepte toutes les demandes d'abonnement en attente, dans la même transaction (compteurs compris).
+         * @description Passe mon compte en privé ou en public, et choisit qui voit mes J'aime et commentaires dans l'onglet Amis des Reels (`friendsTabActivity`, ADR-029) ; seuls les champs présents sont modifiés. Passer en privé conserve mes abonnés ; seuls eux voient ensuite mes contenus (ADR-006). Passer en public accepte toutes les demandes d'abonnement en attente, dans la même transaction (compteurs compris).
          */
         patch: operations["updateSettings"];
         trace?: never;
@@ -876,6 +876,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/reels/friends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Onglet Amis des Reels
+         * @description Reels créés, aimés ou commentés (commentaire non supprimé) par mes amis, c'est-à-dire mes abonnés mutuels, calculés à la lecture (ADR-029). Un reel n'apparaît qu'une fois, à la date de l'interaction d'ami la plus récente, du plus récent au plus ancien, par pages de 10 ; curseur opaque sur `(date d'activité, id)`.
+         *     Les J'aime et commentaires d'un ami dont `friendsTabActivity` vaut `nobody` ne comptent pas ; ses reels créés, si. Exclus : mes propres reels et interactions, reels supprimés, reels invisibles pour moi (`canViewContent` de l'auteur), amis et auteurs bloqués dans un sens ou dans l'autre ou non actifs (ADR-006).
+         *     Chaque élément porte `friendInteractions` (3 au plus) et `friendInteractionCount`.
+         */
+        get: operations["getFriendsReels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reels/{id}/friend-interactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Amis qui ont interagi avec un reel
+         * @description Liste complète de mes amis (abonnés mutuels) qui ont créé, aimé ou commenté ce reel, interaction la plus récente en premier, avec les mêmes règles que `GET /v1/reels/friends` (ADR-029). Reel inexistant, supprimé, photo (`kind` `post`) ou invisible pour moi → `404 post_not_found`, jamais `403` (ADR-006).
+         */
+        get: operations["listReelFriendInteractions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/search/users": {
         parameters: {
             query?: never;
@@ -1479,6 +1521,7 @@ export interface components {
              * @description Fin de la période payée de Clone Plus ; absente si le plan est `free`.
              */
             plusExpiresAt?: string;
+            friendsTabActivity: components["schemas"]["FriendsTabActivity"];
             /** Format: date-time */
             createdAt: string;
         };
@@ -1516,9 +1559,11 @@ export interface components {
              */
             avatarMediaId?: string;
         };
+        /** @description Au moins un champ ; un corps vide → `400 validation_failed` (vérifié par l'API). */
         UpdateSettingsRequest: {
             /** @description Compte privé (`true`) ou public (`false`). */
-            isPrivate: boolean;
+            isPrivate?: boolean;
+            friendsTabActivity?: components["schemas"]["FriendsTabActivity"];
         };
         UsernameAvailability: {
             username: components["schemas"]["Username"];
@@ -1714,7 +1759,32 @@ export interface components {
             commentCount: number;
             /** Format: date-time */
             createdAt: string;
+            /** @description Onglet Amis des Reels seulement (ADR-029) : jusqu'à 3 amis qui ont interagi avec ce reel, le plus récent en premier ; absent ailleurs. */
+            friendInteractions?: components["schemas"]["FriendInteraction"][];
+            /** @description Onglet Amis des Reels seulement : nombre total d'amis qui ont interagi avec ce reel ; absent ailleurs. */
+            friendInteractionCount?: number;
         };
+        /** @description Un ami (abonné mutuel) et ce qu'il a fait d'un reel (ADR-029). */
+        FriendInteraction: {
+            user: components["schemas"]["PostAuthor"];
+            /** @description Interactions de cet ami, sans doublon. */
+            kinds: components["schemas"]["FriendInteractionKind"][];
+            /** @description Texte de son commentaire non supprimé le plus récent sur ce reel ; présent seulement si `kinds` contient `commented`. */
+            commentText?: string;
+        };
+        /**
+         * @description `created` (l'ami a publié le reel), `liked` (il l'aime), `commented` (il l'a commenté). Liste ouverte : `reposted` arrive en P2 (ADR-028) ; le client ignore une valeur qu'il ne connaît pas (ADR-019).
+         * @example liked
+         */
+        FriendInteractionKind: string;
+        FriendInteractionList: {
+            items: components["schemas"]["FriendInteraction"][];
+        };
+        /**
+         * @description Qui voit mes J'aime et commentaires dans l'onglet Amis des Reels : `mutuals` (mes abonnés mutuels, par défaut) ou `nobody` (personne ; mes reels publiés y restent visibles, ADR-029).
+         * @enum {string}
+         */
+        FriendsTabActivity: "mutuals" | "nobody";
         PostPage: {
             items: components["schemas"]["Post"][];
             /** @description Curseur de la page suivante ; absent sur la dernière page. */
@@ -3812,6 +3882,58 @@ export interface operations {
             };
             400: components["responses"]["InvalidInput"];
             401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getFriendsReels: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page de l'onglet Amis. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listReelFriendInteractions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Les amis et leur interaction. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FriendInteractionList"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["PostNotFound"];
             500: components["responses"]["InternalError"];
         };
     };

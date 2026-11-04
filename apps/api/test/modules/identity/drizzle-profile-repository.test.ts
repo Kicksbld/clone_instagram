@@ -44,6 +44,7 @@ describe('DrizzleProfileRepository', () => {
       followerCount: 0,
       followingCount: 0,
       postCount: 0,
+      friendsTabActivity: 'mutuals',
     });
     expect(profile.createdAt).toBeInstanceOf(Date);
     await expect(repository.findById(input.id)).resolves.toEqual(profile);
@@ -157,6 +158,21 @@ describe('DrizzleProfileRepository', () => {
     const input = newProfile();
     await repository.create(input);
     await expect(repository.update(input.id, { bio: 'a'.repeat(151) })).rejects.toThrow();
+  });
+  it('friendsTabActivity modifié et relu ; valeur hors CHECK refusée par la base', async () => {
+    const input = newProfile();
+    await repository.create(input);
+
+    await expect(
+      repository.update(input.id, { friendsTabActivity: 'nobody' }),
+    ).resolves.toMatchObject({
+      friendsTabActivity: 'nobody',
+    });
+    await expect(
+      database.db.execute(
+        sql`UPDATE profiles SET friends_tab_activity = 'everyone' WHERE id = ${input.id}`,
+      ),
+    ).rejects.toThrow();
   });
 });
 

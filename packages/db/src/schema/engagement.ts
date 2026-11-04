@@ -30,7 +30,11 @@ export const postLikes = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   },
   // Un like par utilisateur et par post ; sert aussi à savoir si l'appelant aime un post.
-  (table) => [primaryKey({ name: 'post_likes_pkey', columns: [table.userId, table.postId] })],
+  (table) => [
+    primaryKey({ name: 'post_likes_pkey', columns: [table.userId, table.postId] }),
+    // J'aime d'un compte, du plus récent au plus ancien : onglet Amis des Reels (ADR-029).
+    index('post_likes_user_created_idx').on(table.userId, table.createdAt.desc()),
+  ],
 ).enableRLS(); // RLS sans policy : refus total hors de l'API (ADR-004).
 
 export type PostLikeRow = typeof postLikes.$inferSelect;
@@ -69,6 +73,8 @@ export const comments = pgTable(
     index('comments_parent_created_idx')
       .on(table.parentId, table.createdAt.desc(), table.id.desc())
       .where(sql`${table.parentId} IS NOT NULL AND ${table.deletedAt} IS NULL`),
+    // Commentaires d'un compte, du plus récent au plus ancien : onglet Amis des Reels (ADR-029).
+    index('comments_author_created_idx').on(table.authorId, table.createdAt.desc()),
     check('comments_body_length', sql`char_length(${table.body}) BETWEEN 1 AND 2200`),
     check('comments_counts_positive', sql`${table.likeCount} >= 0 AND ${table.replyCount} >= 0`),
   ],

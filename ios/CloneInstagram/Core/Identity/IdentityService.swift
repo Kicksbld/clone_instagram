@@ -44,6 +44,8 @@ protocol IdentityService: Sendable {
     func removeAvatar() async throws(IdentityServiceError) -> Profile
     /// Compte privé ou public (`PATCH /v1/me/settings`).
     func updateSettings(isPrivate: Bool) async throws(IdentityServiceError) -> Profile
+    /// Activité dans l'onglet Amis des Reels (`PATCH /v1/me/settings`, ADR-029).
+    func updateFriendsTabActivity(_ activity: FriendsTabActivity) async throws(IdentityServiceError) -> Profile
     /// Profil d'un autre utilisateur (`GET /v1/users/{username}`).
     func fetchUserProfile(username: String) async throws(IdentityServiceError) -> UserProfile
     /// Supprime mon compte (`DELETE /v1/me`) ; données et fichiers sont purgés ensuite par l'API.
@@ -141,7 +143,16 @@ struct APIIdentityService: IdentityService {
     }
 
     func updateSettings(isPrivate: Bool) async throws(IdentityServiceError) -> Profile {
-        let body = Components.Schemas.UpdateSettingsRequest(isPrivate: isPrivate)
+        try await updateSettings(Components.Schemas.UpdateSettingsRequest(isPrivate: isPrivate))
+    }
+
+    func updateFriendsTabActivity(_ activity: FriendsTabActivity) async throws(IdentityServiceError) -> Profile {
+        try await updateSettings(Components.Schemas.UpdateSettingsRequest(
+            friendsTabActivity: activity == .nobody ? .nobody : .mutuals
+        ))
+    }
+
+    private func updateSettings(_ body: Components.Schemas.UpdateSettingsRequest) async throws(IdentityServiceError) -> Profile {
         let output = try await call { try await client.updateSettings(body: .json(body)) }
         switch output {
         case let .ok(response):
@@ -255,7 +266,8 @@ private extension Profile {
             followingCount: dto.followingCount,
             postCount: dto.postCount,
             avatar: dto.avatar.flatMap(ImageVariants.init),
-            planStatus: PlanStatus(plan: Plan(dto.plan), expiresAt: dto.plusExpiresAt)
+            planStatus: PlanStatus(plan: Plan(dto.plan), expiresAt: dto.plusExpiresAt),
+            friendsTabActivity: dto.friendsTabActivity == .nobody ? .nobody : .mutuals
         )
     }
 }

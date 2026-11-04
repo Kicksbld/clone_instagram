@@ -10,6 +10,8 @@ import type { InMemoryPosts } from './in-memory-posts.ts';
  * (posts non supprimés, like unique par utilisateur et par post), sur les posts en mémoire.
  */
 export class InMemoryLikes implements LikeablePostReader, LikeRepository {
+  private lastLikeAt = 0;
+
   constructor(private readonly posts: InMemoryPosts) {}
 
   async findById(id: string): Promise<LikeablePost | null> {
@@ -23,7 +25,10 @@ export class InMemoryLikes implements LikeablePostReader, LikeRepository {
   add(userId: string, postId: string): Promise<boolean> {
     const key = `${userId}:${postId}`;
     if (this.posts.likes.has(key)) return Promise.resolve(false);
-    this.posts.likes.add(key);
+    // Dates strictement croissantes : l'ordre des J'aime est celui des appels.
+    const at = new Date(Math.max(Date.now(), this.lastLikeAt + 1));
+    this.lastLikeAt = at.getTime();
+    this.posts.likes.set(key, at);
     return Promise.resolve(true);
   }
 

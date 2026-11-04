@@ -47,6 +47,10 @@ protocol PostService: Sendable {
     func listFeed(cursor: String?) async throws(PostServiceError) -> PostPage
     /// `GET /v1/reels/feed` : reels visibles des autres comptes, pages de 10.
     func listReelsFeed(cursor: String?) async throws(PostServiceError) -> PostPage
+    /// `GET /v1/reels/friends` : onglet Amis, reels avec leurs aperçus d'amis, pages de 10 (ADR-029).
+    func listFriendsReels(cursor: String?) async throws(PostServiceError) -> PostPage
+    /// `GET /v1/reels/{id}/friend-interactions` : tous les amis qui ont interagi avec ce reel.
+    func listReelFriendInteractions(reelId: String) async throws(PostServiceError) -> [FriendInteraction]
     /// `DELETE /v1/posts/{id}` : un de mes posts ; déjà supprimé ou d'un autre → `postNotFound`.
     func deletePost(id: String) async throws(PostServiceError)
 }
@@ -182,6 +186,41 @@ struct APIPostService: PostService {
         }
     }
 
+    func listFriendsReels(cursor: String?) async throws(PostServiceError) -> PostPage {
+        let output = try await call { try await client.getFriendsReels(query: .init(cursor: cursor)) }
+        switch output {
+        case let .ok(response):
+            let page = try Self.unwrap { try response.body.json }
+            return try PostPage(items: page.items.map(Post.init), nextCursor: page.nextCursor)
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
+    func listReelFriendInteractions(reelId: String) async throws(PostServiceError) -> [FriendInteraction] {
+        let output = try await call { try await client.listReelFriendInteractions(path: .init(id: reelId)) }
+        switch output {
+        case let .ok(response):
+            return try Self.unwrap { try response.body.json }.items.map(FriendInteraction.init)
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .notFound(response):
+            throw Self.error(404) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
     func deletePost(id: String) async throws(PostServiceError) {
         let output = try await call { try await client.deletePost(path: .init(id: id)) }
         switch output {
@@ -294,7 +333,24 @@ private extension Post {
             likeCount: dto.likeCount,
             isLiked: dto.viewerHasLiked,
             commentCount: dto.commentCount,
-            createdAt: dto.createdAt
+            createdAt: dto.createdAt,
+            friendInteractions: dto.friendInteractions?.map(FriendInteraction.init) ?? [],
+            friendInteractionCount: dto.friendInteractionCount ?? 0
+        )
+    }
+}
+
+private extension FriendInteraction {
+    init(_ dto: Components.Schemas.FriendInteraction) {
+        self.init(
+            user: PostAuthor(
+                id: dto.user.id,
+                username: dto.user.username,
+                avatar: dto.user.avatar.flatMap(ImageVariants.init)
+            ),
+            // Liste ouverte (ADR-019) : une valeur inconnue (ex. `reposted` en P2) est ignorée.
+            kinds: dto.kinds.compactMap(FriendInteractionKind.init(rawValue:)),
+            commentText: dto.commentText
         )
     }
 }
@@ -305,6 +361,14 @@ extension PostService {
     }
 
     func listReels(of _: String, cursor _: String?) async throws(PostServiceError) -> PostPage {
+        throw .unreachable
+    }
+
+    func listFriendsReels(cursor _: String?) async throws(PostServiceError) -> PostPage {
+        throw .unreachable
+    }
+
+    func listReelFriendInteractions(reelId _: String) async throws(PostServiceError) -> [FriendInteraction] {
         throw .unreachable
     }
 }

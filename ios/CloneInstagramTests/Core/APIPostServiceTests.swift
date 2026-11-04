@@ -32,6 +32,36 @@ struct APIPostServiceTests {
         #expect(page.nextCursor == "next")
     }
 
+    @Test func `onglet Amis : aperçus et nombre d’amis convertis, type inconnu ignoré`() async throws {
+        let friends = #","friendInteractions":[{"user":{"id":"0199a1b2-5eed-7000-8000-000000000002","username":"lea"},"#
+            + #""kinds":["liked","commented","reposted"],"commentText":"Top"}],"friendInteractionCount":3}"#
+        let item = String(Self.postJSON.dropLast()) + friends
+        let service = try makeService(json("{\"items\":[\(item)],\"nextCursor\":\"next\"}"))
+
+        let page = try await service.listFriendsReels(cursor: nil)
+
+        #expect(page.nextCursor == "next")
+        #expect(page.items.first?.friendInteractionCount == 3)
+        let lea = FriendInteraction(
+            user: PostAuthor(id: "0199a1b2-5eed-7000-8000-000000000002", username: "lea", avatar: nil),
+            kinds: [.liked, .commented],
+            commentText: "Top"
+        )
+        #expect(page.items.first?.friendInteractions == [lea])
+    }
+
+    @Test func `amis d’un reel : liste convertie ; reel invisible → postNotFound`() async throws {
+        let list = try makeService(json(
+            #"{"items":[{"user":{"id":"0199a1b2-5eed-7000-8000-000000000002","username":"lea"},"kinds":["created"]}]}"#
+        ))
+        #expect(try await list.listReelFriendInteractions(reelId: "reel").map(\.kinds) == [[.created]])
+
+        let missing = try makeService(problem(404, "post_not_found"))
+        await #expect(throws: PostServiceError.postNotFound) {
+            try await missing.listReelFriendInteractions(reelId: "reel")
+        }
+    }
+
     @Test func `fil Reels refuse un curseur invalide`() async throws {
         let service = try makeService(problem(400, "invalid_cursor"))
         await #expect(throws: PostServiceError.invalidCursor) {

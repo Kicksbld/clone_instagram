@@ -16,6 +16,10 @@ struct Post: Equatable, Identifiable {
     /// Commentaires, réponses comprises ; modifiable après un commentaire publié ou supprimé.
     var commentCount = 0
     let createdAt: Date
+    /// Onglet Amis des Reels (ADR-029) : jusqu'à 3 amis qui ont interagi, le plus récent d'abord.
+    var friendInteractions: [FriendInteraction] = []
+    /// Onglet Amis des Reels : nombre total d'amis qui ont interagi ; 0 ailleurs.
+    var friendInteractionCount = 0
 
     /// Première image : vignette de la grille.
     var cover: PostMediaItem? {
@@ -27,6 +31,24 @@ struct PostAuthor: Equatable {
     let id: String
     let username: String
     let avatar: ImageVariants?
+}
+
+/// Ce qu'un ami (abonné mutuel) a fait d'un reel (ADR-029).
+enum FriendInteractionKind: String, Equatable {
+    case created
+    case liked
+    case commented
+}
+
+/// Un ami et ses interactions avec un reel ; `commentText` : son dernier commentaire.
+struct FriendInteraction: Equatable, Identifiable {
+    let user: PostAuthor
+    let kinds: [FriendInteractionKind]
+    let commentText: String?
+
+    var id: String {
+        user.id
+    }
 }
 
 /// Une image d'un post ; `width` / `height` (pixels) donnent son ratio d'affichage.

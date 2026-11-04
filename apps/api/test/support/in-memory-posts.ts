@@ -21,8 +21,8 @@ export class InMemoryPosts implements PostRepository, PostReader {
     string,
     NewPost & { deletedAt: Date | null; likeCount: number; commentCount?: number }
   >();
-  /** Likes (`post_likes`), clé `userId:postId` ; écrits par `InMemoryLikes`. */
-  readonly likes = new Set<string>();
+  /** Likes (`post_likes`), clé `userId:postId` → date du J'aime ; écrits par `InMemoryLikes`. */
+  readonly likes = new Map<string, Date>();
 
   constructor(
     private readonly profiles: InMemoryProfileRepository,

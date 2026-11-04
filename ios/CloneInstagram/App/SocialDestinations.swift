@@ -14,15 +14,7 @@ struct SocialDestinations: ViewModifier {
                 OpenConversationView(route: route, store: dependencies.messaging, viewerId: viewerId)
             }
             .navigationDestination(for: ProfileRoute.self) { route in
-                UserProfileView(
-                    viewModel: UserProfileViewModel(
-                        username: route.username,
-                        viewerId: viewerId,
-                        identity: dependencies.identity,
-                        follows: dependencies.follows
-                    ),
-                    posts: dependencies.posts
-                )
+                dependencies.userProfile(route, viewerId: viewerId)
             }
             .navigationDestination(for: PostRoute.self) { route in
                 PostDetailView(
@@ -53,6 +45,21 @@ struct SocialDestinations: ViewModifier {
             viewerId: viewerId,
             social: dependencies.social,
             follows: dependencies.follows
+        )
+    }
+}
+
+extension AppDependencies {
+    /// Profil d'un autre compte : destination des onglets et de la feuille des amis d'un reel (ADR-029).
+    func userProfile(_ route: ProfileRoute, viewerId: String) -> some View {
+        UserProfileView(
+            viewModel: UserProfileViewModel(
+                username: route.username,
+                viewerId: viewerId,
+                identity: identity,
+                follows: follows
+            ),
+            posts: posts
         )
     }
 }

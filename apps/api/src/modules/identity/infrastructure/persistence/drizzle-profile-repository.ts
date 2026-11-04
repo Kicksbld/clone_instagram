@@ -33,6 +33,7 @@ export function toProfile(row: ProfileRow, avatarVariants: MediaVariantPaths | n
     followingCount: row.followingCount,
     postCount: row.postCount,
     avatar: toAvatar(row.avatarMediaId, avatarVariants),
+    friendsTabActivity: row.friendsTabActivity,
     createdAt: row.createdAt,
   };
 }

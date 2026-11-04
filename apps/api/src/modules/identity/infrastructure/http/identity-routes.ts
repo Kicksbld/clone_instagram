@@ -99,7 +99,10 @@ export function registerIdentityRoutes(
     async (request): Promise<Me> => {
       const profile = await useCases.updateSettings.execute({
         userId: authenticatedUserId(request),
-        isPrivate: request.body.isPrivate,
+        ...(request.body.isPrivate !== undefined && { isPrivate: request.body.isPrivate }),
+        ...(request.body.friendsTabActivity && {
+          friendsTabActivity: request.body.friendsTabActivity,
+        }),
       });
       return toMe(profile);
     },

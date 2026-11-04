@@ -140,6 +140,7 @@ struct RootView: View {
                             icons: AppIconViewModel(service: dependencies.appIcons),
                             privacy: AccountPrivacyViewModel(
                                 isPrivate: profile.isPrivate,
+                                friendsTabActivity: profile.friendsTabActivity,
                                 identity: dependencies.identity,
                                 onUpdated: viewModel.updateProfile
                             ),
@@ -198,7 +199,8 @@ struct RootView: View {
                         commentCounts: dependencies.commentCounts
                     ),
                     revision: dependencies.blocks.revision,
-                    isActive: isActive && commentsRoute == nil && sharePostRoute == nil
+                    isActive: isActive && commentsRoute == nil && sharePostRoute == nil,
+                    profileDestination: { AnyView(dependencies.userProfile($0, viewerId: profile.id)) }
                 )
                 .environment(\.openComments, openComments)
             } messages: {

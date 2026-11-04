@@ -60,6 +60,15 @@ export interface PlannedStory {
   expiresAt: Date;
 }
 
+/** Commentaire d'exemple (T33) : identifiant fixe, idempotent. */
+export interface PlannedComment {
+  id: string;
+  postId: string;
+  authorId: string;
+  body: string;
+  createdAt: Date;
+}
+
 export interface SeedPlan {
   profiles: PlannedProfile[];
   /** `[abonné, suivi]` */
@@ -71,6 +80,9 @@ export interface SeedPlan {
   stories: PlannedStory[];
   /** `[propriétaire, ami proche]` */
   closeFriends: [string, string][];
+  /** J'aime d'abonnés de l'auteur (T33 : volume de l'onglet Amis pour `EXPLAIN ANALYZE`). */
+  likes: { userId: string; postId: string; createdAt: Date }[];
+  comments: PlannedComment[];
 }
 
 // UUID v7 fixes (préfixe des profils de T4) : le quatrième groupe distingue profils, posts et médias.
@@ -80,6 +92,7 @@ export const seedProfileId = (n: number) => seedUuid('8000', n);
 const seedPostId = (n: number) => seedUuid('9000', n);
 const seedMediaId = (n: number) => seedUuid('a000', n);
 const seedStoryId = (n: number) => seedUuid('b000', n);
+const seedCommentId = (n: number) => seedUuid('c000', n);
 const HOUR_MS = 60 * 60 * 1000;
 
 const FIRST_NAMES = [
@@ -319,15 +332,66 @@ export function planSeed(now: Date): SeedPlan {
     return id;
   });
 
+  const { likes, comments } = planEngagement(now, posts, [...follows.values()]);
+
   return {
     profiles,
     follows: [...follows.values()],
+    likes,
+    comments,
     blocks: SEED_BLOCKS.map(([blocker, blocked]) => [fixedId(blocker), fixedId(blocked)]),
     media,
     posts,
     stories,
     closeFriends,
   };
+}
+
+/** Commentaires d'exemple, aussi utilisés sur les reels existants (T33). */
+export const SEED_COMMENT_BODIES = [
+  'Trop beau 😍',
+  'Incroyable !',
+  'J’adore 🔥',
+  'On y va quand ?',
+  'Magnifique',
+  'Haha 😂',
+] as const;
+
+/**
+ * J'aime et commentaires (T33) : chaque post est aimé par 0 à 8 abonnés de son auteur, un sur
+ * quatre reçoit 1 ou 2 commentaires, entre la publication et la date du seed.
+ */
+function planEngagement(
+  now: Date,
+  posts: readonly PlannedPost[],
+  follows: readonly [string, string][],
+): Pick<SeedPlan, 'likes' | 'comments'> {
+  const random = new Random(20261104);
+  const followersOf = new Map<string, string[]>();
+  for (const [follower, followee] of follows) {
+    followersOf.set(followee, [...(followersOf.get(followee) ?? []), follower]);
+  }
+  const likes: SeedPlan['likes'] = [];
+  const comments: PlannedComment[] = [];
+  const after = (start: Date) =>
+    new Date(Math.round(start.getTime() + random.next() * (now.getTime() - start.getTime())));
+  for (const post of posts) {
+    const followers = followersOf.get(post.authorId) ?? [];
+    for (const userId of random.sample(followers, Math.min(followers.length, random.int(0, 8)))) {
+      likes.push({ userId, postId: post.id, createdAt: after(post.createdAt) });
+    }
+    if (followers.length === 0 || !random.chance(0.25)) continue;
+    for (let count = random.int(1, 2); count > 0; count--) {
+      comments.push({
+        id: seedCommentId(comments.length + 1),
+        postId: post.id,
+        authorId: random.pick(followers),
+        body: random.pick(SEED_COMMENT_BODIES),
+        createdAt: after(post.createdAt),
+      });
+    }
+  }
+  return { likes, comments };
 }
 
 /**
@@ -408,6 +472,9 @@ export function planViewerRelations(
       [viewerId, fixedId('ines')],
       [fixedId('hugo'), viewerId],
       [fixedId('nathan'), viewerId],
+      // Léa et Hugo : abonnés mutuels, donc amis de l'onglet Amis des Reels (T33).
+      [fixedId('lea'), viewerId],
+      [viewerId, fixedId('hugo')],
       ...random.sample(generatedIds, 30).map((id): [string, string] => [viewerId, id]),
       ...random.sample(generatedIds, 20).map((id): [string, string] => [id, viewerId]),
     ],

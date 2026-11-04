@@ -102,7 +102,37 @@ describe('planViewerRelations', () => {
       [SEED_PROFILES.emma.id, viewer],
       [viewer, SEED_PROFILES.tom.id],
     ]);
-    expect(relations.follows.filter(([follower]) => follower === viewer)).toHaveLength(33);
+    expect(relations.follows.filter(([follower]) => follower === viewer)).toHaveLength(34);
     expect(relations.closeFriends).toEqual([[SEED_PROFILES.lea.id, viewer]]);
+  });
+});
+
+describe('planSeed — J’aime et commentaires (T33)', () => {
+  const followsSet = new Set(plan.follows.map(([a, b]) => `${a}>${b}`));
+  const authorOf = new Map(plan.posts.map((post) => [post.id, post]));
+
+  it('par des abonnés de l’auteur, sans doublon, entre la publication et le seed', () => {
+    expect(plan.likes.length).toBeGreaterThan(500);
+    expect(plan.comments.length).toBeGreaterThan(50);
+    const keys = plan.likes.map((like) => `${like.userId}>${like.postId}`);
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const row of [
+      ...plan.likes,
+      ...plan.comments.map((c) => ({ ...c, userId: c.authorId })),
+    ]) {
+      const post = authorOf.get(row.postId);
+      expect(followsSet.has(`${row.userId}>${post?.authorId}`)).toBe(true);
+      expect(row.createdAt.getTime()).toBeGreaterThanOrEqual(post?.createdAt.getTime() ?? 0);
+      expect(row.createdAt.getTime()).toBeLessThanOrEqual(NOW.getTime());
+    }
+  });
+
+  it('compte de démo : Léa et Hugo sont des abonnés mutuels', () => {
+    const viewer = '0199a1b2-0000-7000-8000-00000000abcd';
+    const keys = new Set(planViewerRelations(viewer).follows.map(([a, b]) => `${a}>${b}`));
+    for (const key of ['lea', 'hugo'] as const) {
+      const id = SEED_PROFILES[key].id;
+      expect(keys.has(`${viewer}>${id}`) && keys.has(`${id}>${viewer}`)).toBe(true);
+    }
   });
 });
