@@ -1,5 +1,5 @@
 import { blocks, follows, posts, profiles, type Executor } from '@clone/db';
-import { and, sql } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 
 import type { Page } from '../../../../shared/domain/pagination.ts';
 import type { Post } from '../../../posts/domain/post.ts';
@@ -13,6 +13,27 @@ import type { FeedQuery, FeedReader } from '../../application/ports/feed-reader.
 /** Requête du feed d'ADR-007 en Drizzle, validée par `EXPLAIN ANALYZE` sur les données du seed. */
 export class DrizzleFeedReader implements FeedReader {
   constructor(private readonly db: Executor) {}
+
+  async listReelsFeed({ viewerId, after, limit }: FeedQuery): Promise<Page<Post>> {
+    // Traduction SQL de canViewContent (ADR-006), sans les propres reels du lecteur.
+    const rows = await selectPosts(
+      this.db,
+      viewerId,
+      and(
+        eq(posts.kind, 'reel'),
+        ne(posts.authorId, viewerId),
+        eq(profiles.status, 'active'),
+        sql`NOT EXISTS (SELECT 1 FROM ${blocks} AS b
+        WHERE (b.blocker_id = ${viewerId} AND b.blocked_id = ${posts.authorId})
+           OR (b.blocker_id = ${posts.authorId} AND b.blocked_id = ${viewerId}))`,
+        sql`(${profiles.isPrivate} = false OR EXISTS (SELECT 1 FROM ${follows} AS f
+        WHERE f.follower_id = ${viewerId} AND f.followee_id = ${posts.authorId}))`,
+        postsBefore(after),
+      ),
+      limit + 1,
+    );
+    return pageOf(rows, limit);
+  }
 
   async listFeed({ viewerId, after, limit }: FeedQuery): Promise<Page<Post>> {
     // Une ligne de plus pour savoir s'il existe une page suivante.

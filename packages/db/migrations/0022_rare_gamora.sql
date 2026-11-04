@@ -1,0 +1,1 @@
+CREATE INDEX "posts_kind_created_idx" ON "posts" USING btree ("kind","created_at" DESC NULLS LAST,"id" DESC NULLS LAST) WHERE "posts"."deleted_at" IS NULL;

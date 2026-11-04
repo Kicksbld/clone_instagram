@@ -17601,6 +17601,394 @@
         }
       }
     },
+    "/v1/reels/feed": {
+      "get": {
+        "operationId": "getReelsFeed",
+        "tags": [
+          "feed"
+        ],
+        "summary": "Fil de reels",
+        "description": "Reels non supprimés et visibles des comptes publics et suivis (privés compris), mes propres reels exclus, du plus récent au plus ancien, par pages de 10. Comptes bloqués dans les deux sens et non actifs exclus (ADR-006, ADR-029).\n",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Valeur de `nextCursor` de la page précédente ; opaque.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Une page du feed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "maxItems": 12,
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "kind",
+                          "caption",
+                          "author",
+                          "media",
+                          "likeCount",
+                          "viewerHasLiked",
+                          "commentCount",
+                          "createdAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "description": "Post photo ou reel vidéo.",
+                            "enum": [
+                              "post",
+                              "reel"
+                            ]
+                          },
+                          "caption": {
+                            "type": "string",
+                            "description": "Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.",
+                            "maxLength": 2200
+                          },
+                          "author": {
+                            "type": "object",
+                            "description": "Auteur d'un post.",
+                            "required": [
+                              "id",
+                              "username"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "username": {
+                                "type": "string",
+                                "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                "minLength": 1,
+                                "maxLength": 30,
+                                "pattern": "^[a-z0-9._]{1,30}$",
+                                "examples": [
+                                  "killian.b"
+                                ]
+                              },
+                              "avatar": {
+                                "description": "Photo de profil ; absente si aucune photo.",
+                                "type": "object",
+                                "required": [
+                                  "thumb",
+                                  "medium",
+                                  "large"
+                                ],
+                                "properties": {
+                                  "thumb": {
+                                    "type": "string",
+                                    "format": "uri",
+                                    "description": "150 px de large."
+                                  },
+                                  "medium": {
+                                    "type": "string",
+                                    "format": "uri",
+                                    "description": "640 px de large."
+                                  },
+                                  "large": {
+                                    "type": "string",
+                                    "format": "uri",
+                                    "description": "1080 px de large."
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "media": {
+                            "type": "array",
+                            "description": "Médias dans l'ordre d'affichage.",
+                            "minItems": 1,
+                            "maxItems": 10,
+                            "items": {
+                              "type": "object",
+                              "description": "Un média de post ; `width` et `height` (en pixels) donnent son ratio d'affichage.",
+                              "required": [
+                                "variants",
+                                "width",
+                                "height"
+                              ],
+                              "properties": {
+                                "variants": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                                      "required": [
+                                        "thumb",
+                                        "medium",
+                                        "large"
+                                      ],
+                                      "properties": {
+                                        "thumb": {
+                                          "type": "string",
+                                          "format": "uri",
+                                          "description": "150 px de large."
+                                        },
+                                        "medium": {
+                                          "type": "string",
+                                          "format": "uri",
+                                          "description": "640 px de large."
+                                        },
+                                        "large": {
+                                          "type": "string",
+                                          "format": "uri",
+                                          "description": "1080 px de large."
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "type": "object",
+                                      "description": "URL publiques de la playlist HLS maître et de la miniature WebP.",
+                                      "required": [
+                                        "hls",
+                                        "thumbnail"
+                                      ],
+                                      "properties": {
+                                        "hls": {
+                                          "type": "string",
+                                          "format": "uri"
+                                        },
+                                        "thumbnail": {
+                                          "type": "string",
+                                          "format": "uri"
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                "width": {
+                                  "type": "integer",
+                                  "minimum": 1
+                                },
+                                "height": {
+                                  "type": "integer",
+                                  "minimum": 1
+                                },
+                                "durationMs": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "description": "Durée du reel en millisecondes ; absente pour une image."
+                                }
+                              }
+                            }
+                          },
+                          "likeCount": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "viewerHasLiked": {
+                            "type": "boolean",
+                            "description": "L'appelant aime ce post."
+                          },
+                          "commentCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Nombre de commentaires non supprimés, réponses comprises."
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Curseur de la page suivante ; absent sur la dernière page."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`) ou curseur invalide (`invalid_cursor`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/search/users": {
       "get": {
         "operationId": "searchUsers",

@@ -7,10 +7,12 @@ import { routeSchemaFor } from '../../../../shared/infrastructure/http/contract-
 import { parseCursor } from '../../../../shared/infrastructure/http/cursor.ts';
 import type { PublicMediaUrls } from '../../../../shared/infrastructure/http/public-media-urls.ts';
 import { toPostResponse } from '../../../posts/infrastructure/http/post-response.ts';
+import type { GetReelsFeed } from '../../application/use-cases/get-reels-feed.ts';
 import type { GetFeed } from '../../application/use-cases/get-feed.ts';
 
 export interface FeedUseCases {
   getFeed: GetFeed;
+  getReelsFeed: GetReelsFeed;
 }
 
 /** Routes du module `feed` : authentifiées par le scope `/v1` (voir `app.ts`). */
@@ -24,6 +26,20 @@ export function registerFeedRoutes(
     { schema: routeSchemaFor('getFeed') },
     async (request): Promise<components['schemas']['PostPage']> => {
       const page = await useCases.getFeed.execute({
+        viewerId: authenticatedUserId(request),
+        after: parseCursor(request.query.cursor),
+      });
+      return {
+        items: page.items.map((post) => toPostResponse(post, urls)),
+        ...(page.next && { nextCursor: encodeCursor(page.next) }),
+      };
+    },
+  );
+  app.get<{ Querystring: { cursor?: string } }>(
+    '/v1/reels/feed',
+    { schema: routeSchemaFor('getReelsFeed') },
+    async (request): Promise<components['schemas']['PostPage']> => {
+      const page = await useCases.getReelsFeed.execute({
         viewerId: authenticatedUserId(request),
         after: parseCursor(request.query.cursor),
       });

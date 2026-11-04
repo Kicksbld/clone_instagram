@@ -14,4 +14,6 @@ export interface FeedQuery {
  */
 export interface FeedReader {
   listFeed(query: FeedQuery): Promise<Page<Post>>;
+  /** Reels visibles des autres comptes publics ou suivis, chronologiques (ADR-029). */
+  listReelsFeed(query: FeedQuery): Promise<Page<Post>>;
 }

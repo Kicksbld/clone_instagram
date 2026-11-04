@@ -190,6 +190,17 @@ struct RootView: View {
                         service: dependencies.activity, social: dependencies.social, badge: dependencies.activityBadge
                     )
                 )
+            } reels: { isActive in
+                ReelsView(
+                    viewModel: ReelsViewModel(
+                        posts: dependencies.posts,
+                        likes: dependencies.likes,
+                        commentCounts: dependencies.commentCounts
+                    ),
+                    revision: dependencies.blocks.revision,
+                    isActive: isActive && commentsRoute == nil && sharePostRoute == nil
+                )
+                .environment(\.openComments, openComments)
             } messages: {
                 MessagesView(
                     viewModel: MessagesViewModel(store: dependencies.messaging, social: dependencies.social, viewerId: profile.id),

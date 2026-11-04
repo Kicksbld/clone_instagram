@@ -5,7 +5,7 @@ import SwiftUI
 /// importe pas une autre. `feed` et `profileTab` reçoivent l'action qui ouvre l'onglet Recherche ;
 /// `createPost` reçoit l'action qui ferme la création et revient à l'accueil. L'Activité s'ouvre par le
 /// cœur de la barre du haut, comme Instagram (pas d'onglet dédié, ADR-026).
-struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View, Activity: View, Messages: View>: View {
+struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View, Activity: View, Messages: View, Reels: View>: View {
     enum TabID: Hashable {
         case home
         case reels
@@ -26,6 +26,7 @@ struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View,
     @ViewBuilder let createPost: (_ close: @escaping () -> Void) -> CreatePost
     @ViewBuilder let activity: () -> Activity
 
+    @ViewBuilder let reels: (_ isActive: Bool) -> Reels
     @ViewBuilder let messages: () -> Messages
 
     @State private var selection = TabID.home
@@ -62,7 +63,7 @@ struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View,
                 }
             }
             Tab("Reels", systemImage: "play.rectangle", value: TabID.reels) {
-                placeholder("Reels", systemImage: "play.rectangle")
+                reels(selection == .reels && !isCreating)
             }
             Tab("Messages", systemImage: "paperplane", value: TabID.messages) {
                 NavigationStack(root: messages)
@@ -83,9 +84,5 @@ struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View,
                 selection = .home
             }
         }
-    }
-
-    private func placeholder(_ title: String, systemImage: String) -> some View {
-        ContentUnavailableView(title, systemImage: systemImage, description: Text("Bientôt disponible."))
     }
 }

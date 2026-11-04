@@ -44,6 +44,9 @@ export const posts = pgTable(
     index('posts_author_created_idx')
       .on(table.authorId, table.createdAt.desc(), table.id.desc())
       .where(sql`${table.deletedAt} IS NULL`),
+    index('posts_kind_created_idx')
+      .on(table.kind, table.createdAt.desc(), table.id.desc())
+      .where(sql`${table.deletedAt} IS NULL`),
     check('posts_kind', sql`${table.kind} IN ('post', 'reel')`),
     check('posts_caption_length', sql`char_length(${table.caption}) <= 2200`),
     check(

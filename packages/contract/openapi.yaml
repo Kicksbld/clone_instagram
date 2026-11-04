@@ -1406,6 +1406,28 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v1/reels/feed:
+    get:
+      operationId: getReelsFeed
+      tags: [feed]
+      summary: Fil de reels
+      description: |
+        Reels non supprimés et visibles des comptes publics et suivis (privés compris), mes propres reels exclus, du plus récent au plus ancien, par pages de 10. Comptes bloqués dans les deux sens et non actifs exclus (ADR-006, ADR-029).
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Une page du feed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostPage'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/search/users:
     get:
       operationId: searchUsers
