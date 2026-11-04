@@ -1,3 +1,4 @@
+import { GetReelsFeed } from '../../src/modules/feed/application/use-cases/get-reels-feed.ts';
 import { MessageReferences } from '../../src/modules/messaging/application/message-references.ts';
 import { GetOrCreateConversation } from '../../src/modules/messaging/application/use-cases/get-or-create-conversation.ts';
 import { ListConversations } from '../../src/modules/messaging/application/use-cases/list-conversations.ts';
@@ -340,6 +341,7 @@ export function buildTestApp() {
       },
       feed: {
         getFeed: new GetFeed(new InMemoryFeedReader(posts, relationships)),
+        getReelsFeed: new GetReelsFeed(new InMemoryFeedReader(posts, relationships)),
       },
       stories: {
         listArchivedStories: new ListArchivedStories(stories, clock),

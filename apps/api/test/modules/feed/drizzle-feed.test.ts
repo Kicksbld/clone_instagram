@@ -55,28 +55,35 @@ async function newProfile(
 }
 
 /** Post d'une image prête ; `createdAt` 1 ms après le précédent, sauf date imposée. */
-async function newPost(authorId: string, createdAt = new Date(++clock)): Promise<string> {
+async function newPost(
+  authorId: string,
+  createdAt = new Date(++clock),
+  kind: 'post' | 'reel' = 'post',
+): Promise<string> {
   const mediaId = newId();
   await db.insert(media).values({
     id: mediaId,
     ownerId: authorId,
-    kind: 'image',
+    kind: kind === 'reel' ? 'video' : 'image',
     purpose: 'post',
     status: 'ready',
     originalPath: `${authorId}/${mediaId}`,
-    mimeType: 'image/jpeg',
+    mimeType: kind === 'reel' ? 'video/mp4' : 'image/jpeg',
     sizeBytes: 1000,
     width: 1080,
     height: 1350,
-    variants: {
-      thumb: `${mediaId}/thumb.webp`,
-      medium: `${mediaId}/medium.webp`,
-      large: `${mediaId}/large.webp`,
-    },
+    variants:
+      kind === 'reel'
+        ? { hls: `${mediaId}/master.m3u8`, thumbnail: `${mediaId}/thumb.webp` }
+        : {
+            thumb: `${mediaId}/thumb.webp`,
+            medium: `${mediaId}/medium.webp`,
+            large: `${mediaId}/large.webp`,
+          },
     attachedAt: createdAt,
   });
   const id = newId();
-  await db.insert(posts).values({ id, authorId, kind: 'post', caption: '', createdAt });
+  await db.insert(posts).values({ id, authorId, kind, caption: '', createdAt });
   await db.insert(postMedia).values({ postId: id, mediaId, position: 0 });
   return id;
 }
@@ -177,5 +184,64 @@ describe('DrizzleFeedReader', () => {
     expect(expected.sort()).toEqual(
       [viewer, cases.public, cases.private].map((id) => postByAuthor.get(id)).sort(),
     );
+  });
+});
+
+describe('DrizzleFeedReader — Reels', () => {
+  it('visibilité SQL identique à canViewContent, sans soi-même, photos ni suppressions', async () => {
+    const viewer = await newProfile('viewer');
+    const authors = {
+      public: await newProfile('public'),
+      private: await newProfile('private', { isPrivate: true }),
+      followed: await newProfile('followed', { isPrivate: true }),
+      suspended: await newProfile('suspended', { status: 'suspended' }),
+      banned: await newProfile('banned', { status: 'banned' }),
+      deleted: await newProfile('deleted', { status: 'deleted' }),
+      blocked: await newProfile('blocked'),
+      blocker: await newProfile('blocker'),
+      viewer,
+    };
+    const followed = authors.followed;
+    await follow(viewer, followed);
+    await db.insert(blocks).values([
+      { blockerId: viewer, blockedId: authors.blocked },
+      { blockerId: authors.blocker, blockedId: viewer },
+    ]);
+    const ids: string[] = [];
+    const expected: string[] = [];
+    for (const authorId of Object.values(authors)) {
+      const id = await newPost(authorId, new Date('2090-01-01'), 'reel');
+      ids.push(id);
+      const author = await accounts.findById(authorId);
+      const relation = await relationships.between(viewer, authorId);
+      if (author && authorId !== viewer && canViewContent(viewer, author, relation))
+        expected.push(id);
+    }
+    const removed = await newPost(authors.public, new Date('2090-01-01'), 'reel');
+    ids.push(removed, await newPost(authors.public, new Date('2090-01-01')));
+    await db.update(posts).set({ deletedAt: new Date() }).where(eq(posts.id, removed));
+    const page = await feed.listReelsFeed({ viewerId: viewer, after: null, limit: 1000 });
+    expect(
+      page.items
+        .filter((post) => ids.includes(post.id))
+        .map((post) => post.id)
+        .sort(),
+    ).toEqual(expected.sort());
+    expect(expected).toHaveLength(2);
+  });
+
+  it('même date : pages de 10 sans saut ni doublon', async () => {
+    const viewer = await newProfile('viewer');
+    const author = await newProfile('author');
+    const ids: string[] = [];
+    for (let i = 0; i < 11; i++) ids.push(await newPost(author, new Date('2091-01-01'), 'reel'));
+    const first = await feed.listReelsFeed({ viewerId: viewer, after: null, limit: 10 });
+    expect(first.items.map((post) => post.id)).toEqual([...ids].sort().reverse().slice(0, 10));
+    expect(first.next).not.toBeNull();
+    const second = await feed.listReelsFeed({ viewerId: viewer, after: first.next, limit: 10 });
+    expect(second.items[0]?.id).toBe([...ids].sort()[0]);
+    expect(
+      second.items.some((post) => first.items.some((previous) => previous.id === post.id)),
+    ).toBe(false);
   });
 });

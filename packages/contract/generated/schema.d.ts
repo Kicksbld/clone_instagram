@@ -856,6 +856,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/reels/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fil de reels
+         * @description Reels non supprimés et visibles des comptes publics et suivis (privés compris), mes propres reels exclus, du plus récent au plus ancien, par pages de 10. Comptes bloqués dans les deux sens et non actifs exclus (ADR-006, ADR-029).
+         */
+        get: operations["getReelsFeed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/search/users": {
         parameters: {
             query?: never;
@@ -3744,6 +3764,32 @@ export interface operations {
         };
     };
     getFeed: {
+        parameters: {
+            query?: {
+                /** @description Valeur de `nextCursor` de la page précédente ; opaque. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Une page du feed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostPage"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getReelsFeed: {
         parameters: {
             query?: {
                 /** @description Valeur de `nextCursor` de la page précédente ; opaque. */

@@ -18,6 +18,26 @@ export class InMemoryFeedReader implements FeedReader {
     private readonly relationships: InMemoryRelationshipReader,
   ) {}
 
+  listReelsFeed({ viewerId, after, limit }: FeedQuery): Promise<Page<Post>> {
+    return Promise.resolve(
+      this.posts.list(
+        viewerId,
+        (post) =>
+          post.kind === 'reel' &&
+          post.author.id !== viewerId &&
+          canViewContent(viewerId, post.author, {
+            viewerFollowsOwner: this.relationships.isFollowing(viewerId, post.author.id),
+            ownerFollowsViewer: this.relationships.isFollowing(post.author.id, viewerId),
+            viewerRequestedOwner: this.relationships.hasRequested(viewerId, post.author.id),
+            blocked: this.relationships.isBlockedEitherWay(viewerId, post.author.id),
+            viewerIsCloseFriend: false,
+          }),
+        after,
+        limit,
+      ),
+    );
+  }
+
   listFeed({ viewerId, after, limit }: FeedQuery): Promise<Page<Post>> {
     return Promise.resolve(
       this.posts.list(

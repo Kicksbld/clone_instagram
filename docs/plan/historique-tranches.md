@@ -131,3 +131,13 @@ Ce que chaque tranche a posé dans le code, pour retrouver où vit une fonctionn
 - iOS : champ « Envoyer un message » dans le viewer, pause pendant saisie et envoi, même `clientId` pour réessayer ; ouverture de la conversation via `MessagingStore`. Bulle avec aperçu, expiration à l’écran et réévaluation au retour au premier plan ; texte du message conservé si l’aperçu devient indisponible.
 - Décisions : application des ADR-006, ADR-023 et ADR-025 existants, aucune nouvelle décision d’architecture.
 - Reste à valider : migration et déploiement de la démo, recompiler puis tester sur deux iPhone physiques (B répond, A reçoit l’aperçu ; après expiration, « Contenu indisponible »).
+
+
+## T31 — Je fais défiler l'onglet Reels (#42)
+
+- Contrat : `GET /v1/reels/feed`, `PostPage`, curseur `(created_at, id)`, pages de 10 ; clients régénérés.
+- Base : migration `0022_rare_gamora`, index partiel `posts_kind_created_idx` sur `(kind, created_at DESC, id DESC)` pour les posts non supprimés.
+- API, module `feed` : `GetReelsFeed`, port `FeedReader.listReelsFeed`, adapter Drizzle ; reels des autres comptes publics ou suivis, traduction SQL de `canViewContent`, auteurs actifs sans blocage dans les deux sens. Photos et reels supprimés exclus.
+- iOS : feature `Reels` injectée par `RootView` dans `HomeView`, pager vertical, pagination et réessai, miniature Nuke, lecture du seul reel sélectionné et préchargement du suivant par le pool de deux `AVPlayer` de `Core/Media`. Son coupé par défaut, boucle, pause à la sortie, en arrière-plan et pendant les feuilles de commentaires/partage. Likes optimistes et compteurs de commentaires partagés ; auteurs bloqués masqués immédiatement. « Amis » désactivé jusqu'à T33.
+- Application des ADR existants, aucune nouvelle décision d'architecture.
+- Reste à valider : déployer la migration et l'API, recompiler l'app, démo sur iPhone physique (reels muets, auteur bloqué absent) et fluidité avec Instruments.

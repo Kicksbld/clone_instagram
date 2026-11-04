@@ -15,6 +15,8 @@ final class FakePostService: PostService {
     /// Réponses successives de `listPosts` ; page vide quand la liste est vide.
     var listResults: [Result<PostPage, PostServiceError>] = []
     /// Réponses successives de `listFeed` ; page vide quand la liste est vide.
+    var reelsFeedResults: [Result<PostPage, PostServiceError>] = []
+    private(set) var reelsFeedRequests: [String?] = []
     var feedResults: [Result<PostPage, PostServiceError>] = []
     /// Erreurs successives de `deletePost` ; succès quand la liste est vide.
     var deleteErrors: [PostServiceError] = []
@@ -60,6 +62,12 @@ final class FakePostService: PostService {
         listRequests.append(ListRequest(userId: userId, cursor: cursor))
         guard !listResults.isEmpty else { return PostPage(items: [], nextCursor: nil) }
         return try listResults.removeFirst().get()
+    }
+
+    func listReelsFeed(cursor: String?) async throws(PostServiceError) -> PostPage {
+        reelsFeedRequests.append(cursor)
+        guard !reelsFeedResults.isEmpty else { return PostPage(items: [], nextCursor: nil) }
+        return try reelsFeedResults.removeFirst().get()
     }
 
     func listFeed(cursor: String?) async throws(PostServiceError) -> PostPage {

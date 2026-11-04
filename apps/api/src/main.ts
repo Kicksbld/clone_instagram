@@ -1,3 +1,4 @@
+import { GetReelsFeed } from './modules/feed/application/use-cases/get-reels-feed.ts';
 import { DrizzleSharedStoryReader } from './modules/messaging/infrastructure/persistence/drizzle-shared-story-reader.ts';
 import { MessageReferences } from './modules/messaging/application/message-references.ts';
 import { DrizzleSharedPostReader } from './modules/messaging/infrastructure/persistence/drizzle-shared-post-reader.ts';
@@ -380,6 +381,7 @@ const app = buildApp({
     },
     feed: {
       getFeed: new GetFeed(new DrizzleFeedReader(database.db)),
+      getReelsFeed: new GetReelsFeed(new DrizzleFeedReader(database.db)),
     },
     stories: {
       listArchivedStories: new ListArchivedStories(storyReader, systemClock),

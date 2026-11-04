@@ -45,6 +45,8 @@ protocol PostService: Sendable {
     func listPosts(of userId: String, cursor: String?) async throws(PostServiceError) -> PostPage
     /// `GET /v1/feed` : comptes suivis et moi, du plus récent au plus ancien, par pages de 12.
     func listFeed(cursor: String?) async throws(PostServiceError) -> PostPage
+    /// `GET /v1/reels/feed` : reels visibles des autres comptes, pages de 10.
+    func listReelsFeed(cursor: String?) async throws(PostServiceError) -> PostPage
     /// `DELETE /v1/posts/{id}` : un de mes posts ; déjà supprimé ou d'un autre → `postNotFound`.
     func deletePost(id: String) async throws(PostServiceError)
 }
@@ -163,6 +165,23 @@ struct APIPostService: PostService {
         }
     }
 
+    func listReelsFeed(cursor: String?) async throws(PostServiceError) -> PostPage {
+        let output = try await call { try await client.getReelsFeed(query: .init(cursor: cursor)) }
+        switch output {
+        case let .ok(response):
+            let page = try Self.unwrap { try response.body.json }
+            return try PostPage(items: page.items.map(Post.init), nextCursor: page.nextCursor)
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
     func deletePost(id: String) async throws(PostServiceError) {
         let output = try await call { try await client.deletePost(path: .init(id: id)) }
         switch output {
@@ -232,6 +251,10 @@ struct UnavailablePostService: PostService {
     }
 
     func listFeed(cursor _: String?) async throws(PostServiceError) -> PostPage {
+        throw .unreachable
+    }
+
+    func listReelsFeed(cursor _: String?) async throws(PostServiceError) -> PostPage {
         throw .unreachable
     }
 

@@ -24,6 +24,21 @@ struct APIPostServiceTests {
         #expect(post.media.first?.durationMs == 20000)
     }
 
+    @Test func `fil Reels converti en page avec curseur`() async throws {
+        let service = try makeService(json("{\"items\":[\(Self.postJSON)],\"nextCursor\":\"next\"}"))
+        let page = try await service.listReelsFeed(cursor: "previous")
+        #expect(page.items.count == 1)
+        #expect(page.items.first?.caption == "Salut")
+        #expect(page.nextCursor == "next")
+    }
+
+    @Test func `fil Reels refuse un curseur invalide`() async throws {
+        let service = try makeService(problem(400, "invalid_cursor"))
+        await #expect(throws: PostServiceError.invalidCursor) {
+            try await service.listReelsFeed(cursor: "invalid")
+        }
+    }
+
     private func makeService(_ reply: StubTransport.Reply) throws -> APIPostService {
         let configuration = try APIConfiguration(rawBaseURL: "http://localhost:3000")
         return APIPostService(

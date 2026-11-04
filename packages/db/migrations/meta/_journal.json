@@ -155,6 +155,13 @@
       "when": 1793787578084,
       "tag": "0021_story_replies",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793788674601,
+      "tag": "0022_rare_gamora",
+      "breakpoints": true
     }
   ]
 }
