@@ -62,4 +62,22 @@ describe('purge-orphan-media', () => {
     await expect(findMediaById(db, current.id)).resolves.not.toBeNull();
     expect(storage.has(STORAGE_BUCKETS.uploads, recent.originalPath)).toBe(true);
   });
+
+  it('photo de message jamais envoyée → variantes effacées de media-private', async () => {
+    const storage = new InMemoryStorage();
+    const ownerId = await rows.profile();
+    const photo = await rows.media(ownerId, {
+      purpose: 'message',
+      status: 'ready',
+      createdAt: sql`now() - interval '25 hours'`,
+    });
+    const { thumb, medium, large } = variantPaths(photo.id);
+    const paths = [thumb, medium, large];
+    for (const path of paths) storage.put(STORAGE_BUCKETS.private, path, Buffer.from('x'));
+
+    await purgeOrphanMedia({ db, storage, logger: silentLogger })(jobOf('purge-orphan-media', {}));
+
+    await expect(findMediaById(db, photo.id)).resolves.toBeNull();
+    for (const path of paths) expect(storage.has(STORAGE_BUCKETS.private, path)).toBe(false);
+  });
 });

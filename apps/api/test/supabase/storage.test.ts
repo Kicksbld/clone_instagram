@@ -5,6 +5,7 @@ import { StorageClient } from '@supabase/storage-js';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { SupabaseMediaStorage } from '../../src/modules/media/infrastructure/storage/supabase-media-storage.ts';
+import { SupabasePrivateMediaUrls } from '../../src/modules/messaging/infrastructure/storage/supabase-private-media-urls.ts';
 import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-media-urls.ts';
 
 /**
@@ -28,11 +29,13 @@ const client = new StorageClient(new URL('/storage/v1', requiredEnv('SUPABASE_UR
   Authorization: `Bearer ${secretKey}`,
 });
 const storage = new SupabaseMediaStorage(client, publicBaseUrl, () => new Date());
+const privateUrls = new SupabasePrivateMediaUrls(client, publicBaseUrl, () => new Date());
 const prefix = `test-supabase-${Date.now()}`;
 
 afterAll(async () => {
   await client.from(STORAGE_BUCKETS.uploads).remove([`${prefix}/original`]);
   await client.from(STORAGE_BUCKETS.public).remove([`${prefix}/thumb.webp`]);
+  await client.from(STORAGE_BUCKETS.private).remove([`${prefix}/large.webp`]);
 });
 
 describe('Supabase Storage', () => {
@@ -73,5 +76,27 @@ describe('Supabase Storage', () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toBe('webp');
+  });
+
+  it('photo de message (media-private) : lisible par URL signée de 1 h, jamais par URL publique', async () => {
+    const path = `${prefix}/large.webp`;
+    await client
+      .from(STORAGE_BUCKETS.private)
+      .upload(path, new Blob(['privé']), { contentType: 'image/webp' });
+
+    const before = Date.now();
+    const { url, expiresAt } = await privateUrls.sign(path);
+    expect(url.startsWith(publicBaseUrl)).toBe(true);
+    expect(expiresAt.getTime() - before).toBeGreaterThanOrEqual(60 * 60 * 1000 - 1000);
+    expect(expiresAt.getTime() - before).toBeLessThanOrEqual(60 * 60 * 1000 + 1000);
+    const signed = await fetch(url);
+    expect(signed.status).toBe(200);
+    expect(await signed.text()).toBe('privé');
+
+    const publicUrl = new URL(
+      `/storage/v1/object/public/${STORAGE_BUCKETS.private}/${path}`,
+      publicBaseUrl,
+    );
+    expect((await fetch(publicUrl)).ok).toBe(false);
   });
 });

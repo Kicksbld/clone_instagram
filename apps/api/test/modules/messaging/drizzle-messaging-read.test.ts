@@ -1,6 +1,7 @@
 import { blocks, newId, profiles } from '@clone/db';
 import { inArray } from 'drizzle-orm';
 import { afterAll, expect, it } from 'vitest';
+import { DrizzleMediaRepository } from '../../../src/modules/media/infrastructure/persistence/drizzle-media-repository.ts';
 import { DrizzleMessagingRepository } from '../../../src/modules/messaging/infrastructure/persistence/drizzle-messaging-repository.ts';
 import { DrizzleUnitOfWork } from '../../../src/shared/infrastructure/persistence/drizzle-unit-of-work.ts';
 import { DrizzleRelationshipReader } from '../../../src/shared/infrastructure/persistence/drizzle-relationship-reader.ts';
@@ -28,6 +29,7 @@ it('counts unread messages per conversation, hides blocked ones from the badge, 
   const transaction = new DrizzleUnitOfWork(database.db, (tx) => ({
     repository: new DrizzleMessagingRepository(tx),
     relationships: new DrizzleRelationshipReader(tx),
+    media: new DrizzleMediaRepository(tx),
   }));
   let tick = Date.parse('2026-11-01T12:00:00.000Z');
   const clock = { now: () => new Date((tick += 1000)) };
@@ -44,7 +46,14 @@ it('counts unread messages per conversation, hides blocked ones from the badge, 
   const withB = (await create.execute({ viewerId: a, userId: b })).conversation.id;
   const withC = (await create.execute({ viewerId: c, userId: b })).conversation.id;
   const say = async (viewerId: string, conversationId: string, body: string) =>
-    (await send.execute({ viewerId, conversationId, clientId: newId(), body })).message;
+    (
+      await send.execute({
+        viewerId,
+        conversationId,
+        clientId: newId(),
+        content: { kind: 'text', body },
+      })
+    ).message;
   const first = await say(a, withB, 'Un');
   const second = await say(a, withB, 'Deux');
   await say(b, withB, 'Réponse');

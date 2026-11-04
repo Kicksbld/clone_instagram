@@ -168,6 +168,22 @@ export class DrizzleMessagingRepository implements MessagingRepository {
     const [row] = await this.db.select().from(messages).where(eq(messages.id, id));
     return row ?? null;
   }
+  async findByClientId(senderId: string, clientId: string) {
+    const [row] = await this.db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.senderId, senderId), eq(messages.clientId, clientId)));
+    return row ?? null;
+  }
+  async findMessagePhoto(mediaId: string) {
+    const [row] = await this.db
+      .select({ conversationId: messages.conversationId, variants: media.variants })
+      .from(messages)
+      .innerJoin(media, eq(media.id, messages.mediaId))
+      .where(and(eq(messages.mediaId, mediaId), eq(messages.kind, 'image')));
+    if (!row?.variants || !('thumb' in row.variants)) return null;
+    return { conversationId: row.conversationId, variants: row.variants };
+  }
   async insertMessage(message: Message) {
     const [inserted] = await this.db
       .insert(messages)

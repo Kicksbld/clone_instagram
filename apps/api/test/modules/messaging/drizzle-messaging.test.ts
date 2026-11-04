@@ -1,6 +1,7 @@
 import { blocks, newId, profiles } from '@clone/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, expect, it } from 'vitest';
+import { DrizzleMediaRepository } from '../../../src/modules/media/infrastructure/persistence/drizzle-media-repository.ts';
 import { DrizzleMessagingRepository } from '../../../src/modules/messaging/infrastructure/persistence/drizzle-messaging-repository.ts';
 import { DrizzleUnitOfWork } from '../../../src/shared/infrastructure/persistence/drizzle-unit-of-work.ts';
 import { DrizzleRelationshipReader } from '../../../src/shared/infrastructure/persistence/drizzle-relationship-reader.ts';
@@ -28,6 +29,7 @@ it('concurrent opens share one conversation; duplicate sends commit and publish 
   const transaction = new DrizzleUnitOfWork(database.db, (tx) => ({
     repository: new DrizzleMessagingRepository(tx),
     relationships: new DrizzleRelationshipReader(tx),
+    media: new DrizzleMediaRepository(tx),
   }));
   const clock = { now: () => new Date('2026-11-01T12:00:00.123Z') };
   const create = new GetOrCreateConversation(transaction, { next: newId }, clock);
@@ -51,7 +53,7 @@ it('concurrent opens share one conversation; duplicate sends commit and publish 
     viewerId: a,
     conversationId: opened[0].conversation.id,
     clientId: newId(),
-    body: 'Bonjour',
+    content: { kind: 'text' as const, body: 'Bonjour' },
   };
   const results = await Promise.all([send.execute(input), send.execute(input)]);
   expect(results[0].message.id).toBe(results[1].message.id);
@@ -81,9 +83,13 @@ it('concurrent opens share one conversation; duplicate sends commit and publish 
       disconnect: () => {},
     },
   );
-  await expect(failedSend.execute({ ...input, clientId: newId(), body: 'Annulé' })).rejects.toThrow(
-    'rollback',
-  );
+  await expect(
+    failedSend.execute({
+      ...input,
+      clientId: newId(),
+      content: { kind: 'text', body: 'Annulé' },
+    }),
+  ).rejects.toThrow('rollback');
   expect(published).toHaveLength(1);
   expect(
     (await history.execute({ viewerId: a, conversationId: input.conversationId, cursor: null }))
@@ -92,7 +98,11 @@ it('concurrent opens share one conversation; duplicate sends commit and publish 
 
   const anchor = results[0].message;
   for (let i = 0; i < 131; i++)
-    await send.execute({ ...input, clientId: newId(), body: `Message ${i}` });
+    await send.execute({
+      ...input,
+      clientId: newId(),
+      content: { kind: 'text', body: `Message ${i}` },
+    });
   const newest = await history.execute({
     viewerId: a,
     conversationId: input.conversationId,

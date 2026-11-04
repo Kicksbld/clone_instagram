@@ -8,6 +8,7 @@ import type { PageCursor } from '../../src/shared/domain/pagination.ts';
 import { canMessage } from '../../src/shared/domain/visibility.ts';
 import type { InMemoryProfileRepository } from './in-memory-profile-repository.ts';
 import type { InMemoryRelationshipReader } from './in-memory-relationship-reader.ts';
+import type { InMemoryMediaRepository } from './in-memory-media-repository.ts';
 export class InMemoryMessaging implements MessagingRepository {
   conversations = new Map<string, Conversation>();
   messages = new Map<string, Message>();
@@ -16,6 +17,7 @@ export class InMemoryMessaging implements MessagingRepository {
   constructor(
     private profiles: InMemoryProfileRepository,
     private relationships: InMemoryRelationshipReader,
+    private media?: InMemoryMediaRepository,
   ) {}
   account(id: string) {
     return Promise.resolve(this.profiles.rows.get(id) ?? null);
@@ -114,6 +116,20 @@ export class InMemoryMessaging implements MessagingRepository {
   }
   findMessage(id: string) {
     return Promise.resolve(this.messages.get(id) ?? null);
+  }
+  findByClientId(senderId: string, clientId: string) {
+    return Promise.resolve(
+      [...this.messages.values()].find((m) => m.senderId === senderId && m.clientId === clientId) ??
+        null,
+    );
+  }
+  async findMessagePhoto(mediaId: string) {
+    const message = [...this.messages.values()].find(
+      (m) => m.kind === 'image' && m.mediaId === mediaId,
+    );
+    const photo = message && (await this.media?.findById(mediaId));
+    if (!message || !photo?.variants || !('thumb' in photo.variants)) return null;
+    return { conversationId: message.conversationId, variants: photo.variants };
   }
   insertMessage(message: Message) {
     const existing = [...this.messages.values()].find(

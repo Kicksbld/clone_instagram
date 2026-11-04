@@ -62,7 +62,7 @@ struct AppDependencies {
         let social = APISocialService(client: client)
         let activity = APIActivityService(client: client)
         let badge = ActivityBadge(service: activity)
-        let messaging = MessagingStore(service: APIMessagingService(client: client))
+        let messaging = MessagingStore(service: APIMessagingService(client: client), uploads: uploads)
         var socketURL = URLComponents(url: configuration.baseURL, resolvingAgainstBaseURL: false)
         socketURL?.scheme = configuration.baseURL.scheme == "https" ? "wss" : "ws"
         socketURL?.path = "/v1/ws"

@@ -6,8 +6,27 @@ struct ChatMessage: Equatable, Identifiable, Sendable {
     let conversationId: String
     let senderId: String
     let clientId: String
+    /// Empty for a photo sent without text.
     let body: String
     let createdAt: Date
+    /// Photo of an `image` message, displayed through a signed URL (ADR-023).
+    var mediaId: String?
+
+    /// Inbox preview: the text, or « Photo » for a photo without text.
+    var summary: String {
+        mediaId != nil && body.isEmpty ? "Photo" : body
+    }
+}
+
+/// Variant of a message photo (ADR-008).
+nonisolated enum PhotoVariant: String, Sendable {
+    case thumb, medium, large
+}
+
+/// Signed URL of a message photo, valid for one hour (ADR-023).
+struct SignedPhotoURL: Equatable, Sendable {
+    let url: URL
+    let expiresAt: Date
 }
 
 struct Conversation: Identifiable, Equatable, Sendable {
@@ -37,6 +56,8 @@ nonisolated enum MessagingError: Error {
     case unavailable
     case notFound
     case requestFailed
+    /// The photo cannot be attached (not ready, already used, wrong kind…): upload it again.
+    case photoRejected
 }
 
 protocol MessagingService: Sendable {
@@ -44,6 +65,10 @@ protocol MessagingService: Sendable {
     func open(userId: String) async throws -> Conversation
     func messages(conversationId: String, cursor: String?, after: String?) async throws -> MessagePage
     func send(conversationId: String, clientId: String, body: String) async throws -> ChatMessage
+    /// Sends a `ready` photo of purpose `message` (ADR-023), same `clientId` for every retry.
+    func sendPhoto(conversationId: String, clientId: String, mediaId: String) async throws -> ChatMessage
+    /// Signed URL of a message photo; `notFound` outside my visible conversations.
+    func photoURL(mediaId: String, variant: PhotoVariant) async throws -> SignedPhotoURL
     func markRead(conversationId: String, messageId: String) async throws
 }
 
@@ -83,19 +108,52 @@ struct APIMessagingService: MessagingService {
     }
 
     func send(conversationId: String, clientId: String, body: String) async throws -> ChatMessage {
-        let response = try await client.sendMessage(
-            path: .init(id: conversationId),
-            body: .json(.init(clientId: clientId, kind: .text, body: body))
+        try await send(conversationId: conversationId, .SendTextMessage(.init(clientId: clientId, kind: .text, body: body)))
+    }
+
+    func sendPhoto(conversationId: String, clientId: String, mediaId: String) async throws -> ChatMessage {
+        try await send(
+            conversationId: conversationId,
+            .SendImageMessage(.init(clientId: clientId, kind: .image, mediaId: mediaId))
         )
+    }
+
+    private func send(
+        conversationId: String,
+        _ body: Operations.SendMessage.Input.Body.JsonPayload
+    ) async throws -> ChatMessage {
+        let response = try await client.sendMessage(path: .init(id: conversationId), body: .json(body))
         let dto: Components.Schemas.Message
         switch response {
         case let .ok(value): dto = try value.body.json
         case let .created(value): dto = try value.body.json
-        case .notFound: throw MessagingError.notFound
+        case let .notFound(value):
+            // 404 for the photo (`media_not_found`) is not a missing conversation.
+            if case let .applicationProblemJson(problem) = value.body, problem.code == "media_not_found" {
+                throw MessagingError.photoRejected
+            }
+            throw MessagingError.notFound
+        case .conflict, .unprocessableContent: throw MessagingError.photoRejected
         default: throw MessagingError.requestFailed
         }
         guard let message = ChatMessage(dto) else { throw MessagingError.requestFailed }
         return message
+    }
+
+    func photoURL(mediaId: String, variant: PhotoVariant) async throws -> SignedPhotoURL {
+        let variant: Components.Schemas.ImageVariantName = switch variant {
+        case .thumb: .thumb
+        case .medium: .medium
+        case .large: .large
+        }
+        switch try await client.getMediaSignedUrl(path: .init(id: mediaId), query: .init(variant: variant)) {
+        case let .ok(response):
+            let signed = try response.body.json
+            guard let url = URL(string: signed.url) else { throw MessagingError.requestFailed }
+            return SignedPhotoURL(url: url, expiresAt: signed.expiresAt)
+        case .notFound: throw MessagingError.notFound
+        default: throw MessagingError.requestFailed
+        }
     }
 
     func markRead(conversationId: String, messageId: String) async throws {
@@ -109,14 +167,20 @@ struct APIMessagingService: MessagingService {
 
 extension ChatMessage {
     init?(_ dto: Components.Schemas.Message) {
-        guard dto.kind == "text" else { return nil }
+        // Kinds of later slices are ignored; a photo always carries its media.
+        switch dto.kind {
+        case "text": break
+        case "image" where dto.mediaId != nil: break
+        default: return nil
+        }
         self.init(
             id: dto.id,
             conversationId: dto.conversationId,
             senderId: dto.senderId,
             clientId: dto.clientId,
             body: dto.body,
-            createdAt: dto.createdAt
+            createdAt: dto.createdAt,
+            mediaId: dto.kind == "image" ? dto.mediaId : nil
         )
     }
 }
@@ -156,6 +220,14 @@ struct UnavailableMessagingService: MessagingService {
     }
 
     func send(conversationId _: String, clientId _: String, body _: String) async throws -> ChatMessage {
+        throw MessagingError.unavailable
+    }
+
+    func sendPhoto(conversationId _: String, clientId _: String, mediaId _: String) async throws -> ChatMessage {
+        throw MessagingError.unavailable
+    }
+
+    func photoURL(mediaId _: String, variant _: PhotoVariant) async throws -> SignedPhotoURL {
         throw MessagingError.unavailable
     }
 

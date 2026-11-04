@@ -115,6 +115,18 @@ describe('purge-account', () => {
     expect(post?.likeCount).toBe(0);
   });
 
+  it('photos de messages du compte → variantes effacées de media-private', async () => {
+    const gone = await deletedAccount();
+    const photo = await rows.media(gone, { purpose: 'message', status: 'ready' });
+    const { thumb, medium, large } = variantPaths(photo.id);
+    const paths = [thumb, medium, large];
+    for (const path of paths) storage.put(STORAGE_BUCKETS.private, path, Buffer.from('x'));
+
+    await run(gone);
+
+    for (const path of paths) expect(storage.has(STORAGE_BUCKETS.private, path)).toBe(false);
+  });
+
   it('rejouée après une purge complète → sans erreur', async () => {
     const gone = await deletedAccount();
 

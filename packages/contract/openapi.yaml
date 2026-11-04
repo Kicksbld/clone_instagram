@@ -31,11 +31,11 @@ info:
     | `username_taken` | 409 | Username déjà utilisé par un autre profil |
     | `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |
     | `age_requirement_not_met` | 422 | Moins de 13 ans à la date du jour (UTC) |
-    | `media_not_found` | 404 | Média inexistant ou appartenant à un autre utilisateur |
+    | `media_not_found` | 404 | Média inexistant ou appartenant à un autre utilisateur ; URL signée d'une photo de message hors de mes conversations visibles |
     | `media_invalid_transition` | 409 | Le statut du média ne permet pas l'opération (ex. `complete` sur un média déjà traité) |
     | `media_not_ready` | 409 | Le média n'est pas encore `ready` |
     | `media_already_attached` | 409 | Le média est déjà utilisé, ou l'a été (un média ne sert qu'une fois) |
-    | `media_kind_mismatch` | 422 | Le type du média ne correspond pas au type du post |
+    | `media_kind_mismatch` | 422 | Le type du média ne correspond pas au type du post ou du message |
     | `media_purpose_mismatch` | 422 | Le `purpose` du média ne correspond pas à l'usage demandé |
     | `user_not_found` | 404 | Profil inexistant ou invisible pour l'appelant (blocage dans un sens ou dans l'autre, compte non actif : ADR-006) ; liste d'abonnés d'un compte privé non suivi |
     | `account_private` | 403 | Plus renvoyé depuis T20 : suivre un compte privé crée une demande d'abonnement |
@@ -189,14 +189,18 @@ paths:
     post:
       operationId: sendMessage
       tags: [messaging]
-      summary: Envoyer un texte, au plus 60 messages par minute
-      description: Même clientId du même expéditeur renvoie le message existant sans nouvel événement. Message et last_message_at dans une transaction ; message.created aux deux membres après validation.
+      summary: Envoyer un texte ou une photo, au plus 60 messages par minute
+      description: |
+        Même clientId du même expéditeur renvoie le message existant sans nouvel événement. Message et last_message_at dans une transaction ; message.created aux deux membres après validation.
+        Photo (`kind = image`) : média `image` de l'expéditeur, `purpose = message`, `ready` et jamais utilisé, rattaché au message dans la même transaction ; `body` facultatif.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SendTextMessage'
+              oneOf:
+                - $ref: '#/components/schemas/SendTextMessage'
+                - $ref: '#/components/schemas/SendImageMessage'
       responses:
         '201':
           description: Message créé.
@@ -215,7 +219,23 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '404':
-          $ref: '#/components/responses/ConversationNotFound'
+          description: Conversation absente ou invisible (`conversation_not_found`), ou média inexistant ou d'un autre utilisateur (`media_not_found`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '409':
+          description: Média pas encore prêt (`media_not_ready`) ou déjà utilisé (`media_already_attached`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '422':
+          description: Média vidéo (`media_kind_mismatch`) ou prévu pour un autre usage (`media_purpose_mismatch`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '429':
           $ref: '#/components/responses/RateLimited'
   /v1/conversations/{id}/read:
@@ -1498,7 +1518,7 @@ paths:
       description: |
         Crée le média en `pending_upload` et renvoie une URL d'upload présignée (ADR-008).
         Le fichier est envoyé directement à `uploadUrl` par un `PUT` du contenu brut, avec le `Content-Type` déclaré, avant `expiresAt` ;
-        l'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus pour `avatar` ou `post` ; vidéo MP4 de 50 Mo au plus pour `post`.
+        l'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus pour `avatar`, `post`, `story` ou `message` ; vidéo MP4 de 50 Mo au plus pour `post`.
         Limité à 30 demandes par heure (`429 rate_limited`, ADR-005).
       requestBody:
         required: true
@@ -1573,6 +1593,41 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '404':
           $ref: '#/components/responses/MediaNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/media/{id}/signed-url:
+    get:
+      operationId: getMediaSignedUrl
+      tags: [media]
+      summary: URL signée d'une photo de message
+      description: |
+        URL signée d'une variante d'une photo de message (bucket privé `media-private`), valable 1 heure (ADR-023).
+        Réservée aux membres de la conversation où le média est rattaché, tant que la conversation leur est visible (`canMessage`) ;
+        sinon `404 media_not_found`, y compris pour l'expéditeur avant l'envoi du message.
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+        - name: variant
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/ImageVariantName'
+      responses:
+        '200':
+          description: URL signée.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedMediaUrl'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: Média inexistant, pas une photo de message, ou conversation dont l'appelant n'est pas membre ou qui lui est invisible (`media_not_found`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '500':
           $ref: '#/components/responses/InternalError'
   /v1/admin/me:
@@ -1944,6 +1999,25 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
+    SendImageMessage:
+      type: object
+      additionalProperties: false
+      required: [clientId, kind, mediaId]
+      properties:
+        clientId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [image]
+        mediaId:
+          type: string
+          format: uuid
+          description: Média `image`, `purpose = message`, `ready`, jamais utilisé.
+        body:
+          type: string
+          minLength: 1
+          maxLength: 1000
     Message:
       type: object
       required: [id, conversationId, senderId, clientId, kind, body, createdAt]
@@ -1962,9 +2036,14 @@ components:
           format: uuid
         kind:
           type: string
-          description: Type ouvert pour les ajouts compatibles des prochaines tranches.
+          description: '`text` ou `image` ; type ouvert pour les ajouts compatibles des prochaines tranches.'
         body:
           type: string
+          description: Texte du message ; chaîne vide pour une photo sans texte.
+        mediaId:
+          type: string
+          format: uuid
+          description: Photo d'un message `image`, lue par `GET /v1/media/{id}/signed-url`.
         createdAt:
           type: string
           format: date-time
@@ -2092,12 +2171,13 @@ components:
           enum: [media.ready]
         data:
           type: object
-          required: [mediaId, variants]
+          required: [mediaId]
           properties:
             mediaId:
               type: string
               format: uuid
             variants:
+              description: Absentes pour une photo de message (`purpose = message`), lue par URL signée.
               oneOf:
                 - $ref: '#/components/schemas/ImageVariants'
                 - $ref: '#/components/schemas/VideoVariants'
@@ -2441,7 +2521,21 @@ components:
     MediaPurpose:
       type: string
       description: Usage prévu du média ; il ne peut être rattaché qu'à cet usage (ADR-008).
-      enum: [avatar, post, story]
+      enum: [avatar, post, story, message]
+    ImageVariantName:
+      type: string
+      description: Variante WebP d'une image (ADR-008).
+      enum: [thumb, medium, large]
+    SignedMediaUrl:
+      type: object
+      required: [url, expiresAt]
+      properties:
+        url:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
     MediaStatus:
       type: string
       description: '`pending_upload` → `uploaded` → `processing` → `ready` | `failed` (ADR-008).'
@@ -2521,7 +2615,7 @@ components:
           oneOf:
             - $ref: '#/components/schemas/ImageVariants'
             - $ref: '#/components/schemas/VideoVariants'
-          description: Présentes quand le média est `ready`.
+          description: Présentes quand le média est `ready`, sauf pour une photo de message (`purpose = message`), lue par URL signée.
         failureReason:
           $ref: '#/components/schemas/MediaFailureReason'
           description: Présent quand le média est `failed`.

@@ -7,8 +7,9 @@ export type RealtimeEvent =
         conversationId: string;
         senderId: string;
         clientId: string;
-        kind: 'text';
+        kind: 'text' | 'image';
         body: string;
+        mediaId?: string;
         createdAt: string;
       };
     }
@@ -21,7 +22,8 @@ export type RealtimeEvent =
       type: 'media.ready';
       data: {
         mediaId: string;
-        variants:
+        /** Absent for a message photo, read through a signed URL (ADR-023). */
+        variants?:
           { thumb: string; medium: string; large: string } | { hls: string; thumbnail: string };
       };
     }

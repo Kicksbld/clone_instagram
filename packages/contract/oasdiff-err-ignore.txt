@@ -24,3 +24,7 @@ GET /v1/users/{id}/posts added `#/components/schemas/ImageVariants, #/components
 # T24 (#35), validé par le lead dev le 2026-11-03 : médias de story (`purpose = story`).
 GET /v1/media/{id} added the new `story` enum value to the `purpose` response property for the response status `200`
 POST /v1/media/{id}/complete added the new `story` enum value to the `purpose` response property for the response status `200`
+# T28 (#39), validé par le lead dev le 2026-11-04 : photos de messages (`purpose = message`).
+# Aussi validé (hors routes, non vu par oasdiff) : `MediaReady.data.variants` facultatif, absent pour `message`.
+GET /v1/media/{id} added the new `message` enum value to the `purpose` response property for the response status `200`
+POST /v1/media/{id}/complete added the new `message` enum value to the `purpose` response property for the response status `200`

@@ -38,8 +38,9 @@ export interface paths {
         get: operations["listMessages"];
         put?: never;
         /**
-         * Envoyer un texte, au plus 60 messages par minute
+         * Envoyer un texte ou une photo, au plus 60 messages par minute
          * @description Même clientId du même expéditeur renvoie le message existant sans nouvel événement. Message et last_message_at dans une transaction ; message.created aux deux membres après validation.
+         *     Photo (`kind = image`) : média `image` de l'expéditeur, `purpose = message`, `ready` et jamais utilisé, rattaché au message dans la même transaction ; `body` facultatif.
          */
         post: operations["sendMessage"];
         delete?: never;
@@ -951,7 +952,7 @@ export interface paths {
          * Demander une intention d'upload
          * @description Crée le média en `pending_upload` et renvoie une URL d'upload présignée (ADR-008).
          *     Le fichier est envoyé directement à `uploadUrl` par un `PUT` du contenu brut, avec le `Content-Type` déclaré, avant `expiresAt` ;
-         *     l'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus pour `avatar` ou `post` ; vidéo MP4 de 50 Mo au plus pour `post`.
+         *     l'API ne transporte jamais le fichier. Image JPEG ou PNG de 20 Mo au plus pour `avatar`, `post`, `story` ou `message` ; vidéo MP4 de 50 Mo au plus pour `post`.
          *     Limité à 30 demandes par heure (`429 rate_limited`, ADR-005).
          */
         post: operations["requestMediaUpload"];
@@ -993,6 +994,28 @@ export interface paths {
          * @description Statut et variantes d'un média, pour son seul propriétaire. L'app interroge cette route jusqu'à `ready` ou `failed`.
          */
         get: operations["getMedia"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/media/{id}/signed-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * URL signée d'une photo de message
+         * @description URL signée d'une variante d'une photo de message (bucket privé `media-private`), valable 1 heure (ADR-023).
+         *     Réservée aux membres de la conversation où le média est rattaché, tant que la conversation leur est visible (`canMessage`) ;
+         *     sinon `404 media_not_found`, y compris pour l'expéditeur avant l'envoi du message.
+         */
+        get: operations["getMediaSignedUrl"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1203,6 +1226,18 @@ export interface components {
             kind: "text";
             body: string;
         };
+        SendImageMessage: {
+            /** Format: uuid */
+            clientId: string;
+            /** @enum {string} */
+            kind: "image";
+            /**
+             * Format: uuid
+             * @description Média `image`, `purpose = message`, `ready`, jamais utilisé.
+             */
+            mediaId: string;
+            body?: string;
+        };
         Message: {
             /** Format: uuid */
             id: string;
@@ -1212,9 +1247,15 @@ export interface components {
             senderId: string;
             /** Format: uuid */
             clientId: string;
-            /** @description Type ouvert pour les ajouts compatibles des prochaines tranches. */
+            /** @description `text` ou `image` ; type ouvert pour les ajouts compatibles des prochaines tranches. */
             kind: string;
+            /** @description Texte du message ; chaîne vide pour une photo sans texte. */
             body: string;
+            /**
+             * Format: uuid
+             * @description Photo d'un message `image`, lue par `GET /v1/media/{id}/signed-url`.
+             */
+            mediaId?: string;
             /** Format: date-time */
             createdAt: string;
         };
@@ -1304,7 +1345,8 @@ export interface components {
             data: {
                 /** Format: uuid */
                 mediaId: string;
-                variants: components["schemas"]["ImageVariants"] | components["schemas"]["VideoVariants"];
+                /** @description Absentes pour une photo de message (`purpose = message`), lue par URL signée. */
+                variants?: components["schemas"]["ImageVariants"] | components["schemas"]["VideoVariants"];
             };
         };
         MediaFailed: {
@@ -1501,7 +1543,18 @@ export interface components {
          * @description Usage prévu du média ; il ne peut être rattaché qu'à cet usage (ADR-008).
          * @enum {string}
          */
-        MediaPurpose: "avatar" | "post" | "story";
+        MediaPurpose: "avatar" | "post" | "story" | "message";
+        /**
+         * @description Variante WebP d'une image (ADR-008).
+         * @enum {string}
+         */
+        ImageVariantName: "thumb" | "medium" | "large";
+        SignedMediaUrl: {
+            /** Format: uri */
+            url: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
         /**
          * @description `pending_upload` → `uploaded` → `processing` → `ready` | `failed` (ADR-008).
          * @enum {string}
@@ -1542,7 +1595,7 @@ export interface components {
             kind: components["schemas"]["MediaKind"];
             purpose: components["schemas"]["MediaPurpose"];
             status: components["schemas"]["MediaStatus"];
-            /** @description Présentes quand le média est `ready`. */
+            /** @description Présentes quand le média est `ready`, sauf pour une photo de message (`purpose = message`), lue par URL signée. */
             variants?: components["schemas"]["ImageVariants"] | components["schemas"]["VideoVariants"];
             /** @description Présent quand le média est `failed`. */
             failureReason?: components["schemas"]["MediaFailureReason"];
@@ -2281,7 +2334,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SendTextMessage"];
+                "application/json": components["schemas"]["SendTextMessage"] | components["schemas"]["SendImageMessage"];
             };
         };
         responses: {
@@ -2305,7 +2358,33 @@ export interface operations {
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
-            404: components["responses"]["ConversationNotFound"];
+            /** @description Conversation absente ou invisible (`conversation_not_found`), ou média inexistant ou d'un autre utilisateur (`media_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Média pas encore prêt (`media_not_ready`) ou déjà utilisé (`media_already_attached`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Média vidéo (`media_kind_mismatch`) ou prévu pour un autre usage (`media_purpose_mismatch`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             429: components["responses"]["RateLimited"];
         };
     };
@@ -3844,6 +3923,42 @@ export interface operations {
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["MediaNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getMediaSignedUrl: {
+        parameters: {
+            query: {
+                variant: components["schemas"]["ImageVariantName"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["MediaId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description URL signée. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedMediaUrl"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            /** @description Média inexistant, pas une photo de message, ou conversation dont l'appelant n'est pas membre ou qui lui est invisible (`media_not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };

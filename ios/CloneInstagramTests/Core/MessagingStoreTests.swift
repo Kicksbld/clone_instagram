@@ -222,6 +222,91 @@ struct MessagingStoreTests {
         #expect(store.seenMessageId(in: "conversation") == "1")
     }
 
+    // MARK: - Photos (T28)
+
+    @Test func photoBubbleIsImmediateThenUploadedAndSentAsImage() async throws {
+        let service = FakeMessagingService()
+        service.shouldFail = false
+        let uploads = FakeUploadService()
+        let store = MessagingStore(service: service, uploads: uploads)
+        store.setAccount("me")
+        let photo = Data([1, 2, 3])
+        var seen: MessagingStore.Pending?
+        uploads.duringUpload = { seen = store.pending.first }
+
+        await store.sendPhoto(conversationId: "conversation", data: photo)
+
+        #expect(seen?.photo == photo)
+        #expect(seen?.state == .sending)
+        #expect(uploads.uploads.map(\.purpose) == [.message])
+        #expect(service.sentPhotos == [uploads.mediaId])
+        #expect(store.pending.isEmpty)
+        let sent = try #require(store.messages["conversation"]?.first)
+        #expect(sent.mediaId == uploads.mediaId)
+        #expect(sent.summary == "Photo")
+    }
+
+    @Test func failedPhotoSendRetriesWithSameClientIdWithoutUploadingAgain() async throws {
+        let service = FakeMessagingService()
+        let uploads = FakeUploadService()
+        let store = MessagingStore(service: service, uploads: uploads)
+        store.setAccount("me")
+
+        await store.sendPhoto(conversationId: "conversation", data: Data([1]))
+        let pending = try #require(store.pending.first)
+        #expect(pending.state == .failed)
+        #expect(store.errorMessage != nil)
+
+        service.shouldFail = false
+        await store.retry(clientId: pending.id)
+
+        #expect(uploads.uploads.count == 1)
+        #expect(service.sentIDs == [pending.id, pending.id])
+        #expect(service.sentPhotos == [uploads.mediaId, uploads.mediaId])
+        #expect(store.pending.isEmpty)
+    }
+
+    @Test func failedUploadShowsItsReasonAndRetryUploadsAgain() async throws {
+        let service = FakeMessagingService()
+        service.shouldFail = false
+        let uploads = FakeUploadService()
+        uploads.error = .transferFailed
+        let store = MessagingStore(service: service, uploads: uploads)
+        store.setAccount("me")
+
+        await store.sendPhoto(conversationId: "conversation", data: Data([1]))
+        let pending = try #require(store.pending.first)
+        #expect(pending.state == .failed)
+        #expect(store.errorMessage == UploadError.message(for: .transferFailed))
+        #expect(service.sentPhotos.isEmpty)
+
+        uploads.error = nil
+        await store.retry(clientId: pending.id)
+
+        #expect(uploads.uploads.count == 2)
+        #expect(service.sentPhotos == [uploads.mediaId])
+        #expect(store.pending.isEmpty)
+    }
+
+    @Test func rejectedPhotoIsUploadedAgainOnRetry() async throws {
+        let service = FakeMessagingService()
+        service.shouldFail = false
+        service.rejectPhoto = true
+        let uploads = FakeUploadService()
+        let store = MessagingStore(service: service, uploads: uploads)
+        store.setAccount("me")
+
+        await store.sendPhoto(conversationId: "conversation", data: Data([1]))
+        let pending = try #require(store.pending.first)
+        #expect(pending.state == .failed)
+
+        service.rejectPhoto = false
+        await store.retry(clientId: pending.id)
+
+        #expect(uploads.uploads.count == 2)
+        #expect(store.pending.isEmpty)
+    }
+
     private func conversation(_ id: String, unread: Int) -> Conversation {
         Conversation(
             id: id,
@@ -273,6 +358,10 @@ final class FakeMessagingService: MessagingService {
     var continuation: CheckedContinuation<Void, Never>?
     var reads: [String] = []
     var readFails = false
+    var sentPhotos: [String] = []
+    var rejectPhoto = false
+    var signedURLs: [Result<SignedPhotoURL, MessagingError>] = []
+    private(set) var photoRequests: [String] = []
     func conversations(cursor _: String?) async throws -> ConversationPage {
         inboxCalls += 1
         let snapshot = inbox
@@ -309,6 +398,32 @@ final class FakeMessagingService: MessagingService {
             throw MessagingError.unavailable
         }
         return ChatMessage(id: "server", conversationId: conversationId, senderId: "me", clientId: clientId, body: body, createdAt: Date())
+    }
+
+    func sendPhoto(conversationId: String, clientId: String, mediaId: String) async throws -> ChatMessage {
+        sentIDs.append(clientId)
+        sentPhotos.append(mediaId)
+        if rejectPhoto {
+            throw MessagingError.photoRejected
+        }
+        if shouldFail {
+            throw MessagingError.unavailable
+        }
+        return ChatMessage(
+            id: "server",
+            conversationId: conversationId,
+            senderId: "me",
+            clientId: clientId,
+            body: "",
+            createdAt: Date(),
+            mediaId: mediaId
+        )
+    }
+
+    func photoURL(mediaId: String, variant: PhotoVariant) async throws -> SignedPhotoURL {
+        photoRequests.append("\(mediaId)/\(variant.rawValue)")
+        guard !signedURLs.isEmpty else { throw MessagingError.requestFailed }
+        return try signedURLs.removeFirst().get()
     }
 
     func markRead(conversationId _: String, messageId: String) async throws {

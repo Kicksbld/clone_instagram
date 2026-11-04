@@ -3,6 +3,7 @@ import { ListConversations } from '../../src/modules/messaging/application/use-c
 import { ListMessages } from '../../src/modules/messaging/application/use-cases/list-messages.ts';
 import { MarkConversationRead } from '../../src/modules/messaging/application/use-cases/mark-conversation-read.ts';
 import { SendMessage } from '../../src/modules/messaging/application/use-cases/send-message.ts';
+import { GetMessagePhotoUrl } from '../../src/modules/messaging/application/use-cases/get-message-photo-url.ts';
 import { InMemoryMessaging } from './in-memory-messaging.ts';
 import { ListArchivedStories } from '../../src/modules/ephemeral/application/use-cases/list-archived-stories.ts';
 import { ListStoryViewers } from '../../src/modules/ephemeral/application/use-cases/list-story-viewers.ts';
@@ -67,6 +68,7 @@ import { SocialFollowRequestAccepter } from '../../src/modules/social/infrastruc
 import { publicMediaUrls } from '../../src/shared/infrastructure/http/public-media-urls.ts';
 import {
   FakeMediaStorage,
+  FakePrivateMediaUrls,
   InMemoryAdminAuditLog,
   InMemoryAdminRoles,
   InMemoryAnalyticsTracker,
@@ -117,8 +119,12 @@ export function buildTestApp() {
   const { profiles, media, avatarTransaction } = inMemoryAdapters();
   const jobs = new InMemoryJobQueue();
   const relationships = new InMemoryRelationshipReader();
-  const messaging = new InMemoryMessaging(profiles, relationships);
-  const messagingTransaction = new InMemoryUnitOfWork({ repository: messaging, relationships });
+  const messaging = new InMemoryMessaging(profiles, relationships, media);
+  const messagingTransaction = new InMemoryUnitOfWork({
+    repository: messaging,
+    relationships,
+    media,
+  });
   const messagingIds = sequentialIds('0199a1b2-0000-7000-d100-');
   const messagingUseCases = {
     getOrCreateConversation: new GetOrCreateConversation(messagingTransaction, messagingIds, {
@@ -143,6 +149,11 @@ export function buildTestApp() {
       },
       disconnect: () => {},
     }),
+    getMessagePhotoUrl: new GetMessagePhotoUrl(
+      messaging,
+      relationships,
+      new FakePrivateMediaUrls(() => TEST_NOW),
+    ),
   };
   const graph = new InMemorySocialGraph(profiles, relationships);
   const notifications = new InMemoryNotifications(relationships);

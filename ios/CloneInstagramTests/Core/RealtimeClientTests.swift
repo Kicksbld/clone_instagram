@@ -48,6 +48,36 @@ struct RealtimeClientTests {
         client.setSession(nil)
     }
 
+    @Test func `media ready without public variants ends the wait of a message photo`() async {
+        let transport = FakeRealtimeTransport()
+        let events = MediaProcessingEvents()
+        let mediaId = "0199a1b2-0000-7000-9000-000000000001"
+        let subscription = events.signals(mediaId: mediaId, initialDelay: .seconds(60))
+        let client = RealtimeClient(
+            makeTransport: { transport }, accessToken: { "token" }, badge: ActivityBadge(service: FakeActivityService()),
+            onSuspended: {}, mediaEvents: events
+        )
+        client.setSession("me")
+        await eventually { !transport.sent.isEmpty }
+
+        transport.deliver(#"{"type":"media.ready","data":{"mediaId":"\#(mediaId)"}}"#)
+
+        var received: MediaStatus?
+        // `.refresh` (REST catch-up after connecting) is skipped: only the event's status counts.
+        for await signal in subscription.stream {
+            if case let .status(status) = signal {
+                received = status
+                break
+            }
+        }
+        guard case .privateReady = received else {
+            Issue.record("Statut attendu : privateReady")
+            return
+        }
+        events.stop(subscription.id)
+        client.setSession(nil)
+    }
+
     @Test func `suspension reports to the app and never reconnects`() async {
         let transport = FakeRealtimeTransport()
         var connections = 0
