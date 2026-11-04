@@ -1,3 +1,6 @@
+import { SharedPosts } from '../../../src/modules/messaging/application/shared-posts.ts';
+import { DrizzleSharedPostReader } from '../../../src/modules/messaging/infrastructure/persistence/drizzle-shared-post-reader.ts';
+import { publicMediaUrls } from '../../../src/shared/infrastructure/http/public-media-urls.ts';
 import { blocks, newId, profiles } from '@clone/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, expect, it } from 'vitest';
@@ -11,6 +14,10 @@ import { ListMessages } from '../../../src/modules/messaging/application/use-cas
 import { connectTestDatabase } from '../../support/database.ts';
 
 const database = connectTestDatabase();
+const sharedPosts = new SharedPosts(
+  new DrizzleSharedPostReader(database.db, publicMediaUrls('http://localhost:54321')),
+  new DrizzleRelationshipReader(database.db),
+);
 const ids = [newId(), newId()];
 afterAll(async () => {
   await database.db.delete(profiles).where(inArray(profiles.id, ids));
@@ -32,7 +39,7 @@ it('concurrent opens share one conversation; duplicate sends commit and publish 
     media: new DrizzleMediaRepository(tx),
   }));
   const clock = { now: () => new Date('2026-11-01T12:00:00.123Z') };
-  const create = new GetOrCreateConversation(transaction, { next: newId }, clock);
+  const create = new GetOrCreateConversation(transaction, { next: newId }, clock, sharedPosts);
   const [a, b] = ids as [string, string];
   const opened = await Promise.all([
     create.execute({ viewerId: a, userId: b }),
@@ -43,12 +50,18 @@ it('concurrent opens share one conversation; duplicate sends commit and publish 
   const repository = new DrizzleMessagingRepository(database.db);
   expect((await repository.listConversations(a, null)).items).toEqual([]);
   const published: unknown[] = [];
-  const send = new SendMessage(transaction, { next: newId }, clock, {
-    publish: (...args) => {
-      published.push(args);
+  const send = new SendMessage(
+    transaction,
+    { next: newId },
+    clock,
+    {
+      publish: (...args) => {
+        published.push(args);
+      },
+      disconnect: () => {},
     },
-    disconnect: () => {},
-  });
+    sharedPosts,
+  );
   const input = {
     viewerId: a,
     conversationId: opened[0].conversation.id,
@@ -58,7 +71,11 @@ it('concurrent opens share one conversation; duplicate sends commit and publish 
   const results = await Promise.all([send.execute(input), send.execute(input)]);
   expect(results[0].message.id).toBe(results[1].message.id);
   expect(published).toHaveLength(1);
-  const history = new ListMessages(repository, new DrizzleRelationshipReader(database.db));
+  const history = new ListMessages(
+    repository,
+    new DrizzleRelationshipReader(database.db),
+    sharedPosts,
+  );
   expect(
     (
       await history.execute({ viewerId: b, conversationId: input.conversationId, cursor: null })
@@ -82,6 +99,7 @@ it('concurrent opens share one conversation; duplicate sends commit and publish 
       },
       disconnect: () => {},
     },
+    sharedPosts,
   );
   await expect(
     failedSend.execute({

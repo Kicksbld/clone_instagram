@@ -20,6 +20,7 @@ struct PostView: View {
     @State private var captionHeights = CaptionHeights()
     /// Incrémenté à chaque double tap : déclenche le cœur sur la photo.
     @State private var doubleTapCount = 0
+    @Environment(\.openSharePost) private var openSharePost
     @Environment(\.openComments) private var openComments
     @Environment(\.moderation) private var moderation
 
@@ -197,7 +198,7 @@ struct PostView: View {
         openComments?(CommentsRoute(postId: post.id, commentCount: post.commentCount))
     }
 
-    /// J'aime et Commenter actifs ; Partager et Enregistrer (plus tard) restent désactivés.
+    /// Actions du post.
     /// Mon post : « Supprimer » ; celui d'un autre : « Signaler » et « Bloquer », comme Instagram.
     @ViewBuilder
     private var menuItems: some View {
@@ -220,12 +221,13 @@ struct PostView: View {
             Button("Commenter", systemImage: "bubble.right", action: showComments)
                 .foregroundStyle(.primary)
                 .disabled(openComments == nil)
-            Group {
-                Button("Partager", systemImage: "paperplane") {}
-                Spacer()
-                Button("Enregistrer", systemImage: "bookmark") {}
+            Button("Partager", systemImage: "paperplane") {
+                openSharePost?(SharePostRoute(postId: post.id))
             }
-            .disabled(true)
+            .disabled(openSharePost == nil)
+            Spacer()
+            Button("Enregistrer", systemImage: "bookmark") {}
+                .disabled(true)
         }
         .labelStyle(.iconOnly)
         .font(.title3)

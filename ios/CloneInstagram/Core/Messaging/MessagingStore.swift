@@ -15,6 +15,7 @@ final class MessagingStore {
         var photo: Data?
         /// Its uploaded `ready` media: a retry sends it again without a new upload.
         var mediaId: String?
+        var sharedPostId: String?
     }
 
     private(set) var conversations: [Conversation] = []
@@ -135,6 +136,7 @@ final class MessagingStore {
         if messages[id] == nil {
             await loadHistory(id)
         } else {
+            await refreshSharedPosts(id)
             await catchUp(id)
         }
         await markLatestRead(id)
@@ -177,8 +179,13 @@ final class MessagingStore {
         for id in Array(opened.keys) {
             guard !Task.isCancelled else { return }
             await catchUp(id)
+            await refreshSharedPosts(id)
         }
         await refresh()
+    }
+
+    func isActive(viewerId: String) -> Bool {
+        account == viewerId
     }
 
     private func catchUp(_ id: String) async {
@@ -206,7 +213,9 @@ final class MessagingStore {
         guard !unavailableConversationIds.contains(message.conversationId) else { return }
         messageRevision += 1
         var items = messages[message.conversationId, default: []]
-        if !items.contains(where: { $0.id == message.id }) {
+        if let index = items.firstIndex(where: { $0.id == message.id }) {
+            items[index] = message
+        } else {
             items.append(message)
         }
         items.sort { $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt }
@@ -216,7 +225,7 @@ final class MessagingStore {
             let previous = conversations[index].lastMessage
             let isNewer = previous
                 .map { $0.createdAt < message.createdAt || ($0.createdAt == message.createdAt && $0.id < message.id) } ?? true
-            if isNewer {
+            if isNewer || previous?.id == message.id {
                 conversations[index].lastMessage = message
                 sortConversations()
             }
@@ -230,6 +239,20 @@ final class MessagingStore {
         await retry(clientId: id)
     }
 
+    func share(conversationId: String, postId: String, clientId: String) async {
+        guard account != nil, !Task.isCancelled else { return }
+        if !pending.contains(where: { $0.id == clientId }) {
+            pending.append(Pending(
+                id: clientId,
+                conversationId: conversationId,
+                body: "Post partagé",
+                state: .sending,
+                sharedPostId: postId
+            ))
+        }
+        await retry(clientId: clientId)
+    }
+
     func retry(clientId: String) async {
         guard let item = pending.first(where: { $0.id == clientId }) else { return }
         let started = revision
@@ -237,7 +260,9 @@ final class MessagingStore {
             pending[index].state = .sending
         }
         let send: (Bool) async throws -> Bool = { _ in
-            let message = if let photo = item.photo {
+            let message = if let postId = item.sharedPostId {
+                try await self.service.share(conversationId: item.conversationId, clientId: clientId, postId: postId)
+            } else if let photo = item.photo {
                 try await self.sendPhoto(photo, clientId: clientId, conversationId: item.conversationId, started: started)
             } else {
                 try await self.service.send(conversationId: item.conversationId, clientId: clientId, body: item.body)
@@ -256,6 +281,7 @@ final class MessagingStore {
                 pending[index].state = .failed
                 errorMessage = switch error {
                 case let upload as UploadError: UploadError.message(for: upload)
+                case MessagingError.postUnavailable: "Ce post est indisponible. Il ne peut plus être partagé."
                 case MessagingError.photoRejected: "La photo n'a pas pu être envoyée. Appuyez sur Réessayer pour la renvoyer."
                 default: "Message non envoyé. Appuyez sur Réessayer pour le renvoyer."
                 }
@@ -316,6 +342,37 @@ final class MessagingStore {
 }
 
 private extension MessagingStore {
+    /// Re-read all displayed references when reopening or returning to the foreground, including older pages.
+    func refreshSharedPosts(_ id: String) async {
+        var remaining = Set(messages[id, default: []].filter(\.isPostShare).map(\.id))
+        guard !remaining.isEmpty else { return }
+        let started = revision
+        let startedAccess = accessRevision
+        // Do not keep displaying an old private preview while the visibility check is in flight.
+        messages[id] = messages[id, default: []].map { message in
+            var current = message
+            if current.isPostShare {
+                current.sharedPost = nil
+            }
+            return current
+        }
+        var cursor: String?
+        do {
+            repeat {
+                let page = try await service.messages(conversationId: id, cursor: cursor, after: nil)
+                guard started == revision, startedAccess == accessRevision, !Task.isCancelled else { return }
+                for message in page.items where remaining.contains(message.id) {
+                    receive(message)
+                    remaining.remove(message.id)
+                }
+                cursor = page.nextCursor
+            } while !remaining.isEmpty && cursor != nil
+        } catch {
+            guard started == revision, startedAccess == accessRevision, !Task.isCancelled else { return }
+            handle(error, conversationId: id)
+        }
+    }
+
     func finishRefresh(_ started: Int) {
         guard started == revision else { return }
         loadingConversations = false

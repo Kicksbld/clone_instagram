@@ -1,6 +1,14 @@
 import APIClient
 import Foundation
 
+struct SharedPostPreview: Equatable, Sendable {
+    let id: String
+    let kind: String
+    let caption: String
+    let author: PostAuthor
+    let thumbnail: URL?
+}
+
 struct ChatMessage: Equatable, Identifiable, Sendable {
     let id: String
     let conversationId: String
@@ -11,10 +19,16 @@ struct ChatMessage: Equatable, Identifiable, Sendable {
     let createdAt: Date
     /// Photo of an `image` message, displayed through a signed URL (ADR-023).
     var mediaId: String?
+    var sharedPostId: String?
+    var sharedPost: SharedPostPreview?
+    var isPostShare = false
 
     /// Inbox preview: the text, or « Photo » for a photo without text.
     var summary: String {
-        mediaId != nil && body.isEmpty ? "Photo" : body
+        if isPostShare {
+            return sharedPost == nil ? "Contenu indisponible" : (body.isEmpty ? "Post partagé" : body)
+        }
+        return mediaId != nil && body.isEmpty ? "Photo" : body
     }
 }
 
@@ -56,6 +70,8 @@ nonisolated enum MessagingError: Error {
     case unavailable
     case notFound
     case requestFailed
+    /// The shared post has disappeared or is no longer visible to me.
+    case postUnavailable
     /// The photo cannot be attached (not ready, already used, wrong kind…): upload it again.
     case photoRejected
 }
@@ -67,6 +83,7 @@ protocol MessagingService: Sendable {
     func send(conversationId: String, clientId: String, body: String) async throws -> ChatMessage
     /// Sends a `ready` photo of purpose `message` (ADR-023), same `clientId` for every retry.
     func sendPhoto(conversationId: String, clientId: String, mediaId: String) async throws -> ChatMessage
+    func share(conversationId: String, clientId: String, postId: String) async throws -> ChatMessage
     /// Signed URL of a message photo; `notFound` outside my visible conversations.
     func photoURL(mediaId: String, variant: PhotoVariant) async throws -> SignedPhotoURL
     func markRead(conversationId: String, messageId: String) async throws
@@ -118,6 +135,13 @@ struct APIMessagingService: MessagingService {
         )
     }
 
+    func share(conversationId: String, clientId: String, postId: String) async throws -> ChatMessage {
+        try await send(
+            conversationId: conversationId,
+            .SendPostShareMessage(.init(clientId: clientId, kind: .postShare, sharedPostId: postId))
+        )
+    }
+
     private func send(
         conversationId: String,
         _ body: Operations.SendMessage.Input.Body.JsonPayload
@@ -131,6 +155,9 @@ struct APIMessagingService: MessagingService {
             // 404 for the photo (`media_not_found`) is not a missing conversation.
             if case let .applicationProblemJson(problem) = value.body, problem.code == "media_not_found" {
                 throw MessagingError.photoRejected
+            }
+            if case let .applicationProblemJson(problem) = value.body, problem.code == "post_not_found" {
+                throw MessagingError.postUnavailable
             }
             throw MessagingError.notFound
         case .conflict, .unprocessableContent: throw MessagingError.photoRejected
@@ -169,7 +196,7 @@ extension ChatMessage {
     init?(_ dto: Components.Schemas.Message) {
         // Kinds of later slices are ignored; a photo always carries its media.
         switch dto.kind {
-        case "text": break
+        case "text", "post_share": break
         case "image" where dto.mediaId != nil: break
         default: return nil
         }
@@ -180,7 +207,18 @@ extension ChatMessage {
             clientId: dto.clientId,
             body: dto.body,
             createdAt: dto.createdAt,
-            mediaId: dto.kind == "image" ? dto.mediaId : nil
+            mediaId: dto.kind == "image" ? dto.mediaId : nil,
+            sharedPostId: dto.sharedPostId,
+            sharedPost: dto.sharedPost.map { preview in
+                SharedPostPreview(
+                    id: preview.id,
+                    kind: preview.kind,
+                    caption: preview.caption,
+                    author: PostAuthor(id: preview.author.id, username: preview.author.username, avatar: nil),
+                    thumbnail: preview.thumbnail.flatMap(URL.init(string:))
+                )
+            },
+            isPostShare: dto.kind == "post_share"
         )
     }
 }
@@ -224,6 +262,10 @@ struct UnavailableMessagingService: MessagingService {
     }
 
     func sendPhoto(conversationId _: String, clientId _: String, mediaId _: String) async throws -> ChatMessage {
+        throw MessagingError.unavailable
+    }
+
+    func share(conversationId _: String, clientId _: String, postId _: String) async throws -> ChatMessage {
         throw MessagingError.unavailable
     }
 

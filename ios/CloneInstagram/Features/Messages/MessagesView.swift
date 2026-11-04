@@ -1,3 +1,4 @@
+import NukeUI
 import PhotosUI
 import SwiftUI
 
@@ -255,7 +256,35 @@ struct ConversationView: View {
 private extension ConversationView {
     @ViewBuilder
     func bubble(_ message: ChatMessage) -> some View {
-        if let mediaId = message.mediaId {
+        if message.isPostShare {
+            VStack(alignment: .leading, spacing: 4) {
+                if let post = message.sharedPost {
+                    NavigationLink(value: PostRoute(postId: post.id)) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            if let thumbnail = post.thumbnail {
+                                LazyImage(url: thumbnail) { state in
+                                    if let image = state.image {
+                                        image.resizable().scaledToFill()
+                                    } else {
+                                        Rectangle().fill(.quaternary)
+                                    }
+                                }
+                                .frame(width: 180, height: 180).clipped()
+                            }
+                            Text(post.author.username).bold()
+                            Text(post.caption).lineLimit(2)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Label("Contenu indisponible", systemImage: "photo.badge.exclamationmark")
+                }
+                if !message.body.isEmpty {
+                    Text(message.body)
+                }
+            }
+            .padding(8).background(.quaternary, in: .rect(cornerRadius: 12))
+        } else if let mediaId = message.mediaId {
             VStack(alignment: message.senderId == viewerId ? .trailing : .leading, spacing: 4) {
                 MessagePhotoView(mediaId: mediaId, photos: store.photos)
                 if !message.body.isEmpty {

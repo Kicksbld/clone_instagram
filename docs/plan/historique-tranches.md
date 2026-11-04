@@ -112,3 +112,12 @@ Ce que chaque tranche a posé dans le code, pour retrouver où vit une fonctionn
 - iOS : `MessagingStore.sendPhoto` (bulle optimiste depuis le fichier choisi, upload `purpose` `message` par `UploadService`, `mediaId` conservé pour les renvois avec le même `clientId`, nouvel upload si la photo est refusée), `MediaStatus.privateReady` (`media.ready` sans variantes), `Core/Messaging/MessagePhotoURLs` (URL signées réutilisées jusqu'à une minute de leur expiration, `ImageRequest.imageID` par média et variante, pipeline Nuke `withDataCache` dédié), `MessagePhotoView` / `PendingPhotoView` et boutons Caméra / Photothèque de la barre de saisie (feature `Messages`), aperçu « Photo » dans la liste.
 - Reste à valider : démo sur deux iPhone physiques (A envoie une photo, B la voit ; l'URL copiée expire au bout d'une heure).
 
+
+
+## T29 — Partage de post en message privé
+
+- Contrat `SendPostShareMessage`, aperçu `SharedPost` nullable et type de message ouvert ; clients TypeScript et Swift régénérés.
+- `messaging` : port propre `SharedPostReader`, résolution par lecteur via `canViewContent` pour les historiques, rattrapages, inbox, ouvertures, envois et événements WebSocket ; renvois idempotents.
+- Migrations `0019` / `0020` : `post_share` admis par le `CHECK`, suppression de la FK qui empêchait de purger le post référencé. Aucune nouvelle table.
+- iOS : action `openSharePost` fournie par `App`, feuille de sélection multiple avec conversations récentes et recherche, états par destinataire et réessai ; référence dans `MessagingStore.Pending`, bulle d'aperçu vers `PostRoute`, contenu indisponible préservant le message.
+- ADR-035 proposé. Validation physique sur la démo à réaliser : A partage à B et C ; C non abonné d'un auteur privé voit « Contenu indisponible ».

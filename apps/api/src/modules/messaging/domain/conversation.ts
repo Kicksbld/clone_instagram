@@ -1,6 +1,14 @@
 import type { ImageVariantPaths } from '../../../shared/domain/image-variants.ts';
 
-export type MessageKind = 'text' | 'image';
+export type MessageKind = 'text' | 'image' | 'post_share';
+
+export interface SharedPost {
+  id: string;
+  kind: string;
+  caption: string;
+  author: { id: string; username: string };
+  thumbnail?: string;
+}
 
 export interface Message {
   id: string;
@@ -12,12 +20,16 @@ export interface Message {
   body: string;
   /** Photo of an `image` message, read through a signed URL only. */
   mediaId: string | null;
+  sharedPostId?: string | null;
+  sharedPost?: SharedPost | null;
   createdAt: Date;
 }
 
 /** Content of a message to send, by `kind` (ADR-023). */
 export type MessageContent =
-  { kind: 'text'; body: string } | { kind: 'image'; mediaId: string; body?: string };
+  | { kind: 'text'; body: string }
+  | { kind: 'image'; mediaId: string; body?: string }
+  | { kind: 'post_share'; sharedPostId: string; body?: string };
 export interface Conversation {
   id: string;
   memberLowId: string;

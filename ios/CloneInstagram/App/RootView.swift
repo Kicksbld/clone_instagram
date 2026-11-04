@@ -6,6 +6,7 @@ struct RootView: View {
     @State private var viewModel: RootViewModel
     /// Feuille des commentaires ouverte depuis un post (feed, détail).
     @State private var onboardingProfileId: String?
+    @State private var sharePostRoute: SharePostRoute?
     @State private var commentsRoute: CommentsRoute?
     /// Tirer pour rafraîchir le feed : recharge aussi le bandeau des stories.
     @State private var feedRefreshCount = 0
@@ -196,6 +197,16 @@ struct RootView: View {
                 )
                 .modifier(SocialDestinations(dependencies: dependencies, viewerId: profile.id, openComments: openComments))
             }
+            .environment(\.openSharePost, OpenSharePostAction { sharePostRoute = $0 })
+            .sheet(item: $sharePostRoute) { route in
+                SharePostView(viewModel: SharePostViewModel(
+                    postId: route.postId,
+                    store: dependencies.messaging,
+                    social: dependencies.social,
+                    viewerId: profile.id
+                ))
+                .environment(\.blockedUserIds, dependencies.blocks.blockedIds)
+            }
             // Reprise des publications interrompues (fermeture de l'app) ; compteurs rechargés après chaque
             // post publié (un post supprimé disparaît tout de suite : `PostDeletionStore`).
             .task(id: profile.id) {
@@ -209,7 +220,7 @@ struct RootView: View {
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
                 Task { await dependencies.activityBadge.refresh() }
-                Task { await dependencies.messaging.refresh() }
+                Task { await dependencies.messaging.reconnect() }
             }
             // Compteurs rechargés aussi après un blocage (abonnements supprimés dans les deux sens).
             .onChange(of: postsRevision + dependencies.blocks.revision) {

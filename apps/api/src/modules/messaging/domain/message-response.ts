@@ -9,6 +9,10 @@ export function messageResponse(message: Message) {
     kind: message.kind,
     body: message.body,
     ...(message.mediaId && { mediaId: message.mediaId }),
+    ...(message.kind === 'post_share' && {
+      ...(message.sharedPostId && { sharedPostId: message.sharedPostId }),
+      sharedPost: message.sharedPost ?? null,
+    }),
     createdAt: message.createdAt.toISOString(),
   };
 }

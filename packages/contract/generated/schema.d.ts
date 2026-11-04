@@ -38,8 +38,9 @@ export interface paths {
         get: operations["listMessages"];
         put?: never;
         /**
-         * Envoyer un texte ou une photo, au plus 60 messages par minute
+         * Envoyer un texte, une photo ou un post, au plus 60 messages par minute
          * @description Même clientId du même expéditeur renvoie le message existant sans nouvel événement. Message et last_message_at dans une transaction ; message.created aux deux membres après validation.
+         *     Partage (`kind = post_share`) : post ou reel visible de l’expéditeur ; aperçu relu selon chaque lecteur, y compris en temps réel. Supprimé ou invisible : sharedPost null, kind conservé. Un message et un clientId distinct par destinataire.
          *     Photo (`kind = image`) : média `image` de l'expéditeur, `purpose = message`, `ready` et jamais utilisé, rattaché au message dans la même transaction ; `body` facultatif.
          */
         post: operations["sendMessage"];
@@ -1238,6 +1239,29 @@ export interface components {
             mediaId: string;
             body?: string;
         };
+        SendPostShareMessage: {
+            /** Format: uuid */
+            clientId: string;
+            /** @enum {string} */
+            kind: "post_share";
+            /** Format: uuid */
+            sharedPostId: string;
+            body?: string;
+        };
+        SharedPost: {
+            /** Format: uuid */
+            id: string;
+            /** @description Post ou reel (type ouvert). */
+            kind: string;
+            caption: string;
+            author: {
+                /** Format: uuid */
+                id: string;
+                username: string;
+            };
+            /** Format: uri */
+            thumbnail?: string;
+        } | null;
         Message: {
             /** Format: uuid */
             id: string;
@@ -1247,7 +1271,7 @@ export interface components {
             senderId: string;
             /** Format: uuid */
             clientId: string;
-            /** @description `text` ou `image` ; type ouvert pour les ajouts compatibles des prochaines tranches. */
+            /** @description `text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches. */
             kind: string;
             /** @description Texte du message ; chaîne vide pour une photo sans texte. */
             body: string;
@@ -1256,6 +1280,10 @@ export interface components {
              * @description Photo d'un message `image`, lue par `GET /v1/media/{id}/signed-url`.
              */
             mediaId?: string;
+            /** Format: uuid */
+            sharedPostId?: string;
+            /** @description Aperçu relu pour le lecteur ; null si supprimé ou invisible. Présent pour post_share. */
+            sharedPost?: components["schemas"]["SharedPost"];
             /** Format: date-time */
             createdAt: string;
         };
@@ -2334,7 +2362,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SendTextMessage"] | components["schemas"]["SendImageMessage"];
+                "application/json": components["schemas"]["SendTextMessage"] | components["schemas"]["SendImageMessage"] | components["schemas"]["SendPostShareMessage"];
             };
         };
         responses: {
@@ -2358,7 +2386,7 @@ export interface operations {
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
-            /** @description Conversation absente ou invisible (`conversation_not_found`), ou média inexistant ou d'un autre utilisateur (`media_not_found`). */
+            /** @description Conversation absente ou invisible (`conversation_not_found`), ou média inexistant ou d'un autre utilisateur (`media_not_found`), ou post invisible (`post_not_found`). */
             404: {
                 headers: {
                     [name: string]: unknown;

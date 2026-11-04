@@ -189,9 +189,10 @@ paths:
     post:
       operationId: sendMessage
       tags: [messaging]
-      summary: Envoyer un texte ou une photo, au plus 60 messages par minute
+      summary: Envoyer un texte, une photo ou un post, au plus 60 messages par minute
       description: |
         Même clientId du même expéditeur renvoie le message existant sans nouvel événement. Message et last_message_at dans une transaction ; message.created aux deux membres après validation.
+        Partage (`kind = post_share`) : post ou reel visible de l’expéditeur ; aperçu relu selon chaque lecteur, y compris en temps réel. Supprimé ou invisible : sharedPost null, kind conservé. Un message et un clientId distinct par destinataire.
         Photo (`kind = image`) : média `image` de l'expéditeur, `purpose = message`, `ready` et jamais utilisé, rattaché au message dans la même transaction ; `body` facultatif.
       requestBody:
         required: true
@@ -201,6 +202,7 @@ paths:
               oneOf:
                 - $ref: '#/components/schemas/SendTextMessage'
                 - $ref: '#/components/schemas/SendImageMessage'
+                - $ref: '#/components/schemas/SendPostShareMessage'
       responses:
         '201':
           description: Message créé.
@@ -219,7 +221,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '404':
-          description: Conversation absente ou invisible (`conversation_not_found`), ou média inexistant ou d'un autre utilisateur (`media_not_found`).
+          description: Conversation absente ou invisible (`conversation_not_found`), ou média inexistant ou d'un autre utilisateur (`media_not_found`), ou post invisible (`post_not_found`).
           content:
             application/problem+json:
               schema:
@@ -2018,6 +2020,48 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
+    SendPostShareMessage:
+      type: object
+      additionalProperties: false
+      required: [clientId, kind, sharedPostId]
+      properties:
+        clientId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [post_share]
+        sharedPostId:
+          type: string
+          format: uuid
+        body:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    SharedPost:
+      type: [object, 'null']
+      required: [id, kind, caption, author]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          description: Post ou reel (type ouvert).
+        caption:
+          type: string
+        author:
+          type: object
+          required: [id, username]
+          properties:
+            id:
+              type: string
+              format: uuid
+            username:
+              type: string
+        thumbnail:
+          type: string
+          format: uri
     Message:
       type: object
       required: [id, conversationId, senderId, clientId, kind, body, createdAt]
@@ -2036,7 +2080,7 @@ components:
           format: uuid
         kind:
           type: string
-          description: '`text` ou `image` ; type ouvert pour les ajouts compatibles des prochaines tranches.'
+          description: '`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches.'
         body:
           type: string
           description: Texte du message ; chaîne vide pour une photo sans texte.
@@ -2044,6 +2088,12 @@ components:
           type: string
           format: uuid
           description: Photo d'un message `image`, lue par `GET /v1/media/{id}/signed-url`.
+        sharedPostId:
+          type: string
+          format: uuid
+        sharedPost:
+          description: Aperçu relu pour le lecteur ; null si supprimé ou invisible. Présent pour post_share.
+          $ref: '#/components/schemas/SharedPost'
         createdAt:
           type: string
           format: date-time

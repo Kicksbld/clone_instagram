@@ -13,7 +13,6 @@ import {
 } from 'drizzle-orm/pg-core';
 import { profiles } from './profiles.ts';
 import { media } from './media.ts';
-import { posts } from './posts.ts';
 import { stories } from './ephemeral.ts';
 
 export const conversations = pgTable(
@@ -47,10 +46,10 @@ export const messages = pgTable(
       .notNull()
       .references(() => profiles.id, { onDelete: 'cascade' }),
     clientId: uuid('client_id').notNull(),
-    kind: text('kind', { enum: ['text', 'image'] }).notNull(),
+    kind: text('kind', { enum: ['text', 'image', 'post_share'] }).notNull(),
     body: text('body').notNull(),
     mediaId: uuid('media_id').references(() => media.id),
-    sharedPostId: uuid('shared_post_id').references(() => posts.id),
+    sharedPostId: uuid('shared_post_id'),
     storyId: uuid('story_id').references(() => stories.id),
     createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   },
@@ -60,9 +59,10 @@ export const messages = pgTable(
     // Colonnes renseignées selon `kind` (ADR-023) ; photo sans texte : `body` vide.
     check(
       'messages_kind_fields',
-      sql`${t.sharedPostId} IS NULL AND ${t.storyId} IS NULL AND (
-        (${t.kind} = 'text' AND char_length(${t.body}) BETWEEN 1 AND 1000 AND ${t.mediaId} IS NULL)
-        OR (${t.kind} = 'image' AND char_length(${t.body}) <= 1000 AND ${t.mediaId} IS NOT NULL)
+      sql`${t.storyId} IS NULL AND (
+        (${t.kind} = 'text' AND char_length(${t.body}) BETWEEN 1 AND 1000 AND ${t.mediaId} IS NULL AND ${t.sharedPostId} IS NULL)
+        OR (${t.kind} = 'image' AND char_length(${t.body}) <= 1000 AND ${t.mediaId} IS NOT NULL AND ${t.sharedPostId} IS NULL)
+        OR (${t.kind} = 'post_share' AND char_length(${t.body}) <= 1000 AND ${t.mediaId} IS NULL AND ${t.sharedPostId} IS NOT NULL)
       )`,
     ),
     // Un média ne sert qu'à un message ; lecture de l'URL signée par média (ADR-023).

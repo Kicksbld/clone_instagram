@@ -1,3 +1,4 @@
+import type { SharedPosts } from '../shared-posts.ts';
 import { BusinessRuleError } from '../../../../shared/domain/errors.ts';
 import type { UnitOfWork } from '../../../../shared/application/unit-of-work.ts';
 import type { IdGenerator } from '../../../../shared/application/id-generator.ts';
@@ -9,6 +10,7 @@ export class GetOrCreateConversation {
     private readonly transaction: UnitOfWork<MessagingScope>,
     private readonly ids: IdGenerator,
     private readonly clock: Clock,
+    private readonly sharedPosts: SharedPosts,
   ) {}
   execute(input: { viewerId: string; userId: string }) {
     const userId = input.userId.toLowerCase();
@@ -24,8 +26,11 @@ export class GetOrCreateConversation {
         createdAt: this.clock.now(),
         lastMessageAt: null,
       });
+      const preview = await repository.preview(result.conversation, input.viewerId);
+      if (preview.lastMessage)
+        preview.lastMessage = await this.sharedPosts.resolve(preview.lastMessage, input.viewerId);
       return {
-        conversation: await repository.preview(result.conversation, input.viewerId),
+        conversation: preview,
         created: result.created,
       };
     });
