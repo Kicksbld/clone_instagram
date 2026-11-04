@@ -11,6 +11,28 @@ struct APIMessagingShareTests {
         ))
     }
 
+    @Test func decodesStoryReplyAndKeepsItsBodyWhenUnavailable() async throws {
+        for preview in [
+            #"{"id":"story","author":{"id":"author","username":"alice"},"thumbnail":"https://cdn.test/story.webp","expiresAt":"2026-11-02T12:00:00.000Z"}"#,
+            "null",
+        ] {
+            let body = """
+            {"id":"message","conversationId":"conversation","senderId":"me","clientId":"client",
+             "kind":"story_reply","body":"Bonjour","createdAt":"2026-11-01T12:00:00.000Z",
+             "storyId":"story","sharedStory":\(preview)}
+            """
+            let message = try await service(body: body).reply(
+                conversationId: "conversation",
+                clientId: "client",
+                storyId: "story",
+                body: "Bonjour"
+            )
+            #expect(message.isStoryReply)
+            #expect(message.body == "Bonjour")
+            #expect((message.sharedStory == nil) == (preview == "null"))
+        }
+    }
+
     @Test func decodesVisibleAndUnavailableSharedPostsWithoutDroppingTheMessage() async throws {
         for preview in [
             #"{"id":"post","kind":"reel","caption":"Regarde","author":{"id":"author","username":"alice"},"thumbnail":"https://cdn.test/thumb.webp"}"#,

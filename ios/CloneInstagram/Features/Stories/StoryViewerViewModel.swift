@@ -25,6 +25,50 @@ final class StoryViewerViewModel {
     private(set) var progress = 0.0
     /// Doigt appuyé ou confirmation de suppression ouverte.
     var isPaused = false
+    var isReplyFocused = false
+    var replyBody = ""
+    private(set) var isSendingReply = false
+    var replyError: String?
+    private var pendingReply: (storyId: String, body: String, clientId: String)?
+    private let reply: ((String, String, String, String) async throws -> Void)?
+
+    var canReply: Bool {
+        !isMine && archivedStories == nil && reply != nil
+    }
+
+    var canSendReply: Bool {
+        canReply && !isSendingReply && !replyBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && replyBody.count <= 1000
+    }
+
+    func sendReply() async {
+        guard canSendReply, let story = currentStory, let reply else { return }
+        let body = replyBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        if pendingReply?.storyId != story.id || pendingReply?.body != body {
+            pendingReply = (story.id, body, UUID().uuidString)
+        }
+        guard let pendingReply else { return }
+        isSendingReply = true
+        replyError = nil
+        defer { isSendingReply = false }
+        do {
+            try await reply(story.author.id, story.id, pendingReply.clientId, body)
+            replyBody = ""
+            isReplyFocused = false
+            self.pendingReply = nil
+        } catch {
+            if let error = error as? MessagingError, case .storyUnavailable = error {
+                replyError = "Cette story n’est plus disponible."
+            } else {
+                replyError = "Le message n’a pas pu être envoyé. Vérifiez votre connexion et réessayez."
+            }
+        }
+    }
+
+    private var isComposingReply: Bool {
+        isReplyFocused || isSendingReply || !replyBody.isEmpty
+    }
+
     /// Photo de la story affichée chargée : le temps s'écoule.
     private(set) var isPhotoDisplayed = false
 
@@ -77,8 +121,10 @@ final class StoryViewerViewModel {
         deletions: StoryDeletionStore,
         isPlus: @escaping () -> Bool = { false },
         archivedStories: [Story]? = nil,
-        initialStoryId: String? = nil
+        initialStoryId: String? = nil,
+        reply: ((String, String, String, String) async throws -> Void)? = nil
     ) {
+        self.reply = reply
         plusStatus = isPlus
         self.archivedStories = archivedStories
         self.initialStoryId = initialStoryId
@@ -119,7 +165,7 @@ final class StoryViewerViewModel {
 
     /// Temps écoulé à l'écran ; la story suivante s'affiche au bout de 5 secondes.
     func advance(by seconds: Double) async {
-        guard state == .showing, isPhotoDisplayed, !isPaused else { return }
+        guard state == .showing, isPhotoDisplayed, !isPaused, !isComposingReply else { return }
         progress = min(1, progress + seconds / Self.storyDuration)
         if progress >= 1 {
             await next()
@@ -128,7 +174,7 @@ final class StoryViewerViewModel {
 
     /// Appui à droite ou fin de la story : story suivante, puis auteur suivant.
     func next() async {
-        guard state == .showing else { return }
+        guard state == .showing, !isComposingReply else { return }
         if storyIndex + 1 < stories.count {
             await show(storyIndex + 1)
         } else {
@@ -138,7 +184,7 @@ final class StoryViewerViewModel {
 
     /// Appui à gauche : story précédente, ou recommence la première.
     func previous() async {
-        guard state == .showing else { return }
+        guard state == .showing, !isComposingReply else { return }
         if storyIndex > 0 {
             await show(storyIndex - 1)
         } else {

@@ -1,6 +1,6 @@
 import type { ImageVariantPaths } from '../../../shared/domain/image-variants.ts';
 
-export type MessageKind = 'text' | 'image' | 'post_share';
+export type MessageKind = 'text' | 'image' | 'post_share' | 'story_reply';
 
 export interface SharedPost {
   id: string;
@@ -8,6 +8,13 @@ export interface SharedPost {
   caption: string;
   author: { id: string; username: string };
   thumbnail?: string;
+}
+
+export interface SharedStory {
+  id: string;
+  author: { id: string; username: string };
+  thumbnail: string;
+  expiresAt: string;
 }
 
 export interface Message {
@@ -20,6 +27,8 @@ export interface Message {
   body: string;
   /** Photo of an `image` message, read through a signed URL only. */
   mediaId: string | null;
+  storyId?: string | null;
+  sharedStory?: SharedStory | null;
   sharedPostId?: string | null;
   sharedPost?: SharedPost | null;
   createdAt: Date;
@@ -27,6 +36,7 @@ export interface Message {
 
 /** Content of a message to send, by `kind` (ADR-023). */
 export type MessageContent =
+  | { kind: 'story_reply'; storyId: string; body: string }
   | { kind: 'text'; body: string }
   | { kind: 'image'; mediaId: string; body?: string }
   | { kind: 'post_share'; sharedPostId: string; body?: string };

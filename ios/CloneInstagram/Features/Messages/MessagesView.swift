@@ -256,7 +256,29 @@ struct ConversationView: View {
 private extension ConversationView {
     @ViewBuilder
     func bubble(_ message: ChatMessage) -> some View {
-        if message.isPostShare {
+        if message.isStoryReply {
+            VStack(alignment: .leading, spacing: 4) {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    if let story = message.sharedStory, story.expiresAt > context.date {
+                        VStack(alignment: .leading, spacing: 4) {
+                            LazyImage(url: story.thumbnail) { state in
+                                if let image = state.image {
+                                    image.resizable().scaledToFit()
+                                } else {
+                                    Rectangle().fill(.quaternary)
+                                }
+                            }
+                            .frame(width: 120, height: 180).clipped()
+                            Text("Story de \(story.author.username)").font(.caption)
+                        }
+                    } else {
+                        Label("Contenu indisponible", systemImage: "photo.badge.exclamationmark")
+                    }
+                }
+                Text(message.body)
+            }
+            .padding(8).background(.quaternary, in: .rect(cornerRadius: 12))
+        } else if message.isPostShare {
             VStack(alignment: .leading, spacing: 4) {
                 if let post = message.sharedPost {
                     NavigationLink(value: PostRoute(postId: post.id)) {

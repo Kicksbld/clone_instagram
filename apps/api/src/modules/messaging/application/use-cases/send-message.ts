@@ -1,4 +1,4 @@
-import type { SharedPosts } from '../shared-posts.ts';
+import type { MessageReferences } from '../message-references.ts';
 import { NotFoundError } from '../../../../shared/domain/errors.ts';
 import type { UnitOfWork } from '../../../../shared/application/unit-of-work.ts';
 import type { IdGenerator } from '../../../../shared/application/id-generator.ts';
@@ -16,7 +16,7 @@ export class SendMessage {
     private readonly ids: IdGenerator,
     private readonly clock: Clock,
     private readonly realtime: RealtimePublisher,
-    private readonly sharedPosts: SharedPosts,
+    private readonly messageReferences: MessageReferences,
   ) {}
   async execute(input: {
     viewerId: string;
@@ -35,10 +35,17 @@ export class SendMessage {
       );
       const members = [conversation.memberLowId, conversation.memberHighId];
       const { content } = input;
+      if (content.kind === 'story_reply') {
+        const existing = await repository.findByClientId(input.viewerId, input.clientId);
+        if (existing) return { message: existing, created: false, members };
+        const story = await this.messageReferences.readStory(content.storyId, input.viewerId);
+        if (!story || story.author.id === input.viewerId || !members.includes(story.author.id))
+          throw new NotFoundError('story_not_found', 'Story indisponible.');
+      }
       if (content.kind === 'post_share') {
         const existing = await repository.findByClientId(input.viewerId, input.clientId);
         if (existing) return { message: existing, created: false, members };
-        if (!(await this.sharedPosts.read(content.sharedPostId, input.viewerId)))
+        if (!(await this.messageReferences.read(content.sharedPostId, input.viewerId)))
           throw new NotFoundError('post_not_found', 'Post introuvable.');
       }
       if (content.kind === 'image') {
@@ -62,12 +69,17 @@ export class SendMessage {
         kind: content.kind,
         body: content.body ?? '',
         mediaId: content.kind === 'image' ? content.mediaId : null,
+        storyId: content.kind === 'story_reply' ? content.storyId : null,
         sharedPostId: content.kind === 'post_share' ? content.sharedPostId : null,
         createdAt: this.clock.now(),
       });
       return { ...result, members };
     });
-    if (result.created && result.message.kind !== 'post_share') {
+    if (
+      result.created &&
+      result.message.kind !== 'post_share' &&
+      result.message.kind !== 'story_reply'
+    ) {
       this.realtime.publish(result.members, {
         type: 'message.created',
         data: messageResponse(result.message),
@@ -76,10 +88,13 @@ export class SendMessage {
       for (const member of result.members) {
         this.realtime.publish([member], {
           type: 'message.created',
-          data: messageResponse(await this.sharedPosts.resolve(result.message, member)),
+          data: messageResponse(await this.messageReferences.resolve(result.message, member)),
         });
       }
     }
-    return { ...result, message: await this.sharedPosts.resolve(result.message, input.viewerId) };
+    return {
+      ...result,
+      message: await this.messageReferences.resolve(result.message, input.viewerId),
+    };
   }
 }

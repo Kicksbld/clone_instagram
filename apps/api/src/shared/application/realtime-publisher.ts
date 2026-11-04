@@ -7,7 +7,14 @@ export type RealtimeEvent =
         conversationId: string;
         senderId: string;
         clientId: string;
-        kind: 'text' | 'image' | 'post_share';
+        kind: 'text' | 'image' | 'post_share' | 'story_reply';
+        storyId?: string;
+        sharedStory?: {
+          id: string;
+          author: { id: string; username: string };
+          thumbnail: string;
+          expiresAt: string;
+        } | null;
         sharedPostId?: string | null;
         sharedPost?: {
           id: string;

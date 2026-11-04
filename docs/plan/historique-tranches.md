@@ -121,3 +121,13 @@ Ce que chaque tranche a posé dans le code, pour retrouver où vit une fonctionn
 - Migrations `0019` / `0020` : `post_share` admis par le `CHECK`, suppression de la FK qui empêchait de purger le post référencé. Aucune nouvelle table.
 - iOS : action `openSharePost` fournie par `App`, feuille de sélection multiple avec conversations récentes et recherche, états par destinataire et réessai ; référence dans `MessagingStore.Pending`, bulle d'aperçu vers `PostRoute`, contenu indisponible préservant le message.
 - ADR-035 proposé. Validation physique sur la démo à réaliser : A partage à B et C ; C non abonné d'un auteur privé voit « Contenu indisponible ».
+
+
+## T30 — Je réponds à une story (#41)
+
+- Contrat : `SendStoryReplyMessage` (`storyId`, `body`, `clientId`), aperçu nullable `SharedStory` avec échéance ; clients régénérés.
+- Base : migration `0021_story_replies`, extension du `CHECK` de `messages` ; aucune nouvelle table.
+- API : port propre `SharedStoryReader` sur `stories`, résolution commune `MessageReferences` pour posts et stories ; `canViewStory` et expiration vérifiés à l’envoi puis à chaque lecture REST et événement WebSocket. L’auteur doit être l’autre membre ; sa propre story est refusée. Renvoi idempotent même après expiration.
+- iOS : champ « Envoyer un message » dans le viewer, pause pendant saisie et envoi, même `clientId` pour réessayer ; ouverture de la conversation via `MessagingStore`. Bulle avec aperçu, expiration à l’écran et réévaluation au retour au premier plan ; texte du message conservé si l’aperçu devient indisponible.
+- Décisions : application des ADR-006, ADR-023 et ADR-025 existants, aucune nouvelle décision d’architecture.
+- Reste à valider : migration et déploiement de la démo, recompiler puis tester sur deux iPhone physiques (B répond, A reçoit l’aperçu ; après expiration, « Contenu indisponible »).

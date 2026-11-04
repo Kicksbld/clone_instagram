@@ -203,6 +203,7 @@ paths:
                 - $ref: '#/components/schemas/SendTextMessage'
                 - $ref: '#/components/schemas/SendImageMessage'
                 - $ref: '#/components/schemas/SendPostShareMessage'
+                - $ref: '#/components/schemas/SendStoryReplyMessage'
       responses:
         '201':
           description: Message créé.
@@ -221,7 +222,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '404':
-          description: Conversation absente ou invisible (`conversation_not_found`), ou média inexistant ou d'un autre utilisateur (`media_not_found`), ou post invisible (`post_not_found`).
+          description: Conversation absente ou invisible (`conversation_not_found`), ou média inexistant ou d'un autre utilisateur (`media_not_found`), ou post invisible (`post_not_found`), ou story expirée, invisible, personnelle ou dont l’auteur n’est pas le destinataire (`story_not_found`).
           content:
             application/problem+json:
               schema:
@@ -2038,6 +2039,39 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
+    SendStoryReplyMessage:
+      type: object
+      additionalProperties: false
+      required: [clientId, kind, storyId, body]
+      properties:
+        clientId:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [story_reply]
+        storyId:
+          type: string
+          format: uuid
+        body:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    SharedStory:
+      type: [object, 'null']
+      required: [id, author, thumbnail, expiresAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        author:
+          $ref: '#/components/schemas/PostAuthor'
+        thumbnail:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
     SharedPost:
       type: [object, 'null']
       required: [id, kind, caption, author]
@@ -2080,7 +2114,7 @@ components:
           format: uuid
         kind:
           type: string
-          description: '`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches.'
+          description: '`text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches.'
         body:
           type: string
           description: Texte du message ; chaîne vide pour une photo sans texte.
@@ -2094,6 +2128,12 @@ components:
         sharedPost:
           description: Aperçu relu pour le lecteur ; null si supprimé ou invisible. Présent pour post_share.
           $ref: '#/components/schemas/SharedPost'
+        storyId:
+          type: string
+          format: uuid
+        sharedStory:
+          description: Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible.
+          $ref: '#/components/schemas/SharedStory'
         createdAt:
           type: string
           format: date-time

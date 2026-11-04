@@ -1,10 +1,10 @@
-import type { SharedPosts } from '../shared-posts.ts';
+import type { MessageReferences } from '../message-references.ts';
 import type { PageCursor } from '../../../../shared/domain/pagination.ts';
 import type { MessagingRepository } from '../ports/messaging-repository.ts';
 export class ListConversations {
   constructor(
     private readonly repository: MessagingRepository,
-    private readonly sharedPosts: SharedPosts,
+    private readonly messageReferences: MessageReferences,
   ) {}
   async execute(input: { viewerId: string; cursor: PageCursor | null }) {
     const [page, unreadConversationCount] = await Promise.all([
@@ -17,7 +17,10 @@ export class ListConversations {
         page.items.map(async (conversation) => ({
           ...conversation,
           ...(conversation.lastMessage && {
-            lastMessage: await this.sharedPosts.resolve(conversation.lastMessage, input.viewerId),
+            lastMessage: await this.messageReferences.resolve(
+              conversation.lastMessage,
+              input.viewerId,
+            ),
           }),
         })),
       ),

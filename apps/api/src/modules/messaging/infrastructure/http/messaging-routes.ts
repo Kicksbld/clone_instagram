@@ -89,7 +89,8 @@ export function registerMessagingRoutes(
     Body:
       | components['schemas']['SendTextMessage']
       | components['schemas']['SendImageMessage']
-      | components['schemas']['SendPostShareMessage'];
+      | components['schemas']['SendPostShareMessage']
+      | components['schemas']['SendStoryReplyMessage'];
   }>(
     '/v1/conversations/:id/messages',
     {
@@ -102,19 +103,21 @@ export function registerMessagingRoutes(
         conversationId: request.params.id,
         clientId: request.body.clientId,
         content:
-          request.body.kind === 'post_share'
-            ? {
-                kind: 'post_share',
-                sharedPostId: request.body.sharedPostId,
-                ...(request.body.body !== undefined && { body: request.body.body }),
-              }
-            : request.body.kind === 'image'
+          request.body.kind === 'story_reply'
+            ? { kind: 'story_reply', storyId: request.body.storyId, body: request.body.body }
+            : request.body.kind === 'post_share'
               ? {
-                  kind: 'image',
-                  mediaId: request.body.mediaId,
+                  kind: 'post_share',
+                  sharedPostId: request.body.sharedPostId,
                   ...(request.body.body !== undefined && { body: request.body.body }),
                 }
-              : { kind: 'text', body: request.body.body },
+              : request.body.kind === 'image'
+                ? {
+                    kind: 'image',
+                    mediaId: request.body.mediaId,
+                    ...(request.body.body !== undefined && { body: request.body.body }),
+                  }
+                : { kind: 'text', body: request.body.body },
       });
       return reply.code(result.created ? 201 : 200).send(messageResponse(result.message));
     },
