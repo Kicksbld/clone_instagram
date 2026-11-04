@@ -7,11 +7,30 @@ import {
   blocks,
   type Executor,
 } from '@clone/db';
-import { and, asc, desc, eq, gt, isNotNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, isNotNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import type { Page, PageCursor } from '../../../../shared/domain/pagination.ts';
 import type { Conversation, ConversationPreview, Message } from '../../domain/conversation.ts';
 import type { MessagingRepository } from '../../application/ports/messaging-repository.ts';
 
+/** Messages of the other member newer than `viewerId`'s read position in the current conversation row. */
+function unreadMessages(viewerId: string): SQL {
+  return sql`SELECT 1 FROM ${messages} m
+    JOIN ${conversationMembers} cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ${viewerId}
+    LEFT JOIN ${messages} r ON r.id = cm.last_read_message_id
+    WHERE m.conversation_id = ${conversations.id} AND m.sender_id <> ${viewerId}
+      AND (r.id IS NULL OR (m.created_at, m.id) > (r.created_at, r.id))`;
+}
+/** SQL translation of canMessage for the viewer's non-empty conversations: both members active, neither direction blocked. Privacy does not restrict messages. */
+function visibleConversations(viewerId: string): SQL | undefined {
+  const otherId = sql`CASE WHEN ${conversations.memberLowId} = ${viewerId} THEN ${conversations.memberHighId} ELSE ${conversations.memberLowId} END`;
+  return and(
+    or(eq(conversations.memberLowId, viewerId), eq(conversations.memberHighId, viewerId)),
+    isNotNull(conversations.lastMessageAt),
+    sql`EXISTS (SELECT 1 FROM ${profiles} p WHERE p.id = ${viewerId} AND p.status = 'active')`,
+    sql`EXISTS (SELECT 1 FROM ${profiles} p WHERE p.id = ${otherId} AND p.status = 'active')`,
+    sql`NOT EXISTS (SELECT 1 FROM ${blocks} b WHERE (b.blocker_id = ${viewerId} AND b.blocked_id = ${otherId}) OR (b.blocker_id = ${otherId} AND b.blocked_id = ${viewerId}))`,
+  );
+}
 export class DrizzleMessagingRepository implements MessagingRepository {
   constructor(private readonly db: Executor) {}
   async account(id: string) {
@@ -74,6 +93,15 @@ export class DrizzleMessagingRepository implements MessagingRepository {
       .where(eq(messages.conversationId, conversation.id))
       .orderBy(desc(messages.createdAt), desc(messages.id))
       .limit(1);
+    const [counts] = await this.db
+      .select({
+        unread: sql<number>`(SELECT count(*)::int FROM (${unreadMessages(viewerId)}) u)`,
+        otherRead: sql<
+          string | null
+        >`(SELECT ${conversationMembers.lastReadMessageId} FROM ${conversationMembers} WHERE ${conversationMembers.conversationId} = ${conversations.id} AND ${conversationMembers.userId} = ${otherId})`,
+      })
+      .from(conversations)
+      .where(eq(conversations.id, conversation.id));
     return {
       id: conversation.id,
       createdAt: conversation.createdAt,
@@ -83,24 +111,20 @@ export class DrizzleMessagingRepository implements MessagingRepository {
         avatarVariants: other.variants && 'thumb' in other.variants ? other.variants : null,
       },
       ...(lastMessage && { lastMessage }),
+      unreadCount: counts?.unread ?? 0,
+      otherMemberLastReadMessageId: counts?.otherRead ?? null,
     };
   }
   async listConversations(
     viewerId: string,
     cursor: PageCursor | null,
   ): Promise<Page<ConversationPreview>> {
-    // SQL translation of canMessage: both members active, neither direction blocked. Privacy does not restrict messages.
-    const otherId = sql`CASE WHEN ${conversations.memberLowId} = ${viewerId} THEN ${conversations.memberHighId} ELSE ${conversations.memberLowId} END`;
     const rows = await this.db
       .select()
       .from(conversations)
       .where(
         and(
-          or(eq(conversations.memberLowId, viewerId), eq(conversations.memberHighId, viewerId)),
-          isNotNull(conversations.lastMessageAt),
-          sql`EXISTS (SELECT 1 FROM ${profiles} p WHERE p.id = ${viewerId} AND p.status = 'active')`,
-          sql`EXISTS (SELECT 1 FROM ${profiles} p WHERE p.id = ${otherId} AND p.status = 'active')`,
-          sql`NOT EXISTS (SELECT 1 FROM ${blocks} b WHERE (b.blocker_id = ${viewerId} AND b.blocked_id = ${otherId}) OR (b.blocker_id = ${otherId} AND b.blocked_id = ${viewerId}))`,
+          visibleConversations(viewerId),
           cursor
             ? sql`(${conversations.lastMessageAt}, ${conversations.id}) < (${cursor.createdAt.toISOString()}::timestamptz, ${cursor.id})`
             : undefined,
@@ -117,6 +141,28 @@ export class DrizzleMessagingRepository implements MessagingRepository {
           ? { createdAt: last.lastMessageAt, id: last.id }
           : null,
     };
+  }
+  async unreadConversationCount(viewerId: string) {
+    const [row] = await this.db
+      .select({ total: count() })
+      .from(conversations)
+      .where(and(visibleConversations(viewerId), sql`EXISTS (${unreadMessages(viewerId)})`));
+    return row?.total ?? 0;
+  }
+  async markRead(userId: string, message: Message) {
+    // Conditional update: the position only moves forward, even under concurrent reads (ADR-023).
+    const rows = await this.db
+      .update(conversationMembers)
+      .set({ lastReadMessageId: message.id })
+      .where(
+        and(
+          eq(conversationMembers.conversationId, message.conversationId),
+          eq(conversationMembers.userId, userId),
+          sql`(${conversationMembers.lastReadMessageId} IS NULL OR EXISTS (SELECT 1 FROM ${messages} r WHERE r.id = ${conversationMembers.lastReadMessageId} AND (r.created_at, r.id) < (${message.createdAt.toISOString()}::timestamptz, ${message.id}::uuid)))`,
+        ),
+      )
+      .returning({ id: conversationMembers.userId });
+    return rows.length > 0;
   }
   async findMessage(id: string) {
     const [row] = await this.db.select().from(messages).where(eq(messages.id, id));

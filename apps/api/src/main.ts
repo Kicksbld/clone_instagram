@@ -1,6 +1,7 @@
 import { GetOrCreateConversation } from './modules/messaging/application/use-cases/get-or-create-conversation.ts';
 import { ListConversations } from './modules/messaging/application/use-cases/list-conversations.ts';
 import { ListMessages } from './modules/messaging/application/use-cases/list-messages.ts';
+import { MarkConversationRead } from './modules/messaging/application/use-cases/mark-conversation-read.ts';
 import { SendMessage } from './modules/messaging/application/use-cases/send-message.ts';
 import { DrizzleMessagingRepository } from './modules/messaging/infrastructure/persistence/drizzle-messaging-repository.ts';
 import { ListArchivedStories } from './modules/ephemeral/application/use-cases/list-archived-stories.ts';
@@ -299,6 +300,7 @@ const app = buildApp({
       listConversations: new ListConversations(messagingRepository),
       listMessages: new ListMessages(messagingRepository, relationships),
       sendMessage: new SendMessage(messagingTransaction, uuidV7Generator, systemClock, realtime),
+      markConversationRead: new MarkConversationRead(messagingTransaction, realtime),
     },
     realtime,
     tokenVerifier: createJwtVerifier({

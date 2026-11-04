@@ -14,6 +14,10 @@ export interface MessagingRepository {
     viewerId: string,
     cursor: PageCursor | null,
   ): Promise<Page<ConversationPreview>>;
+  /** Total of visible conversations with at least one unread message (Messages tab badge). */
+  unreadConversationCount(viewerId: string): Promise<number>;
+  /** Moves the read position forward to `message` only if it is newer; returns whether it moved. */
+  markRead(userId: string, message: Message): Promise<boolean>;
   findMessage(id: string): Promise<Message | null>;
   insertMessage(message: Message): Promise<{ message: Message; created: boolean }>;
   listMessages(

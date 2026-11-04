@@ -126,10 +126,127 @@ struct MessagingStoreTests {
         #expect(store.unavailableConversationIds.contains("conversation"))
     }
 
-    private func message(_ id: String) -> ChatMessage {
+    @Test func badgeComesFromRESTAndLiveMessagesRaiseItOncePerConversation() async {
+        let service = FakeMessagingService()
+        service.inbox = ConversationPage(
+            items: [conversation("read", unread: 0), conversation("unread", unread: 2)],
+            nextCursor: nil,
+            unreadConversationCount: 1
+        )
+        let store = MessagingStore(service: service)
+        store.setAccount("me")
+        await store.refresh()
+        #expect(store.unreadConversationCount == 1)
+        store.receiveLive(message("5", in: "read"))
+        store.receiveLive(message("6", in: "read"))
+        store.receiveLive(message("6", in: "read"))
+        #expect(store.unreadConversationCount == 2)
+        #expect(store.conversations.first { $0.id == "read" }?.unreadCount == 2)
+        store.receiveLive(ChatMessage(id: "7", conversationId: "unread", senderId: "me", clientId: "7", body: "", createdAt: .now))
+        #expect(store.unreadConversationCount == 2)
+    }
+
+    @Test func enteringMarksTheLatestMessageReadOnceAndClearsTheBadge() async {
+        let service = FakeMessagingService()
+        service.inbox = ConversationPage(items: [conversation("conversation", unread: 1)], nextCursor: nil, unreadConversationCount: 1)
+        let store = MessagingStore(service: service)
+        store.setAccount("me")
+        await store.refresh()
+        service.pages = [MessagePage(items: [message("2"), message("1")], nextCursor: nil)]
+        await store.enter("conversation")
+        #expect(service.reads == ["2"])
+        #expect(store.unreadConversationCount == 0)
+        #expect(store.conversations.first?.unreadCount == 0)
+        store.leave("conversation")
+        await store.enter("conversation")
+        #expect(service.reads == ["2"])
+    }
+
+    @Test func liveMessageInOpenConversationIsReadInsteadOfCounted() async {
+        let service = FakeMessagingService()
+        service.inbox = ConversationPage(items: [conversation("conversation", unread: 0)], nextCursor: nil, unreadConversationCount: 0)
+        let store = MessagingStore(service: service)
+        store.setAccount("me")
+        await store.refresh()
+        service.pages = [MessagePage(items: [message("1")], nextCursor: nil)]
+        await store.enter("conversation")
+        store.receiveLive(message("3"))
+        while service.reads.count < 2 {
+            await Task.yield()
+        }
+        #expect(service.reads == ["1", "3"])
+        #expect(store.unreadConversationCount == 0)
+    }
+
+    @Test func failedReadIsRetriedOnTheNextDisplay() async {
+        let service = FakeMessagingService()
+        service.readFails = true
+        let store = MessagingStore(service: service)
+        store.setAccount("me")
+        service.pages = [MessagePage(items: [message("1")], nextCursor: nil)]
+        await store.enter("conversation")
+        #expect(store.errorMessage == nil)
+        store.leave("conversation")
+        service.readFails = false
+        await store.enter("conversation")
+        #expect(service.reads == ["1", "1"])
+    }
+
+    @Test func seenShowsUnderMyLatestMessageOnceTheOtherHasReadIt() {
+        let service = FakeMessagingService()
+        let store = MessagingStore(service: service)
+        store.setAccount("me")
+        store.receive(mine("1"))
+        store.receive(mine("2"))
+        #expect(store.seenMessageId(in: "conversation") == nil)
+        store.readPositionChanged(conversationId: "conversation", userId: "other", lastReadMessageId: "1")
+        #expect(store.seenMessageId(in: "conversation") == nil)
+        store.readPositionChanged(conversationId: "conversation", userId: "other", lastReadMessageId: "2")
+        #expect(store.seenMessageId(in: "conversation") == "2")
+        // An older event arriving late never moves « Vu » back.
+        store.readPositionChanged(conversationId: "conversation", userId: "other", lastReadMessageId: "1")
+        #expect(store.seenMessageId(in: "conversation") == "2")
+        store.receive(mine("3"))
+        #expect(store.seenMessageId(in: "conversation") == nil)
+    }
+
+    @Test func inboxRestoresSeenPositionAfterReconnect() async {
+        let service = FakeMessagingService()
+        var value = conversation("conversation", unread: 0)
+        value.otherMemberLastReadMessageId = "1"
+        service.inbox = ConversationPage(items: [value], nextCursor: nil, unreadConversationCount: 0)
+        let store = MessagingStore(service: service)
+        store.setAccount("me")
+        store.receive(mine("1"))
+        await store.reconnect()
+        #expect(store.seenMessageId(in: "conversation") == "1")
+    }
+
+    private func conversation(_ id: String, unread: Int) -> Conversation {
+        Conversation(
+            id: id,
+            otherMember: PostAuthor(id: "other", username: "other", avatar: nil),
+            createdAt: Date(timeIntervalSince1970: 0),
+            lastMessage: message("1", in: id),
+            unreadCount: unread
+        )
+    }
+
+    private func mine(_ id: String) -> ChatMessage {
         ChatMessage(
             id: id,
             conversationId: "conversation",
+            senderId: "me",
+            clientId: id,
+            body: id,
+            createdAt: Date(timeIntervalSince1970: Double(id) ?? 0)
+        )
+    }
+
+    private func message(_ id: String, in conversationId: String = "conversation") -> ChatMessage {
+        ChatMessage(
+            id: id,
+            conversationId: conversationId,
             senderId: "other",
             clientId: id,
             body: id,
@@ -154,6 +271,8 @@ final class FakeMessagingService: MessagingService {
     var historyContinuation: CheckedContinuation<Void, Never>?
     var holdSend = false
     var continuation: CheckedContinuation<Void, Never>?
+    var reads: [String] = []
+    var readFails = false
     func conversations(cursor _: String?) async throws -> ConversationPage {
         inboxCalls += 1
         let snapshot = inbox
@@ -190,5 +309,12 @@ final class FakeMessagingService: MessagingService {
             throw MessagingError.unavailable
         }
         return ChatMessage(id: "server", conversationId: conversationId, senderId: "me", clientId: clientId, body: body, createdAt: Date())
+    }
+
+    func markRead(conversationId _: String, messageId: String) async throws {
+        reads.append(messageId)
+        if readFails {
+            throw MessagingError.requestFailed
+        }
     }
 }

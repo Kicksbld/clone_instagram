@@ -7,6 +7,7 @@ import { parseCursor } from '../../../../shared/infrastructure/http/cursor.ts';
 import type { PublicMediaUrls } from '../../../../shared/infrastructure/http/public-media-urls.ts';
 import type { GetOrCreateConversation } from '../../application/use-cases/get-or-create-conversation.ts';
 import type { ListConversations } from '../../application/use-cases/list-conversations.ts';
+import type { MarkConversationRead } from '../../application/use-cases/mark-conversation-read.ts';
 import type { ListMessages } from '../../application/use-cases/list-messages.ts';
 import type { SendMessage } from '../../application/use-cases/send-message.ts';
 import type { ConversationPreview } from '../../domain/conversation.ts';
@@ -16,6 +17,7 @@ export interface MessagingUseCases {
   listConversations: ListConversations;
   listMessages: ListMessages;
   sendMessage: SendMessage;
+  markConversationRead: MarkConversationRead;
 }
 export function registerMessagingRoutes(
   app: FastifyInstance,
@@ -33,6 +35,10 @@ export function registerMessagingRoutes(
       }),
     },
     ...(value.lastMessage && { lastMessage: messageResponse(value.lastMessage) }),
+    unreadCount: value.unreadCount,
+    ...(value.otherMemberLastReadMessageId && {
+      otherMemberLastReadMessageId: value.otherMemberLastReadMessageId,
+    }),
   });
   app.post<{ Body: { userId: string } }>(
     '/v1/conversations',
@@ -56,6 +62,7 @@ export function registerMessagingRoutes(
       return {
         items: page.items.map(preview),
         ...(page.next && { nextCursor: encodeCursor(page.next) }),
+        unreadConversationCount: page.unreadConversationCount,
       };
     },
   );
@@ -89,6 +96,18 @@ export function registerMessagingRoutes(
         body: request.body.body,
       });
       return reply.code(result.created ? 201 : 200).send(messageResponse(result.message));
+    },
+  );
+  app.post<{ Params: { id: string }; Body: components['schemas']['MarkConversationReadRequest'] }>(
+    '/v1/conversations/:id/read',
+    { schema: routeSchemaFor('markConversationRead') },
+    async (request, reply) => {
+      await useCases.markConversationRead.execute({
+        viewerId: authenticatedUserId(request),
+        conversationId: request.params.id,
+        messageId: request.body.messageId,
+      });
+      return reply.code(204).send();
     },
   );
 }

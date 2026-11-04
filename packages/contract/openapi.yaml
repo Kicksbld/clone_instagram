@@ -218,6 +218,31 @@ paths:
           $ref: '#/components/responses/ConversationNotFound'
         '429':
           $ref: '#/components/responses/RateLimited'
+  /v1/conversations/{id}/read:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    post:
+      operationId: markConversationRead
+      tags: [messaging]
+      summary: Marquer la conversation comme lue jusqu'à ce message
+      description: La position de lecture n'avance jamais ; un message plus ancien que la position actuelle est ignoré (204 sans effet). Message d'une autre conversation ou inexistant → 404. Après validation, conversation.read à l'autre membre si la position a avancé.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkConversationReadRequest'
+      responses:
+        '204':
+          description: Position de lecture enregistrée (ou déjà plus récente).
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ConversationNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /v1/ws:
     get:
       operationId: connectRealtime
@@ -1945,7 +1970,7 @@ components:
           format: date-time
     Conversation:
       type: object
-      required: [id, otherMember, createdAt]
+      required: [id, otherMember, createdAt, unreadCount]
       properties:
         id:
           type: string
@@ -1957,9 +1982,17 @@ components:
           format: date-time
         lastMessage:
           $ref: '#/components/schemas/Message'
+        unreadCount:
+          type: integer
+          minimum: 0
+          description: Messages de l'autre membre plus récents que ma position de lecture.
+        otherMemberLastReadMessageId:
+          type: string
+          format: uuid
+          description: Position de lecture de l'autre membre (« Vu »), absente s'il n'a encore rien lu.
     ConversationPage:
       type: object
-      required: [items]
+      required: [items, unreadConversationCount]
       properties:
         items:
           type: array
@@ -1967,6 +2000,18 @@ components:
             $ref: '#/components/schemas/Conversation'
         nextCursor:
           type: string
+        unreadConversationCount:
+          type: integer
+          minimum: 0
+          description: Nombre total de conversations visibles non lues (pastille de l'onglet Messages), toutes pages confondues.
+    MarkConversationReadRequest:
+      type: object
+      additionalProperties: false
+      required: [messageId]
+      properties:
+        messageId:
+          type: string
+          format: uuid
     MessagePage:
       type: object
       required: [items]
@@ -1986,6 +2031,26 @@ components:
           enum: [message.created]
         data:
           $ref: '#/components/schemas/Message'
+    ConversationRead:
+      type: object
+      required: [type, data]
+      properties:
+        type:
+          type: string
+          enum: [conversation.read]
+        data:
+          type: object
+          required: [conversationId, userId, lastReadMessageId]
+          properties:
+            conversationId:
+              type: string
+              format: uuid
+            userId:
+              type: string
+              format: uuid
+            lastReadMessageId:
+              type: string
+              format: uuid
     RealtimeAuth:
       type: object
       additionalProperties: false
@@ -2055,6 +2120,7 @@ components:
     RealtimeEvent:
       oneOf:
         - $ref: '#/components/schemas/MessageCreated'
+        - $ref: '#/components/schemas/ConversationRead'
         - $ref: '#/components/schemas/RealtimeAuthOK'
         - $ref: '#/components/schemas/ActivityCreated'
         - $ref: '#/components/schemas/MediaReady'
@@ -2063,6 +2129,7 @@ components:
         propertyName: type
         mapping:
           message.created: '#/components/schemas/MessageCreated'
+          conversation.read: '#/components/schemas/ConversationRead'
           auth.ok: '#/components/schemas/RealtimeAuthOK'
           activity.created: '#/components/schemas/ActivityCreated'
           media.ready: '#/components/schemas/MediaReady'

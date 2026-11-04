@@ -24,6 +24,30 @@ struct RealtimeClientTests {
         #expect(transport.closed)
     }
 
+    @Test func `conversation read events move « Vu » in the messaging store`() async {
+        let transport = FakeRealtimeTransport()
+        let messaging = MessagingStore(service: FakeMessagingService())
+        messaging.setAccount("me")
+        let conversation = "0199a1b2-0000-7000-8000-00000000c001"
+        let mine = "0199a1b2-0000-7000-8000-00000000a001"
+        messaging.receive(ChatMessage(
+            id: mine, conversationId: conversation, senderId: "me", clientId: mine, body: "Salut", createdAt: .now
+        ))
+        let client = RealtimeClient(
+            makeTransport: { transport }, accessToken: { "token" }, badge: ActivityBadge(service: FakeActivityService()),
+            onSuspended: {}, messaging: messaging
+        )
+        client.setSession("me")
+        await eventually { !transport.sent.isEmpty }
+        let reader = "0199a1b2-0000-7000-8000-00000000b001"
+        transport.deliver(
+            #"{"type":"conversation.read","data":{"conversationId":"\#(conversation)","#
+                + #""userId":"\#(reader)","lastReadMessageId":"\#(mine)"}}"#
+        )
+        await eventually { messaging.seenMessageId(in: conversation) == mine }
+        client.setSession(nil)
+    }
+
     @Test func `suspension reports to the app and never reconnects`() async {
         let transport = FakeRealtimeTransport()
         var connections = 0

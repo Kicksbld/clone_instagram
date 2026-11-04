@@ -12,6 +12,10 @@ export type RealtimeEvent =
         createdAt: string;
       };
     }
+  | {
+      type: 'conversation.read';
+      data: { conversationId: string; userId: string; lastReadMessageId: string };
+    }
   | { type: 'activity.created'; data: { unreadCount: number } }
   | {
       type: 'media.ready';

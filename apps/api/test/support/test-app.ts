@@ -1,6 +1,7 @@
 import { GetOrCreateConversation } from '../../src/modules/messaging/application/use-cases/get-or-create-conversation.ts';
 import { ListConversations } from '../../src/modules/messaging/application/use-cases/list-conversations.ts';
 import { ListMessages } from '../../src/modules/messaging/application/use-cases/list-messages.ts';
+import { MarkConversationRead } from '../../src/modules/messaging/application/use-cases/mark-conversation-read.ts';
 import { SendMessage } from '../../src/modules/messaging/application/use-cases/send-message.ts';
 import { InMemoryMessaging } from './in-memory-messaging.ts';
 import { ListArchivedStories } from '../../src/modules/ephemeral/application/use-cases/list-archived-stories.ts';
@@ -136,6 +137,12 @@ export function buildTestApp() {
         disconnect: () => {},
       },
     ),
+    markConversationRead: new MarkConversationRead(messagingTransaction, {
+      publish: (ids, event) => {
+        realtime.publish(ids, event);
+      },
+      disconnect: () => {},
+    }),
   };
   const graph = new InMemorySocialGraph(profiles, relationships);
   const notifications = new InMemoryNotifications(relationships);

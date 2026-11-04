@@ -86,7 +86,8 @@ struct RootView: View {
         case let .home(profile):
             HomeView(
                 publishQueue: dependencies.publishQueue,
-                unreadActivityCount: dependencies.activityBadge.unreadCount
+                unreadActivityCount: dependencies.activityBadge.unreadCount,
+                unreadConversationCount: dependencies.messaging.unreadConversationCount
             ) { openSearch in
                 FeedView(
                     viewModel: FeedViewModel(
@@ -202,11 +203,13 @@ struct RootView: View {
                 dependencies.publishQueue.resume(for: profile.id)
                 await dependencies.messaging.reconnect()
             }
-            // Pastille du cœur (ADR-026) : relue au lancement et à chaque retour au premier plan.
+            // Pastilles du cœur (ADR-026) et de Messages (ADR-023) : relues au lancement et à chaque retour
+            // au premier plan (après une reconnexion : `RealtimeClient`).
             .task(id: profile.id) { await dependencies.activityBadge.refresh() }
             .onChange(of: scenePhase) { _, phase in
                 guard phase == .active else { return }
                 Task { await dependencies.activityBadge.refresh() }
+                Task { await dependencies.messaging.refresh() }
             }
             // Compteurs rechargés aussi après un blocage (abonnements supprimés dans les deux sens).
             .onChange(of: postsRevision + dependencies.blocks.revision) {

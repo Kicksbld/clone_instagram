@@ -11,6 +11,8 @@ import type { InMemoryRelationshipReader } from './in-memory-relationship-reader
 export class InMemoryMessaging implements MessagingRepository {
   conversations = new Map<string, Conversation>();
   messages = new Map<string, Message>();
+  /** `${conversationId}:${userId}` → last read message id. */
+  readPositions = new Map<string, string>();
   constructor(
     private profiles: InMemoryProfileRepository,
     private relationships: InMemoryRelationshipReader,
@@ -46,7 +48,36 @@ export class InMemoryMessaging implements MessagingRepository {
       createdAt: conversation.createdAt,
       otherMember: { id: other.id, username: other.username, avatarVariants: null },
       ...(lastMessage && { lastMessage }),
+      unreadCount: this.unread(conversation.id, viewerId),
+      otherMemberLastReadMessageId:
+        this.readPositions.get(`${conversation.id}:${other.id}`) ?? null,
     });
+  }
+  private unread(conversationId: string, viewerId: string) {
+    const position = this.messages.get(
+      this.readPositions.get(`${conversationId}:${viewerId}`) ?? '',
+    );
+    return [...this.messages.values()].filter(
+      (m) =>
+        m.conversationId === conversationId &&
+        m.senderId !== viewerId &&
+        (!position || newer(m, position)),
+    ).length;
+  }
+  async unreadConversationCount(viewerId: string) {
+    let total = 0;
+    for (let page = await this.listConversations(viewerId, null); ;) {
+      total += page.items.filter((c) => c.unreadCount > 0).length;
+      if (!page.next) return total;
+      page = await this.listConversations(viewerId, page.next);
+    }
+  }
+  markRead(userId: string, message: Message) {
+    const key = `${message.conversationId}:${userId}`;
+    const current = this.messages.get(this.readPositions.get(key) ?? '');
+    if (current && !newer(message, current)) return Promise.resolve(false);
+    this.readPositions.set(key, message.id);
+    return Promise.resolve(true);
   }
   async listConversations(viewerId: string, cursor: PageCursor | null) {
     const visible: Conversation[] = [];
@@ -116,4 +147,10 @@ export class InMemoryMessaging implements MessagingRepository {
       next: rows.length > limit && last ? { id: last.id, createdAt: last.createdAt } : null,
     });
   }
+}
+
+function newer(a: Message, b: Message) {
+  return (
+    a.createdAt > b.createdAt || (a.createdAt.getTime() === b.createdAt.getTime() && a.id > b.id)
+  );
 }

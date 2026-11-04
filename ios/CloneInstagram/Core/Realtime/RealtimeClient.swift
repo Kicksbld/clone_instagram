@@ -61,36 +61,7 @@ final class RealtimeClient {
                     guard let data = text.data(using: .utf8),
                           let event = try? JSONDecoder().decode(Components.Schemas.RealtimeEvent.self, from: data)
                     else { continue }
-                    switch event {
-                    case .auth_ok:
-                        mediaEvents?.refresh()
-                        attempt = 0
-                        catchUp?.cancel()
-                        catchUp = Task {
-                            await badge.refresh()
-                            await messaging?.reconnect()
-                        }
-                    case let .message_created(event):
-                        if let message = ChatMessage(event.data) {
-                            messaging?.receive(message)
-                            Task { await messaging?.refresh() }
-                        }
-                    case let .media_ready(event):
-                        receiveReady(event)
-                    case let .media_failed(event):
-                        let reason: MediaFailureReason = switch event.data.reason {
-                        case .invalidVideo: .invalidVideo
-                        case .videoTooLong: .videoTooLong
-                        case .invalidImage: .invalidImage
-                        case .fileTooLarge: .fileTooLarge
-                        case .processingError: .processingError
-                        }
-                        mediaEvents?.receive(mediaId: event.data.mediaId, status: .failed(reason))
-                    case let .activity_created(activity):
-                        if activity.data.unreadCount >= 0 {
-                            badge.received(unreadCount: activity.data.unreadCount)
-                        }
-                    }
+                    handle(event, attempt: &attempt)
                 }
             } catch {
                 guard !Task.isCancelled else { socket.close(); return }
@@ -107,6 +78,45 @@ final class RealtimeClient {
                 try await sleep(.seconds(min(30, 1 << min(attempt, 5))))
             } catch { return }
             attempt += 1
+        }
+    }
+
+    private func handle(_ event: Components.Schemas.RealtimeEvent, attempt: inout Int) {
+        switch event {
+        case .auth_ok:
+            mediaEvents?.refresh()
+            attempt = 0
+            catchUp?.cancel()
+            catchUp = Task {
+                await badge.refresh()
+                await messaging?.reconnect()
+            }
+        case let .message_created(event):
+            if let message = ChatMessage(event.data) {
+                messaging?.receiveLive(message)
+                Task { await messaging?.refresh() }
+            }
+        case let .conversation_read(event):
+            messaging?.readPositionChanged(
+                conversationId: event.data.conversationId,
+                userId: event.data.userId,
+                lastReadMessageId: event.data.lastReadMessageId
+            )
+        case let .media_ready(event):
+            receiveReady(event)
+        case let .media_failed(event):
+            let reason: MediaFailureReason = switch event.data.reason {
+            case .invalidVideo: .invalidVideo
+            case .videoTooLong: .videoTooLong
+            case .invalidImage: .invalidImage
+            case .fileTooLarge: .fileTooLarge
+            case .processingError: .processingError
+            }
+            mediaEvents?.receive(mediaId: event.data.mediaId, status: .failed(reason))
+        case let .activity_created(activity):
+            if activity.data.unreadCount >= 0 {
+                badge.received(unreadCount: activity.data.unreadCount)
+            }
         }
     }
 

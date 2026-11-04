@@ -19,7 +19,15 @@ final class MessagingStore {
     private(set) var nextConversationCursor: String?
     private(set) var historyCursors: [String: String] = [:]
     private(set) var unavailableConversationIds: Set<String> = []
+    /// Messages tab badge: unread conversations, from REST and adjusted by live events (ADR-023).
+    private(set) var unreadConversationCount = 0
+    /// The other member's read position per conversation (« Vu »).
+    private(set) var otherReadPositions: [String: String] = [:]
     var errorMessage: String?
+    /// The latest message I marked read per conversation; a failed read is retried at the next display.
+    private var markedRead: [String: String] = [:]
+    private var markingRead: Set<String> = []
+    private var readRequested: Set<String> = []
     private var account: String?
     private var revision = 0
     private var syncAnchors: [String: String] = [:]
@@ -55,6 +63,11 @@ final class MessagingStore {
         loadingConversations = false
         sending = OptimisticSync()
         errorMessage = nil
+        unreadConversationCount = 0
+        otherReadPositions = [:]
+        markedRead = [:]
+        markingRead = []
+        readRequested = []
     }
 
     func refresh(loadMore: Bool = false) async {
@@ -71,8 +84,11 @@ final class MessagingStore {
             guard startedAccess == accessRevision else { refreshRequested = true; return }
             if startedMessages != messageRevision {
                 refreshRequested = true
-            } else if !loadMore {
-                conversations = []
+            } else {
+                unreadConversationCount = page.unreadConversationCount
+                if !loadMore {
+                    conversations = []
+                }
             }
             for conversation in page.items {
                 record(conversation)
@@ -111,6 +127,7 @@ final class MessagingStore {
         } else {
             await catchUp(id)
         }
+        await markLatestRead(id)
     }
 
     func leave(_ id: String) {
@@ -238,6 +255,11 @@ final class MessagingStore {
             pending.removeAll { $0.conversationId == conversationId }
             messages[conversationId] = nil
             syncAnchors[conversationId] = nil
+            otherReadPositions[conversationId] = nil
+            markedRead[conversationId] = nil
+            if conversations.contains(where: { $0.id == conversationId && $0.unreadCount > 0 }) {
+                unreadConversationCount = max(0, unreadConversationCount - 1)
+            }
             conversations.removeAll { $0.id == conversationId }
         }
         errorMessage = "Conversation indisponible. Vérifiez votre connexion et réessayez."
@@ -257,6 +279,27 @@ private extension MessagingStore {
         }
     }
 
+    func finishRead(_ id: String, started: Int) {
+        guard started == revision else { return }
+        markingRead.remove(id)
+        if readRequested.remove(id) != nil {
+            Task { await markLatestRead(id) }
+        }
+    }
+
+    func advanceOtherRead(_ id: String, to position: String) {
+        let items = messages[id, default: []]
+        let currentIndex = otherReadPositions[id].flatMap { current in items.firstIndex { $0.id == current } }
+        let newIndex = items.firstIndex { $0.id == position }
+        if let currentIndex, let newIndex, newIndex <= currentIndex {
+            return
+        }
+        otherReadPositions[id] = position
+        if let index = conversations.firstIndex(where: { $0.id == id }) {
+            conversations[index].otherMemberLastReadMessageId = position
+        }
+    }
+
     func record(_ value: Conversation) {
         unavailableConversationIds.remove(value.id)
         var conversation = value
@@ -271,6 +314,9 @@ private extension MessagingStore {
         conversations.removeAll { $0.id == conversation.id }
         conversations.append(conversation)
         sortConversations()
+        if let position = value.otherMemberLastReadMessageId {
+            advanceOtherRead(value.id, to: position)
+        }
     }
 
     func sortConversations() {
@@ -278,6 +324,73 @@ private extension MessagingStore {
             let first = $0.lastMessage?.createdAt ?? $0.createdAt
             let second = $1.lastMessage?.createdAt ?? $1.createdAt
             return first == second ? $0.id > $1.id : first > second
+        }
+    }
+}
+
+// MARK: - Read positions, unread counts and « Vu » (ADR-023)
+
+extension MessagingStore {
+    /// A `message.created` event: counted as unread, or read at once if the conversation is on screen.
+    func receiveLive(_ message: ChatMessage) {
+        let id = message.conversationId
+        let isKnown = messages[id]?.contains { $0.id == message.id } ?? false
+        let isUnavailable = unavailableConversationIds.contains(id)
+        receive(message)
+        guard !isKnown, !isUnavailable, message.senderId != account else { return }
+        if opened[id] != nil {
+            Task { await markLatestRead(id) }
+        } else if let index = conversations.firstIndex(where: { $0.id == id }) {
+            if conversations[index].unreadCount == 0 {
+                unreadConversationCount += 1
+            }
+            conversations[index].unreadCount += 1
+        }
+    }
+
+    /// A `conversation.read` event from the other member moves « Vu » forward, never back.
+    func readPositionChanged(conversationId: String, userId: String, lastReadMessageId: String) {
+        guard userId != account else { return }
+        advanceOtherRead(conversationId, to: lastReadMessageId)
+    }
+
+    /// My latest message, if the other member has read up to it.
+    func seenMessageId(in conversationId: String) -> String? {
+        guard let account, let items = messages[conversationId], let position = otherReadPositions[conversationId],
+              let mine = items.lastIndex(where: { $0.senderId == account }),
+              let read = items.firstIndex(where: { $0.id == position }), read >= mine
+        else { return nil }
+        return items[mine].id
+    }
+
+    /// Marks the latest displayed message read when the other member wrote something since my last read.
+    func markLatestRead(_ id: String) async {
+        guard opened[id] != nil, let account, let items = messages[id], let latest = items.last,
+              latest.id != markedRead[id] else { return }
+        let start = markedRead[id].flatMap { marked in items.firstIndex { $0.id == marked } }.map { $0 + 1 } ?? 0
+        guard items[start...].contains(where: { $0.senderId != account }) else { return }
+        guard !markingRead.contains(id) else { readRequested.insert(id); return }
+        markingRead.insert(id)
+        let started = revision
+        defer { finishRead(id, started: started) }
+        do {
+            try await service.markRead(conversationId: id, messageId: latest.id)
+            guard started == revision else { return }
+            markedRead[id] = latest.id
+            if let index = conversations.firstIndex(where: { $0.id == id }) {
+                if conversations[index].unreadCount > 0 {
+                    unreadConversationCount = max(0, unreadConversationCount - 1)
+                }
+                conversations[index].unreadCount = 0
+            } else {
+                await refresh()
+            }
+        } catch {
+            guard started == revision, !Task.isCancelled else { return }
+            // Other failures stay silent: reading is not blocking and is retried at the next display.
+            if case MessagingError.notFound = error {
+                handle(error, conversationId: id)
+            }
         }
     }
 }

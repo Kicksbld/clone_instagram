@@ -91,3 +91,13 @@ Ce que chaque tranche a posé dans le code, pour retrouver où vit une fonctionn
 - iOS : `Core/Messaging` (service et store partagé, dédoublonnage par identifiant, retry avec le même `clientId`, rattrapage des conversations ouvertes après authentification WebSocket), feature `Messages` (liste, recherche, conversation, barre Liquid Glass, menu Signaler/Bloquer), bouton Message sur le profil via `ConversationRoute`. Aucune lecture/non-lus/photo/partage (T27 et suivantes).
 - Décisions : application des ADR existants, aucune nouvelle décision d'architecture.
 - Reste à valider : démo sur deux iPhone physiques, réception immédiate puis rattrapage après coupure réseau. Migration à appliquer sur la démo avant le test.
+
+
+## T27 — « Vu » et messages non lus (#38)
+
+- Contrat : `POST /v1/conversations/{id}/read` `{ messageId }` → `204` ; `Conversation.unreadCount` et `otherMemberLastReadMessageId` ; `ConversationPage.unreadConversationCount` (toutes pages) ; événement `conversation.read`. Clients régénérés, sans rupture de compatibilité.
+- Base : aucune migration (`conversation_members.last_read_message_id`, clé étrangère composite vers un message de la même conversation).
+- API, module `messaging` : `MarkConversationRead` (mise à jour conditionnelle : la position n'avance que vers un message plus récent, même en concurrence ; message d'une autre conversation → `404 conversation_not_found` ; `conversation.read` à l'autre membre après commit, seulement si la position a avancé), compteurs de non-lus dans l'aperçu et `unreadConversationCount` dans `ListConversations` (même traduction SQL de `canMessage` que la liste).
+- iOS : `MessagingStore` (pastille `unreadConversationCount` relue par REST au premier plan et après reconnexion, ajustée à chaque `message.created` ; lecture du dernier message à l'affichage d'une conversation et à chaque message reçu pendant qu'elle est ouverte, échec silencieux réessayé à l'affichage suivant ; « Vu » sous mon dernier message lu par l'autre, jamais en arrière), `RealtimeClient` (`conversation.read`), pastille `.badge` sur l'onglet Messages, conversation non lue en gras avec pastille dans la liste.
+- Décisions : application d'ADR-023 et ADR-021 ; points à confirmer par le lead dev listés dans la PR.
+- Reste à valider : démo sur deux iPhone physiques (A écrit, la pastille de B s'allume, B ouvre, A voit « Vu »).
