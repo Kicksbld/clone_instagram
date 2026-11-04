@@ -1,3 +1,4 @@
+import { SharedPosts } from '../../src/modules/messaging/application/shared-posts.ts';
 import { GetOrCreateConversation } from '../../src/modules/messaging/application/use-cases/get-or-create-conversation.ts';
 import { ListConversations } from '../../src/modules/messaging/application/use-cases/list-conversations.ts';
 import { ListMessages } from '../../src/modules/messaging/application/use-cases/list-messages.ts';
@@ -119,6 +120,25 @@ export function buildTestApp() {
   const { profiles, media, avatarTransaction } = inMemoryAdapters();
   const jobs = new InMemoryJobQueue();
   const relationships = new InMemoryRelationshipReader();
+  const posts = new InMemoryPosts(profiles, media);
+  const sharedPosts = new SharedPosts(
+    {
+      find: async (id) => {
+        const post = await posts.findById(id, '');
+        if (!post) return null;
+        return {
+          owner: post.author,
+          preview: {
+            id: post.id,
+            kind: post.kind,
+            caption: post.caption,
+            author: { id: post.author.id, username: post.author.username },
+          },
+        };
+      },
+    },
+    relationships,
+  );
   const messaging = new InMemoryMessaging(profiles, relationships, media);
   const messagingTransaction = new InMemoryUnitOfWork({
     repository: messaging,
@@ -127,11 +147,16 @@ export function buildTestApp() {
   });
   const messagingIds = sequentialIds('0199a1b2-0000-7000-d100-');
   const messagingUseCases = {
-    getOrCreateConversation: new GetOrCreateConversation(messagingTransaction, messagingIds, {
-      now: () => TEST_NOW,
-    }),
-    listConversations: new ListConversations(messaging),
-    listMessages: new ListMessages(messaging, relationships),
+    getOrCreateConversation: new GetOrCreateConversation(
+      messagingTransaction,
+      messagingIds,
+      {
+        now: () => TEST_NOW,
+      },
+      sharedPosts,
+    ),
+    listConversations: new ListConversations(messaging, sharedPosts),
+    listMessages: new ListMessages(messaging, relationships, sharedPosts),
     sendMessage: new SendMessage(
       messagingTransaction,
       messagingIds,
@@ -142,6 +167,7 @@ export function buildTestApp() {
         },
         disconnect: () => {},
       },
+      sharedPosts,
     ),
     markConversationRead: new MarkConversationRead(messagingTransaction, {
       publish: (ids, event) => {
@@ -188,7 +214,6 @@ export function buildTestApp() {
     counters: graph,
     notifications,
   });
-  const posts = new InMemoryPosts(profiles, media);
   const createPostTransaction = new InMemoryUnitOfWork({
     accounts: graph,
     media,

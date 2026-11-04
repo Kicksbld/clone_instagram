@@ -372,8 +372,16 @@ final class FakeMessagingService: MessagingService {
         return snapshot
     }
 
-    func open(userId _: String) async throws -> Conversation {
-        throw MessagingError.unavailable
+    var openFailsFor: Set<String> = []
+    func open(userId: String) async throws -> Conversation {
+        if openFailsFor.contains(userId) {
+            throw MessagingError.notFound
+        }
+        return Conversation(
+            id: "conversation-\(userId)",
+            otherMember: PostAuthor(id: userId, username: userId, avatar: nil),
+            createdAt: Date()
+        )
     }
 
     func messages(conversationId _: String, cursor: String?, after: String?) async throws -> MessagePage {
@@ -417,6 +425,26 @@ final class FakeMessagingService: MessagingService {
             body: "",
             createdAt: Date(),
             mediaId: mediaId
+        )
+    }
+
+    func share(conversationId: String, clientId: String, postId: String) async throws -> ChatMessage {
+        sentIDs.append(clientId)
+        if holdSend {
+            await withCheckedContinuation { continuation = $0 }
+        }
+        if shouldFail {
+            throw MessagingError.unavailable
+        }
+        return ChatMessage(
+            id: "server-\(clientId)",
+            conversationId: conversationId,
+            senderId: "me",
+            clientId: clientId,
+            body: "",
+            createdAt: Date(),
+            sharedPostId: postId,
+            isPostShare: true
         )
     }
 

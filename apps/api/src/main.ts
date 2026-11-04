@@ -1,3 +1,5 @@
+import { SharedPosts } from './modules/messaging/application/shared-posts.ts';
+import { DrizzleSharedPostReader } from './modules/messaging/infrastructure/persistence/drizzle-shared-post-reader.ts';
 import { GetOrCreateConversation } from './modules/messaging/application/use-cases/get-or-create-conversation.ts';
 import { ListConversations } from './modules/messaging/application/use-cases/list-conversations.ts';
 import { ListMessages } from './modules/messaging/application/use-cases/list-messages.ts';
@@ -171,6 +173,10 @@ const messagingTransaction = new DrizzleUnitOfWork(database.db, (tx) => ({
   relationships: new DrizzleRelationshipReader(tx),
   media: new DrizzleMediaRepository(tx),
 }));
+const sharedPosts = new SharedPosts(
+  new DrizzleSharedPostReader(database.db, publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL)),
+  new DrizzleRelationshipReader(database.db),
+);
 const profiles = new DrizzleProfileRepository(database.db);
 const media = new DrizzleMediaRepository(database.db);
 const relationships = new DrizzleRelationshipReader(database.db);
@@ -303,10 +309,17 @@ const app = buildApp({
         messagingTransaction,
         uuidV7Generator,
         systemClock,
+        sharedPosts,
       ),
-      listConversations: new ListConversations(messagingRepository),
-      listMessages: new ListMessages(messagingRepository, relationships),
-      sendMessage: new SendMessage(messagingTransaction, uuidV7Generator, systemClock, realtime),
+      listConversations: new ListConversations(messagingRepository, sharedPosts),
+      listMessages: new ListMessages(messagingRepository, relationships, sharedPosts),
+      sendMessage: new SendMessage(
+        messagingTransaction,
+        uuidV7Generator,
+        systemClock,
+        realtime,
+        sharedPosts,
+      ),
       markConversationRead: new MarkConversationRead(messagingTransaction, realtime),
       getMessagePhotoUrl: new GetMessagePhotoUrl(
         messagingRepository,
