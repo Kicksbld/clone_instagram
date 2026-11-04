@@ -1,3 +1,4 @@
+import type { Mention } from '../../src/shared/domain/mention.ts';
 import type {
   AuthorPostsQuery,
   NewPost,
@@ -17,6 +18,7 @@ export const TEST_IMAGE_SIZE = { width: 1080, height: 1350 };
  * `(created_at, id)` décroissant) ; auteurs et médias lus dans les autres adapters en mémoire.
  */
 export class InMemoryPosts implements PostRepository, PostReader {
+  mentionReader: (id: string, viewerId: string) => Mention[] = () => [];
   readonly rows = new Map<
     string,
     NewPost & { deletedAt: Date | null; likeCount: number; commentCount?: number }
@@ -107,6 +109,7 @@ export class InMemoryPosts implements PostRepository, PostReader {
       id: row.id,
       kind: row.kind,
       caption: row.caption,
+      mentions: this.mentionReader(row.id, viewerId),
       likeCount: row.likeCount,
       viewerHasLiked: this.likes.has(`${viewerId}:${row.id}`),
       commentCount: row.commentCount ?? 0,

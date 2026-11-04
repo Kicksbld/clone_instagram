@@ -584,7 +584,7 @@ export interface paths {
         /**
          * Publier un post
          * @description Crée un post à partir de médias `ready`, à moi, de `purpose` `post`, jamais utilisés (ADR-008) ; ils sont rattachés au post dans l'ordre de `mediaIds`.
-         *     De 1 à 10 images (carrousel), ou exactement une vidéo prête pour un reel. Un média de type incompatible renvoie `422 media_kind_mismatch`. Limité à 20 posts par heure (`429 rate_limited`).
+         *     De 1 à 10 images (carrousel), ou exactement une vidéo prête pour un reel. Un média de type incompatible renvoie `422 media_kind_mismatch`. Plus de 20 mentions distinctes renvoie `422 too_many_mentions`. Limité à 20 posts par heure (`429 rate_limited`).
          */
         post: operations["createPost"];
         delete?: never;
@@ -1744,10 +1744,21 @@ export interface components {
             /** @description Durée du reel en millisecondes ; absente pour une image. */
             durationMs?: number;
         };
+        /** @description Compte mentionné et username écrit dans le texte, conservé si le compte change de nom. */
+        TextMention: {
+            /** Format: uuid */
+            id: string;
+            username: components["schemas"]["Username"];
+            /** @description Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte. */
+            textUsername: components["schemas"]["Username"];
+            avatar?: components["schemas"]["ImageVariants"];
+        };
         Post: {
             /** Format: uuid */
             id: string;
             kind: components["schemas"]["PostKind"];
+            /** @description Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus. */
+            mentions?: components["schemas"]["TextMention"][];
             caption: components["schemas"]["Caption"];
             author: components["schemas"]["PostAuthor"];
             /** @description Médias dans l'ordre d'affichage. */
@@ -1902,6 +1913,8 @@ export interface components {
              */
             parentId?: string;
             author: components["schemas"]["PostAuthor"];
+            /** @description Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus. */
+            mentions?: components["schemas"]["TextMention"][];
             body: components["schemas"]["CommentBody"];
             /** @description Nombre de réponses non supprimées ; toujours 0 pour une réponse. */
             replyCount: number;
@@ -1917,6 +1930,7 @@ export interface components {
         };
         /**
          * @description Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné), `follow_request` (demande d'abonnement reçue, retirée quand elle est annulée, acceptée ou refusée), `follow_accepted` (un compte privé a accepté ma demande).
+         *     `mention` : un compte vous a mentionné dans une publication ou un commentaire.
          *     Liste ouverte : d'autres types arrivent avec les tranches suivantes ; le client ignore un groupe d'un type qu'il ne connaît pas (ADR-019).
          * @example like
          */
@@ -3578,7 +3592,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Réponse à une réponse (`reply_to_reply`). */
+            /** @description Réponse à une réponse (`reply_to_reply`) ou plus de 20 mentions distinctes (`too_many_mentions`). */
             422: {
                 headers: {
                     [name: string]: unknown;

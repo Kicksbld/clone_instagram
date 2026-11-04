@@ -1,3 +1,4 @@
+import { InMemoryMentions } from '../../support/in-memory-mentions.ts';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { CreateComment } from '../../../src/modules/engagement/application/use-cases/create-comment.ts';
@@ -57,6 +58,7 @@ beforeEach(() => {
     posts: likes,
     comments,
     reader: comments,
+    mentions: new InMemoryMentions(profiles, relationships, posts, comments),
     notifications,
   });
   // Une milliseconde de plus à chaque commentaire : ordre chronologique explicite.
@@ -403,5 +405,71 @@ describe('DeleteComment', () => {
       CommentNotFoundError,
     );
     expect(commentCount()).toBe(0);
+  });
+});
+
+describe('mentions dans les commentaires', () => {
+  it('résout les comptes connus, déduplique et ne double pas la notification du propriétaire', async () => {
+    const created = await comment(ME, 'Avec @lea et @ines, @ines et @inconnu');
+    expect(created.mentions?.map((user) => user.id)).toEqual([AUTHOR, OTHER]);
+    expect([...notifications.rows.values()].map((row) => [row.recipientId, row.type])).toEqual([
+      [AUTHOR, 'comment'],
+      [OTHER, 'mention'],
+    ]);
+  });
+});
+
+describe('visibilité et limites des mentions', () => {
+  it('un compte bloqué ou non actif reste du texte ; soi-même ne reçoit rien', async () => {
+    relationships.block(ME, OTHER);
+    const created = await comment(ME, '@ines @killian @inconnu');
+    expect(created.mentions?.map((user) => user.id)).toEqual([ME]);
+    expect([...notifications.rows.values()].filter((row) => row.type === 'mention')).toEqual([]);
+  });
+
+  it('une personne qui ne peut pas voir le post privé est mentionnée sans être notifiée', async () => {
+    const author = profiles.rows.get(AUTHOR);
+    if (!author) throw new Error('profil absent');
+    profiles.rows.set(AUTHOR, { ...author, isPrivate: true });
+    relationships.follow(ME, AUTHOR);
+    const created = await comment(ME, '@ines');
+    expect(created.mentions?.map((user) => user.id)).toEqual([OTHER]);
+    expect([...notifications.rows.values()].filter((row) => row.type === 'mention')).toEqual([]);
+  });
+
+  it('21 noms distincts sont refusés avant toute écriture, les doublons ne comptent qu’une fois', async () => {
+    await expect(
+      comment(ME, Array.from({ length: 21 }, (_, index) => `@user${index}`).join(' ')),
+    ).rejects.toMatchObject({ code: 'too_many_mentions' });
+    expect(comments.rows.size).toBe(0);
+    expect(notifications.rows.size).toBe(0);
+    const created = await comment(ME, Array(21).fill('@ines').join(' '));
+    expect(created.mentions?.map((user) => user.id)).toEqual([OTHER]);
+  });
+
+  it('les mentions devenues invisibles sont retirées à la lecture', async () => {
+    await comment(ME, '@ines');
+    relationships.block(ME, OTHER);
+    expect((await list()).items[0]?.mentions).toEqual([]);
+  });
+});
+
+describe('notifications de mentions', () => {
+  it('une réponse qui mentionne son destinataire ne le notifie qu’une fois', async () => {
+    const parent = await comment(OTHER);
+    notifications.rows.clear();
+    await comment(ME, '@ines @lea', parent.id);
+    expect([...notifications.rows.values()].map((row) => [row.recipientId, row.type])).toEqual([
+      [OTHER, 'comment_reply'],
+      [AUTHOR, 'mention'],
+    ]);
+  });
+  it('un compte suspendu n’est ni mentionné ni notifié', async () => {
+    const profile = profiles.rows.get(OTHER);
+    if (!profile) throw new Error('profil absent');
+    profiles.rows.set(OTHER, { ...profile, status: 'suspended' });
+    const created = await comment(ME, '@ines');
+    expect(created.mentions).toEqual([]);
+    expect([...notifications.rows.values()].filter((row) => row.type === 'mention')).toEqual([]);
   });
 });

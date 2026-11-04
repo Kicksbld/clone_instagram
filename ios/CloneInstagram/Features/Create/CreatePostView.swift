@@ -333,6 +333,7 @@ private struct CaptionView: View {
                 }.listRowInsets(EdgeInsets())
                 TextField("Ajouter une légende…", text: $viewModel.caption, axis: .vertical)
                     .lineLimit(3 ... 12)
+                MentionSuggestions(text: $viewModel.caption)
             }
             Section {
                 Button {

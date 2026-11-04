@@ -28,6 +28,7 @@ struct PostView: View {
     /// Incrémenté à chaque double tap : déclenche le cœur sur la photo.
     @State private var doubleTapCount = 0
     @State private var isShowingFullScreenReel = false
+    @Environment(\.blockedUserIds) private var blockedUserIds
     @Environment(\.openSharePost) private var openSharePost
     @Environment(\.openComments) private var openComments
     @Environment(\.moderation) private var moderation
@@ -183,7 +184,9 @@ struct PostView: View {
     }
 
     private var captionText: Text {
-        Text("\(Text(post.author.username).fontWeight(.semibold)) \(post.caption)")
+        Text(
+            "\(Text(post.author.username).fontWeight(.semibold)) \(Text(MentionText.attributed(post.caption, mentions: post.mentions, blockedIds: blockedUserIds)))"
+        )
     }
 
     /// Légende repliée sur 2 lignes dans le feed ; « plus » seulement si elle est tronquée (hauteur de la

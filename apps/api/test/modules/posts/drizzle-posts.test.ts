@@ -1,4 +1,8 @@
-import { media, newId, posts, profiles, type Executor } from '@clone/db';
+import { DrizzleNotificationWriter } from '../../../src/modules/activity/infrastructure/persistence/drizzle-notification-writer.ts';
+import { DrizzleRelationshipReader } from '../../../src/shared/infrastructure/persistence/drizzle-relationship-reader.ts';
+import { InMemoryNotificationDispatcher } from '../../support/in-memory-notifications.ts';
+import { DrizzleMentionWriter } from '../../../src/modules/engagement/infrastructure/persistence/drizzle-mention-writer.ts';
+import { media, mentions, notifications, newId, posts, profiles, type Executor } from '@clone/db';
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
@@ -29,10 +33,14 @@ const createPost = new CreatePost(
     media: new DrizzleMediaRepository(tx),
     posts: new DrizzlePostRepository(tx),
     reader: new DrizzlePostReader(tx),
+    mentions: new DrizzleMentionWriter(tx),
+    relationships: new DrizzleRelationshipReader(tx),
+    notifications: new DrizzleNotificationWriter(tx),
   })),
   uuidV7Generator,
   clock,
   noopAnalyticsTracker,
+  new InMemoryNotificationDispatcher(),
 );
 
 const deletePost = new DeletePost(
@@ -264,5 +272,28 @@ describe('DeletePost sur Postgres', () => {
     );
 
     await expect(reader.findById(postId, author)).resolves.not.toBeNull();
+  });
+});
+
+describe('mentions des publications sur Postgres', () => {
+  it('crée les mentions et notifications avec le post, puis les retire à la suppression', async () => {
+    const [authorId, mentionedId] = [await givenProfile(), await givenProfile()];
+    const [mentioned] = await db.select().from(profiles).where(eq(profiles.id, mentionedId));
+    if (!mentioned) throw new Error('profil absent');
+    const post = await createPost.execute({
+      authorId,
+      kind: 'post',
+      caption: `Avec @${mentioned.username}`,
+      mediaIds: [await givenReadyPhoto(authorId)],
+    });
+    expect(post.mentions?.map((user) => user.id)).toEqual([mentionedId]);
+    expect(
+      await db.select().from(notifications).where(eq(notifications.postId, post.id)),
+    ).toMatchObject([{ type: 'mention', recipientId: mentionedId }]);
+    await deletePost.execute({ authorId, postId: post.id });
+    expect(await db.select().from(mentions).where(eq(mentions.postId, post.id))).toEqual([]);
+    expect(await db.select().from(notifications).where(eq(notifications.postId, post.id))).toEqual(
+      [],
+    );
   });
 });

@@ -1,0 +1,1 @@
+ALTER TABLE "mentions" ADD COLUMN "text_username" text NOT NULL;

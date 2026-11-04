@@ -169,6 +169,20 @@
       "when": 1793800039187,
       "tag": "0023_friends_tab_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793803324622,
+      "tag": "0024_smooth_typhoid_mary",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793803964803,
+      "tag": "0025_demonic_fabian_cortez",
+      "breakpoints": true
     }
   ]
 }

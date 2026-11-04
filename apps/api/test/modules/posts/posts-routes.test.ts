@@ -66,6 +66,7 @@ describe('POST /v1/posts', () => {
     const { id, ...post } = response.json<{ id: string }>();
     expect(id).toEqual(expect.any(String));
     expect(post).toEqual({
+      mentions: [],
       kind: 'post',
       caption: 'Coucher de soleil',
       author: { id: ME, username: 'killian' },
@@ -400,5 +401,29 @@ describe('DELETE /v1/posts/{id}', () => {
     const response = await context.app.inject({ method: 'DELETE', url: `/v1/posts/${PHOTO}` });
 
     expect(response.statusCode).toBe(401);
+  });
+});
+
+describe('mentions dans les légendes', () => {
+  it('renvoie les mentions dans la publication et le feed', async () => {
+    context.profiles.add({ id: OTHER, username: 'lea' });
+    const id = await givenPost(ME, 'Avec @lea @LEA @introuvable');
+    expect((await get(`/v1/posts/${id}`)).json()).toMatchObject({
+      mentions: [{ id: OTHER, username: 'lea' }],
+    });
+    expect((await get('/v1/feed')).json()).toMatchObject({
+      items: [{ mentions: [{ id: OTHER, username: 'lea' }] }],
+    });
+  });
+  it('refuse 21 mentions sans rattacher le média', async () => {
+    context.media.addReady({ id: PHOTO, ownerId: ME, purpose: 'post' });
+    const response = await publish({
+      kind: 'post',
+      mediaIds: [PHOTO],
+      caption: Array.from({ length: 21 }, (_, index) => `@user${index}`).join(' '),
+    });
+    expect(response.statusCode).toBe(422);
+    expect(response.json()).toMatchObject({ code: 'too_many_mentions' });
+    expect(context.media.rows.get(PHOTO)?.attachedAt).toBeNull();
   });
 });

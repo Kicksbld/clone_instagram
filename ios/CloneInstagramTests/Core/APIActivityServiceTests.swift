@@ -25,7 +25,7 @@ struct APIActivityServiceTests {
         {"id":"comment_reply:n2","type":"comment_reply","actor":{"id":"u2","username":"tom"},"actorCount":1,\
         "createdAt":"2026-09-24T12:00:00.000Z","read":true,"post":{"id":"p1","thumbnail":\(Self.variants)},\
         "comment":{"id":"c1","body":"Merci"}},\
-        {"id":"mention:n3","type":"mention","actor":{"id":"u3","username":"ines"},"actorCount":1,\
+        {"id":"future:n3","type":"future","actor":{"id":"u3","username":"ines"},"actorCount":1,\
         "createdAt":"2026-09-23T12:00:00.000Z","read":true},\
         {"id":"follow:n4","type":"follow","actor":{"id":"u3","username":"ines","unknown":true},"actorCount":1,\
         "createdAt":"2026-09-22T12:00:00.000Z","read":true},\
@@ -50,6 +50,17 @@ struct APIActivityServiceTests {
         #expect(like.post?.thumbnail.thumb.absoluteString == "https://cdn.test/t.webp")
         #expect(page.items[1].comment == ActivityGroup.CommentPreview(id: "c1", body: "Merci"))
         #expect(page.items[2].post == nil)
+    }
+
+    @Test func `notification de mention décodée avec le post visé`() async throws {
+        let body = """
+        {"items":[{"id":"mention:n1","type":"mention","actor":{"id":"u1","username":"lea"},"actorCount":1,
+        "createdAt":"2026-09-25T12:00:00.000Z","read":false,"post":{"id":"p1","thumbnail":\(Self.variants)}}],"unreadCount":1}
+        """
+        let service = try makeService(.response(status: 200, contentType: "application/json", body: body))
+        let page = try await service.fetchActivity(cursor: nil)
+        #expect(page.items.map(\.kind) == [.mention])
+        #expect(page.items.first?.post?.id == "p1")
     }
 
     @Test func `tout marquer comme lu → 204`() async throws {

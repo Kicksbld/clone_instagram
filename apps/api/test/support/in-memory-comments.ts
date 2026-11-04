@@ -1,3 +1,4 @@
+import type { Mention } from '../../src/shared/domain/mention.ts';
 import type {
   CommentReader,
   CommentRepository,
@@ -19,6 +20,7 @@ type CommentRow = NewComment & { replyCount: number; deletedAt: Date | null };
  * `(created_at, id)` décroissant).
  */
 export class InMemoryComments implements CommentRepository, CommentReader {
+  mentionReader: (id: string, viewerId: string) => Mention[] = () => [];
   readonly rows = new Map<string, CommentRow>();
 
   constructor(
@@ -70,9 +72,9 @@ export class InMemoryComments implements CommentRepository, CommentReader {
     return Promise.resolve();
   }
 
-  findById(id: string): Promise<Comment | null> {
+  findById(id: string, viewerId = ''): Promise<Comment | null> {
     const row = this.live(id);
-    return Promise.resolve(row && this.postIsLive(row) ? this.toComment(row) : null);
+    return Promise.resolve(row && this.postIsLive(row) ? this.toComment(row, viewerId) : null);
   }
 
   listByPost(postId: string, query: CommentsQuery): Promise<Page<Comment>> {
@@ -102,7 +104,7 @@ export class InMemoryComments implements CommentRepository, CommentReader {
     const page = rows.slice(0, limit);
     const last = page.at(-1);
     return {
-      items: page.map((row) => this.toComment(row)),
+      items: page.map((row) => this.toComment(row, viewerId)),
       next: rows.length > limit && last ? { createdAt: last.createdAt, id: last.id } : null,
     };
   }
@@ -123,7 +125,7 @@ export class InMemoryComments implements CommentRepository, CommentReader {
     return { id: profile.id, status: profile.status, isPrivate: profile.isPrivate };
   }
 
-  private toComment(row: CommentRow): Comment {
+  private toComment(row: CommentRow, viewerId: string): Comment {
     const post = this.posts.rows.get(row.postId);
     const author = this.profiles.rows.get(row.authorId);
     if (!post || !author) throw new Error(`Commentaire orphelin : ${row.id}`);
@@ -133,6 +135,7 @@ export class InMemoryComments implements CommentRepository, CommentReader {
       postAuthorId: post.authorId,
       parentId: row.parentId,
       body: row.body,
+      mentions: this.mentionReader(row.id, viewerId),
       replyCount: row.replyCount,
       createdAt: row.createdAt,
       author: {

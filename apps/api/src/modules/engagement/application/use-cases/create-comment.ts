@@ -1,3 +1,5 @@
+import { writeTextMentions } from '../../../../shared/application/write-text-mentions.ts';
+import { mentionedUsernames } from '../../../../shared/domain/mention.ts';
 import type { Clock } from '../../../../shared/application/clock.ts';
 import type { NotificationDispatcher } from '../../../../shared/application/notification-dispatcher.ts';
 import type { IdGenerator } from '../../../../shared/application/id-generator.ts';
@@ -30,8 +32,9 @@ export class CreateComment {
 
   async execute(input: CreateCommentInput): Promise<CommentView> {
     const body = normalizeCommentBody(input.body);
+    mentionedUsernames(body);
 
-    const { view, notification } = await this.transaction.run(async (scope) => {
+    const { view, notifications } = await this.transaction.run(async (scope) => {
       const post = await requireEngageablePost(scope, input.authorId, input.postId);
 
       const parentId = input.parentId ?? null;
@@ -69,11 +72,25 @@ export class CreateComment {
         commentId: id,
       });
 
-      const comment = await scope.reader.findById(id);
+      const mentionNotifications = await writeTextMentions(
+        {
+          text: body,
+          authorId: input.authorId,
+          contentAuthor: post.author,
+          postId: post.id,
+          target: { commentId: id },
+          ...(notification && { alreadyNotifiedId: recipientId }),
+        },
+        scope,
+      );
+      const comment = await scope.reader.findById(id, input.authorId);
       if (!comment) throw new Error(`Commentaire créé introuvable : ${id}`);
-      return { view: viewOf(comment, input.authorId), notification };
+      return {
+        view: viewOf(comment, input.authorId),
+        notifications: [...(notification ? [notification] : []), ...mentionNotifications],
+      };
     });
-    if (notification) this.notifications.dispatch([notification]);
+    if (notifications.length) this.notifications.dispatch(notifications);
     return view;
   }
 }

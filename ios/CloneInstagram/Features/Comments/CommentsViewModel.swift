@@ -332,6 +332,7 @@ final class CommentsViewModel {
             "Votre session a expiré. Reconnectez-vous."
         case .unreachable:
             "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
+        case .tooManyMentions: "Vous pouvez mentionner au maximum 20 comptes. Modifiez votre commentaire et réessayez."
         case .postNotFound, .commentNotFound, .replyToReply, .profileNotFound, .invalidCursor, .invalidInput,
              .unexpectedResponse:
             "Votre commentaire n'a pas pu être publié. Réessayez."

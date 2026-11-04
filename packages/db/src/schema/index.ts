@@ -85,3 +85,4 @@ export {
   type StoryViewRow,
 } from './ephemeral.ts';
 export { conversations, conversationMembers, messages } from './messaging.ts';
+export { mentions } from './mentions.ts';

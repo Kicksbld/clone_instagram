@@ -5,6 +5,7 @@ struct ActivityGroup: Equatable, Identifiable {
     /// Types connus de l'app ; un type inconnu (tranche suivante) est ignoré à la lecture (ADR-019).
     enum Kind: Equatable {
         /// J'aime d'un de mes posts.
+        case mention
         case like
         /// Commentaire d'un de mes posts.
         case comment

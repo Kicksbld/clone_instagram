@@ -10,6 +10,7 @@ struct SocialDestinations: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .modifier(MentionNavigation())
             .navigationDestination(for: ConversationRoute.self) { route in
                 OpenConversationView(route: route, store: dependencies.messaging, viewerId: viewerId)
             }

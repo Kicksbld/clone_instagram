@@ -15,6 +15,7 @@ struct CommentsView: View {
     var body: some View {
         NavigationStack {
             content
+                .modifier(MentionNavigation())
                 .navigationTitle("Commentaires")
                 .navigationBarTitleDisplayMode(.inline)
                 .safeAreaInset(edge: .bottom) {
@@ -120,7 +121,7 @@ struct CommentsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                Text(comment.body)
+                Text(MentionText.attributed(comment.body, mentions: comment.mentions, blockedIds: blockedUserIds))
                     .font(.subheadline)
                 if !comment.isPending {
                     Button("Répondre") {
@@ -185,6 +186,8 @@ struct CommentsView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 8)
             }
+            MentionSuggestions(text: $viewModel.draft)
+                .padding(.horizontal)
             HStack(alignment: .bottom, spacing: 12) {
                 TextField("Ajouter un commentaire…", text: $viewModel.draft, axis: .vertical)
                     .lineLimit(1 ... 5)

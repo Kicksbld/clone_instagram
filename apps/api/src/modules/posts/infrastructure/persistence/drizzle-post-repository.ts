@@ -1,3 +1,5 @@
+import { visibleMentions } from '../../../../shared/infrastructure/persistence/drizzle-mention-projection.ts';
+import { deleteContentMentions } from '../../../../shared/infrastructure/persistence/delete-content-mentions.ts';
 import { media, postLikes, postMedia, posts, profiles, type Executor } from '@clone/db';
 import { aliasedTable, and, asc, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 
@@ -55,6 +57,7 @@ export class DrizzlePostRepository implements PostRepository {
       .where(and(where, isNull(posts.deletedAt)))
       .returning({ id: posts.id, authorId: posts.authorId });
     if (!deleted) return null;
+    await deleteContentMentions(this.db, 'post', deleted.id);
 
     const rows = await this.db
       .select({ mediaId: postMedia.mediaId })
@@ -192,7 +195,14 @@ export async function selectPosts(
     mediaByPost.set(row.postId, items);
   }
 
+  const mentions = await visibleMentions(
+    db,
+    viewerId,
+    'post',
+    rows.map((row) => row.id),
+  );
   return rows.map((row) => ({
+    mentions: mentions.get(row.id) ?? [],
     id: row.id,
     kind: row.kind,
     caption: row.caption,

@@ -63,7 +63,9 @@ struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View,
                 }
             }
             Tab("Reels", systemImage: "play.rectangle", value: TabID.reels) {
-                reels(selection == .reels && !isCreating)
+                NavigationStack {
+                    reels(selection == .reels && !isCreating)
+                }
             }
             Tab("Messages", systemImage: "paperplane", value: TabID.messages) {
                 NavigationStack(root: messages)

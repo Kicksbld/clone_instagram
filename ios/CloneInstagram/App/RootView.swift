@@ -28,6 +28,14 @@ struct RootView: View {
 
     var body: some View {
         content
+            .environment(\.mentionSearchService, dependencies.social)
+            .environment(\.mentionProfileDestination) { route in
+                if case let .home(profile) = viewModel.route {
+                    AnyView(dependencies.userProfile(route, viewerId: profile.id))
+                } else {
+                    AnyView(EmptyView())
+                }
+            }
             .overlay {
                 if !isSplashFinished {
                     SplashView(isReady: viewModel.route != .loading) { isSplashFinished = true }
@@ -203,6 +211,7 @@ struct RootView: View {
                     profileDestination: { AnyView(dependencies.userProfile($0, viewerId: profile.id)) }
                 )
                 .environment(\.openComments, openComments)
+                .modifier(MentionNavigation())
             } messages: {
                 MessagesView(
                     viewModel: MessagesViewModel(store: dependencies.messaging, social: dependencies.social, viewerId: profile.id),

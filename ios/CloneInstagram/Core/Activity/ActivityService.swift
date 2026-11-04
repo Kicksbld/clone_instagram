@@ -116,6 +116,7 @@ private extension ActivityGroup {
         case "comment_reply": kind = .commentReply
         case "follow": kind = .follow
         case "follow_request": kind = .followRequest
+        case "mention": kind = .mention
         case "follow_accepted": kind = .followAccepted
         default: return nil
         }

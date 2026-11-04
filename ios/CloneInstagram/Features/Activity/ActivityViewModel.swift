@@ -262,6 +262,8 @@ final class ActivityViewModel {
             }
         case .comment:
             return "\(actor) a commenté : \(group.comment?.body ?? "")"
+        case .mention:
+            return group.comment == nil ? "\(actor) vous a mentionné(e) dans une publication." : "\(actor) vous a mentionné(e) dans un commentaire."
         case .commentReply:
             return "\(actor) a répondu à votre commentaire : \(group.comment?.body ?? "")"
         case .follow:

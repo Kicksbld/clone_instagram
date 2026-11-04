@@ -39,8 +39,18 @@ struct APICommentServiceTests {
         #expect(comment.parentId == "0199a1b2-0000-7000-b100-000000000001")
         #expect(comment.author.username == "killian")
         #expect(comment.body == "Merci")
+        #expect(comment.mentions.isEmpty)
         #expect(comment.canDelete)
         #expect(comment.createdAt == Date(timeIntervalSince1970: 1_790_337_600))
+    }
+
+    @Test func `mentions renvoyées par l'API converties`() async throws {
+        let extra = #","mentions":[{"id":"0199a1b2-5eed-7000-8000-000000000002","username":"lea.renommee","textUsername":"lea"}]}"#
+        let body = String(Self.commentJSON.dropLast()) + extra
+        let service = try makeService(json(body, status: 201))
+        let comment = try await service.createComment(postId: Self.postId, body: "@lea", parentId: nil)
+        #expect(comment.mentions.map(\.username) == ["lea.renommee"])
+        #expect(comment.mentions.map(\.textUsername) == ["lea"])
     }
 
     @Test func `GET commentaires converti en page`() async throws {
@@ -62,6 +72,7 @@ struct APICommentServiceTests {
         (404, "post_not_found", CommentServiceError.postNotFound),
         (404, "comment_not_found", .commentNotFound),
         (422, "reply_to_reply", .replyToReply),
+        (422, "too_many_mentions", .tooManyMentions),
         (404, "profile_not_found", .profileNotFound),
         (400, "validation_failed", .invalidInput),
         (401, "unauthenticated", .unauthenticated),
