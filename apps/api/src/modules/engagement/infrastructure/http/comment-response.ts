@@ -9,6 +9,12 @@ export type CommentResponse = components['schemas']['Comment'];
 export function toCommentResponse(comment: CommentView, urls: PublicMediaUrls): CommentResponse {
   const { avatarVariants } = comment.author;
   return {
+    mentions: (comment.mentions ?? []).map((user) => ({
+      id: user.id,
+      username: user.username,
+      textUsername: user.textUsername ?? user.username,
+      ...(user.avatarVariants && { avatar: urls.of(user.avatarVariants) }),
+    })),
     id: comment.id,
     postId: comment.postId,
     ...(comment.parentId && { parentId: comment.parentId }),

@@ -20,11 +20,20 @@ struct Post: Equatable, Identifiable {
     var friendInteractions: [FriendInteraction] = []
     /// Onglet Amis des Reels : nombre total d'amis qui ont interagi ; 0 ailleurs.
     var friendInteractionCount = 0
+    var mentions: [TextMention] = []
 
     /// Première image : vignette de la grille.
     var cover: PostMediaItem? {
         media.first
     }
+}
+
+/// Association résolue à la création ; le username écrit survit aux renommages du compte.
+struct TextMention: Equatable {
+    let id: String
+    let username: String
+    let textUsername: String
+    let avatar: ImageVariants?
 }
 
 struct PostAuthor: Equatable {

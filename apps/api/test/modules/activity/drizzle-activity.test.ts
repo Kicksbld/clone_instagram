@@ -1,3 +1,4 @@
+import { DrizzleMentionWriter } from '../../../src/modules/engagement/infrastructure/persistence/drizzle-mention-writer.ts';
 import { randomBytes } from 'node:crypto';
 
 import {
@@ -67,6 +68,7 @@ const comment = new CreateComment(
     posts: new DrizzleLikeablePostReader(tx),
     comments: new DrizzleCommentRepository(tx),
     reader: new DrizzleCommentReader(tx),
+    mentions: new DrizzleMentionWriter(tx),
     notifications: new DrizzleNotificationWriter(tx),
   })),
   uuidV7Generator,

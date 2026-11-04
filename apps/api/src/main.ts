@@ -1,3 +1,4 @@
+import { DrizzleMentionWriter } from './modules/engagement/infrastructure/persistence/drizzle-mention-writer.ts';
 import { GetReelsFeed } from './modules/feed/application/use-cases/get-reels-feed.ts';
 import { GetFriendsReels } from './modules/feed/application/use-cases/get-friends-reels.ts';
 import { ListReelFriendInteractions } from './modules/feed/application/use-cases/list-reel-friend-interactions.ts';
@@ -228,6 +229,9 @@ const closeFriendTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor)
 }));
 const postReader = new DrizzlePostReader(database.db);
 const createPostTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  mentions: new DrizzleMentionWriter(tx),
+  notifications: new DrizzleNotificationWriter(tx),
+  relationships: new DrizzleRelationshipReader(tx),
   accounts: new DrizzleAccountReader(tx),
   media: new DrizzleMediaRepository(tx),
   posts: new DrizzlePostRepository(tx),
@@ -245,6 +249,7 @@ const likeTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
   notifications: new DrizzleNotificationWriter(tx),
 }));
 const commentTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  mentions: new DrizzleMentionWriter(tx),
   accounts: new DrizzleAccountReader(tx),
   relationships: new DrizzleRelationshipReader(tx),
   posts: new DrizzleLikeablePostReader(tx),
@@ -376,7 +381,13 @@ const app = buildApp({
       ),
     },
     posts: {
-      createPost: new CreatePost(createPostTransaction, uuidV7Generator, systemClock, analytics),
+      createPost: new CreatePost(
+        createPostTransaction,
+        uuidV7Generator,
+        systemClock,
+        analytics,
+        notificationDispatcher,
+      ),
       deletePost: new DeletePost(deletePostTransaction),
       getPost: new GetPost(postReader, relationships),
       listUserPosts: new ListUserPosts(accounts, relationships, postReader),

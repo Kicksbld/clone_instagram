@@ -8,6 +8,7 @@ nonisolated enum CommentServiceError: Error, Equatable {
     /// Commentaire inexistant, supprimé ou invisible, ou que je ne peux pas supprimer (`404 comment_not_found`).
     case commentNotFound
     /// Réponse à une réponse (`422 reply_to_reply`).
+    case tooManyMentions
     case replyToReply
     /// Onboarding non terminé (`404 profile_not_found`).
     case profileNotFound
@@ -149,6 +150,7 @@ struct APICommentService: CommentService {
         switch (try? problem())?.code {
         case "post_not_found": .postNotFound
         case "comment_not_found": .commentNotFound
+        case "too_many_mentions": .tooManyMentions
         case "reply_to_reply": .replyToReply
         case "profile_not_found": .profileNotFound
         case "invalid_cursor": .invalidCursor
@@ -198,7 +200,14 @@ private extension Comment {
             body: dto.body,
             replyCount: dto.replyCount,
             createdAt: dto.createdAt,
-            canDelete: dto.viewerCanDelete
+            canDelete: dto.viewerCanDelete,
+            mentions: (dto.mentions ?? [])
+                .map { TextMention(
+                    id: $0.id,
+                    username: $0.username,
+                    textUsername: $0.textUsername,
+                    avatar: $0.avatar.flatMap(ImageVariants.init)
+                ) }
         )
     }
 }

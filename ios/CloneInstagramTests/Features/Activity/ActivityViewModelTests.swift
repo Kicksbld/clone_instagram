@@ -150,6 +150,17 @@ struct ActivityViewModelTests {
         #expect(ActivityViewModel.message(for: reply) == "lea a répondu à votre commentaire : Merci")
     }
 
+    @Test func `mentions de légende et commentaire ouvrent le post avec une phrase adaptée`() {
+        let caption = ActivityGroup.fixture(id: "m", kind: .mention, postId: "post")
+        let comment = ActivityGroup(
+            id: "mc", kind: .mention, actor: caption.actor, actorCount: 1,
+            createdAt: Self.now, isRead: false, post: caption.post, comment: .init(id: "c1", body: "@lea")
+        )
+        #expect(ActivityViewModel.message(for: caption) == "lea vous a mentionné(e) dans une publication.")
+        #expect(ActivityViewModel.message(for: comment) == "lea vous a mentionné(e) dans un commentaire.")
+        #expect(ActivityViewModel.destination(for: comment) == .post(PostRoute(postId: "post")))
+    }
+
     @Test func `un appui ouvre le post, ou le profil pour un abonnement`() {
         #expect(ActivityViewModel.destination(for: .fixture(id: "a", kind: .like, postId: "p1")) == .post(PostRoute(postId: "p1")))
         #expect(ActivityViewModel.destination(for: .fixture(id: "b", kind: .follow)) == .profile(ProfileRoute(username: "lea")))

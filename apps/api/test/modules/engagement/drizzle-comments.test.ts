@@ -1,6 +1,16 @@
+import { DrizzleMentionWriter } from '../../../src/modules/engagement/infrastructure/persistence/drizzle-mention-writer.ts';
 import { randomBytes } from 'node:crypto';
 
-import { blocks, comments, newId, posts, profiles, type Executor } from '@clone/db';
+import {
+  blocks,
+  comments,
+  mentions,
+  notifications,
+  newId,
+  posts,
+  profiles,
+  type Executor,
+} from '@clone/db';
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
@@ -34,6 +44,7 @@ const transaction = new DrizzleUnitOfWork(db, (tx: Executor) => ({
   posts: new DrizzleLikeablePostReader(tx),
   comments: new DrizzleCommentRepository(tx),
   reader: new DrizzleCommentReader(tx),
+  mentions: new DrizzleMentionWriter(tx),
   notifications: new DrizzleNotificationWriter(tx),
 }));
 const create = new CreateComment(
@@ -181,5 +192,94 @@ describe('commentaires sur Postgres', () => {
     expect([...ids(first), ...ids(second)]).toEqual(all);
     expect(first.items).toHaveLength(20);
     expect(second.next).toBeNull();
+  });
+});
+
+describe('mentions persistées', () => {
+  it('résout, filtre à la lecture et retire les mentions des réponses dans la transaction de suppression', async () => {
+    const [me, owner, mentioned] = [
+      await newProfile('me'),
+      await newProfile('owner'),
+      await newProfile('mentioned'),
+    ];
+    const postId = await newPost(owner);
+    const parent = await create.execute({ authorId: me, postId, body: `Avec @${RUN}_mentioned` });
+    await create.execute({
+      authorId: owner,
+      postId,
+      body: `@${RUN}_mentioned`,
+      parentId: parent.id,
+    });
+    expect(parent.mentions?.map((user) => user.id)).toEqual([mentioned]);
+    expect(
+      await db.select().from(mentions).where(eq(mentions.mentionedUserId, mentioned)),
+    ).toHaveLength(2);
+    expect(
+      await db.select().from(notifications).where(eq(notifications.recipientId, mentioned)),
+    ).toHaveLength(2);
+    await db.insert(blocks).values({ blockerId: mentioned, blockedId: me });
+    expect(
+      (await listComments.execute({ viewerId: me, postId, after: null })).items[0]?.mentions,
+    ).toEqual([]);
+    await remove.execute({ viewerId: owner, commentId: parent.id });
+    expect(await db.select().from(mentions).where(eq(mentions.mentionedUserId, mentioned))).toEqual(
+      [],
+    );
+    expect(
+      await db.select().from(notifications).where(eq(notifications.recipientId, mentioned)),
+    ).toEqual([]);
+  });
+
+  it('conserve le username écrit quand le compte mentionné change de nom', async () => {
+    const [me, owner, mentioned] = [
+      await newProfile('me'),
+      await newProfile('owner'),
+      await newProfile('mentioned'),
+    ];
+    const postId = await newPost(owner);
+    await create.execute({ authorId: me, postId, body: `@${RUN}_mentioned @${RUN}_renamed` });
+    await db
+      .update(profiles)
+      .set({ username: `${RUN}_renamed` })
+      .where(eq(profiles.id, mentioned));
+    const page = await listComments.execute({ viewerId: me, postId, after: null });
+    expect(page.items[0]?.mentions).toMatchObject([
+      { id: mentioned, username: `${RUN}_renamed`, textUsername: `${RUN}_mentioned` },
+    ]);
+  });
+
+  it('un échec après écriture des mentions annule commentaire, compteur et notifications', async () => {
+    const [me, owner, mentioned] = [
+      await newProfile('me'),
+      await newProfile('owner'),
+      await newProfile('mentioned'),
+    ];
+    const postId = await newPost(owner);
+    const failing = new CreateComment(
+      new DrizzleUnitOfWork(db, (tx: Executor) => ({
+        accounts: new DrizzleAccountReader(tx),
+        relationships: new DrizzleRelationshipReader(tx),
+        posts: new DrizzleLikeablePostReader(tx),
+        comments: new DrizzleCommentRepository(tx),
+        notifications: new DrizzleNotificationWriter(tx),
+        mentions: new DrizzleMentionWriter(tx),
+        reader: {
+          findById: () => Promise.reject(new Error('lecture échouée')),
+          listByPost: reader.listByPost.bind(reader),
+          listReplies: reader.listReplies.bind(reader),
+        },
+      })),
+      uuidV7Generator,
+      systemClock,
+      noopNotificationDispatcher,
+    );
+    await expect(
+      failing.execute({ authorId: me, postId, body: `@${RUN}_mentioned` }),
+    ).rejects.toThrow('lecture échouée');
+    expect(await countsOf(postId)).toBe(0);
+    expect(await db.select().from(mentions).where(eq(mentions.mentionedUserId, mentioned))).toEqual(
+      [],
+    );
+    expect(await db.select().from(notifications).where(eq(notifications.actorId, me))).toEqual([]);
   });
 });

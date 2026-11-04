@@ -7,6 +7,7 @@ import { profiles } from './profiles.ts';
 
 /** Types de notification autorisés ; chaque tranche ajoute les siens (ADR-026). */
 export const NOTIFICATION_TYPES = [
+  'mention',
   'like',
   'comment',
   'comment_reply',
@@ -56,13 +57,14 @@ export const notifications = pgTable(
       .nullsNotDistinct(),
     check(
       'notifications_type',
-      sql`${table.type} IN ('like', 'comment', 'comment_reply', 'follow', 'follow_request', 'follow_accepted')`,
+      sql`${table.type} IN ('mention', 'like', 'comment', 'comment_reply', 'follow', 'follow_request', 'follow_accepted')`,
     ),
     // Cibles par type : `like` → post ; `comment`, `comment_reply` → post + commentaire ;
     // `follow`, `follow_request`, `follow_accepted` → aucune.
     check(
       'notifications_targets',
       sql`${table.storyId} IS NULL AND CASE ${table.type}
+        WHEN 'mention' THEN ${table.postId} IS NOT NULL
         WHEN 'like' THEN ${table.postId} IS NOT NULL AND ${table.commentId} IS NULL
         WHEN 'comment' THEN ${table.postId} IS NOT NULL AND ${table.commentId} IS NOT NULL
         WHEN 'comment_reply' THEN ${table.postId} IS NOT NULL AND ${table.commentId} IS NOT NULL

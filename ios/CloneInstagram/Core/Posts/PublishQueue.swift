@@ -357,6 +357,7 @@ final class PublishQueue: PostPublishing {
             } else {
                 "Vous avez publié beaucoup de posts récemment. Réessayez plus tard."
             }
+        case .tooManyMentions: "Vous pouvez mentionner au maximum 20 comptes. Publiez à nouveau avec une légende plus courte."
         case .unreachable: "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez."
         case .unauthenticated: "Votre session a expiré. Reconnectez-vous."
         default: genericMessage

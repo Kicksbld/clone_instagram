@@ -15,6 +15,7 @@ struct Comment: Equatable, Identifiable {
     let canDelete: Bool
     /// Envoi en cours : affiché tout de suite, en attente de l'API (ADR-010).
     var isPending = false
+    var mentions: [TextMention] = []
 }
 
 /// Une page de commentaires ou de réponses (ADR-007) ; `nextCursor` est `nil` sur la dernière page.

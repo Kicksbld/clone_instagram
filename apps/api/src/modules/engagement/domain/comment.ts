@@ -1,3 +1,4 @@
+import type { Mention } from '../../../shared/domain/mention.ts';
 import type { ImageVariantPaths } from '../../../shared/domain/image-variants.ts';
 import type { VisibilitySubject } from '../../../shared/domain/visibility.ts';
 import { InvalidCommentBodyError } from './errors.ts';
@@ -21,6 +22,7 @@ export interface Comment {
   author: CommentAuthor;
   body: string;
   replyCount: number;
+  mentions?: Mention[];
   createdAt: Date;
 }
 

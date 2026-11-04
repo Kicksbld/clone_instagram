@@ -1,3 +1,6 @@
+import type { Mention } from '../../../../shared/domain/mention.ts';
+import { visibleMentions } from '../../../../shared/infrastructure/persistence/drizzle-mention-projection.ts';
+import { deleteContentMentions } from '../../../../shared/infrastructure/persistence/delete-content-mentions.ts';
 import { blocks, comments, media, posts, profiles, type Executor } from '@clone/db';
 import { aliasedTable, and, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 
@@ -61,6 +64,7 @@ export class DrizzleCommentRepository implements CommentRepository {
       .where(and(eq(comments.id, id), isNull(comments.deletedAt)))
       .returning({ id: comments.id });
     if (deleted.length === 0) return 0;
+    await deleteContentMentions(this.db, 'comment', id);
     const replies = await this.db
       .update(comments)
       .set({ deletedAt: sql`now()` })
@@ -89,8 +93,8 @@ export class DrizzleCommentRepository implements CommentRepository {
 export class DrizzleCommentReader implements CommentReader {
   constructor(private readonly db: Executor) {}
 
-  async findById(id: string): Promise<Comment | null> {
-    const [comment] = await this.select(eq(comments.id, id), 1);
+  async findById(id: string, viewerId?: string): Promise<Comment | null> {
+    const [comment] = await this.select(eq(comments.id, id), 1, viewerId);
     return comment ?? null;
   }
 
@@ -119,6 +123,7 @@ export class DrizzleCommentReader implements CommentReader {
       ),
       // Une ligne de plus pour savoir s'il existe une page suivante.
       limit + 1,
+      viewerId,
     );
     const items = rows.slice(0, limit);
     const last = items.at(-1);
@@ -129,7 +134,11 @@ export class DrizzleCommentReader implements CommentReader {
   }
 
   /** Commentaires non supprimés d'un post non supprimé, du plus récent au plus ancien. */
-  private async select(where: SQL | undefined, limit: number): Promise<Comment[]> {
+  private async select(
+    where: SQL | undefined,
+    limit: number,
+    viewerId?: string,
+  ): Promise<Comment[]> {
     const rows = await this.db
       .select({
         id: comments.id,
@@ -152,7 +161,16 @@ export class DrizzleCommentReader implements CommentReader {
       .where(and(isNull(comments.deletedAt), isNull(posts.deletedAt), where))
       .orderBy(desc(comments.createdAt), desc(comments.id))
       .limit(limit);
+    const mentions = viewerId
+      ? await visibleMentions(
+          this.db,
+          viewerId,
+          'comment',
+          rows.map((row) => row.id),
+        )
+      : new Map<string, Mention[]>();
     return rows.map((row) => ({
+      mentions: mentions.get(row.id) ?? [],
       id: row.id,
       postId: row.postId,
       postAuthorId: row.postAuthorId,

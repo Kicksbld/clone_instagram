@@ -48,7 +48,7 @@ export interface CommentsQuery {
  * actifs (ADR-006, traduit en SQL) ; la visibilité du post est décidée par le use case.
  */
 export interface CommentReader {
-  findById(id: string): Promise<Comment | null>;
+  findById(id: string, viewerId?: string): Promise<Comment | null>;
   listByPost(postId: string, query: CommentsQuery): Promise<Page<Comment>>;
   listReplies(parentId: string, query: CommentsQuery): Promise<Page<Comment>>;
 }

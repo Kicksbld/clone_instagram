@@ -69,6 +69,19 @@ struct APIPostServiceTests {
         }
     }
 
+    @Test func `mentions décodées et limite convertie en erreur métier`() async throws {
+        let extra = #","mentions":[{"id":"0199a1b2-5eed-7000-8000-000000000002","username":"lea.renommee","textUsername":"lea"}]}"#
+        let body = String(Self.postJSON.dropLast()) + extra
+        let service = try makeService(json(body))
+        let post = try await service.fetchPost(id: "post")
+        #expect(post.mentions.map(\.username) == ["lea.renommee"])
+        #expect(post.mentions.map(\.textUsername) == ["lea"])
+        let rejected = try makeService(problem(422, "too_many_mentions"))
+        await #expect(throws: PostServiceError.tooManyMentions) {
+            try await rejected.createPost(caption: "@lea", mediaIds: ["media"])
+        }
+    }
+
     private func makeService(_ reply: StubTransport.Reply) throws -> APIPostService {
         let configuration = try APIConfiguration(rawBaseURL: "http://localhost:3000")
         return APIPostService(

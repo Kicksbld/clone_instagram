@@ -3,7 +3,7 @@
   "info": {
     "title": "Clone Instagram API",
     "version": "0.1.0",
-    "description": "Contrat unique des échanges entre l'API, l'app iOS et le backoffice (ADR-003).\n\n- Routes métier préfixées par `/v1` ; `GET /health` est hors version.\n- JSON UTF-8, identifiants UUID v7, dates ISO 8601 UTC.\n- Authentification : `Authorization: Bearer <JWT Supabase>` sur toutes les routes sauf `GET /health`.\n- Erreurs : Problem Details (RFC 9457), `Content-Type: application/problem+json`, avec un `code` stable.\n\nCodes d'erreur transverses :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |\n| `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |\n| `account_suspended` | 403 | Compte suspendu ou banni (ADR-005) : toute route `/v1` est refusée, sauf `GET /v1/me` (statut du compte) et `DELETE /v1/me` |\n| `route_not_found` | 404 | Route inexistante |\n| `rate_limited` | 429 | Trop de requêtes (ADR-005) : 120 par minute et par utilisateur sur toute route `/v1`, limite plus basse sur certaines routes (documentée sur la route) ; en-tête `Retry-After` en secondes |\n| `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |\n\nCodes d'erreur métier :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `conversation_not_found` | 404 | Conversation inexistante, invisible ou appartenant à un tiers |\n| `cannot_message_self` | 422 | Conversation avec soi-même |\n| `profile_not_found` | 404 | L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé) |\n| `username_taken` | 409 | Username déjà utilisé par un autre profil |\n| `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |\n| `age_requirement_not_met` | 422 | Moins de 13 ans à la date du jour (UTC) |\n| `media_not_found` | 404 | Média inexistant ou appartenant à un autre utilisateur ; URL signée d'une photo de message hors de mes conversations visibles |\n| `media_invalid_transition` | 409 | Le statut du média ne permet pas l'opération (ex. `complete` sur un média déjà traité) |\n| `media_not_ready` | 409 | Le média n'est pas encore `ready` |\n| `media_already_attached` | 409 | Le média est déjà utilisé, ou l'a été (un média ne sert qu'une fois) |\n| `media_kind_mismatch` | 422 | Le type du média ne correspond pas au type du post ou du message |\n| `media_purpose_mismatch` | 422 | Le `purpose` du média ne correspond pas à l'usage demandé |\n| `user_not_found` | 404 | Profil inexistant ou invisible pour l'appelant (blocage dans un sens ou dans l'autre, compte non actif : ADR-006) ; liste d'abonnés d'un compte privé non suivi |\n| `account_private` | 403 | Plus renvoyé depuis T20 : suivre un compte privé crée une demande d'abonnement |\n| `cannot_follow_self` | 422 | Se suivre, ne plus se suivre ou se retirer de ses abonnés soi-même |\n| `follow_request_not_found` | 404 | Demande d'abonnement inexistante (annulée, déjà acceptée ou refusée) ou dont le demandeur est invisible (ADR-006) |\n| `invalid_cursor` | 400 | Curseur de pagination mal formé |\n| `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |\n| `comment_not_found` | 404 | Commentaire inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; commentaire parent d'un autre post ; suppression par quelqu'un qui n'est ni l'auteur du commentaire ni celui du post |\n| `reply_to_reply` | 422 | Réponse à une réponse (un seul niveau de réponse) |\n| `cannot_block_self` | 422 | Se bloquer ou se débloquer soi-même |\n| `cannot_close_friend_self` | 422 | S'ajouter ou se retirer soi-même de ses amis proches |\n| `cannot_report_self` | 422 | Se signaler soi-même ou signaler son propre post ou commentaire |\n| `admin_required` | 403 | Route d'administration (`/v1/admin/…`) appelée par un compte sans rôle `admin` (ADR-011) |\n| `invalid_status_transition` | 409 | Le statut actuel du compte ne permet pas l'action d'administration (ex. suspendre un compte banni) |\n| `cannot_moderate_self` | 422 | Un admin ne peut ni se suspendre, ni se bannir, ni se réactiver, ni se supprimer lui-même |\n| `report_not_found` | 404 | Signalement inexistant (backoffice) |\n| `report_already_resolved` | 409 | Le signalement n'est plus ouvert : déjà supprimé ou classé, seul ou avec les autres signalements du même contenu |\n| `cannot_remove_user` | 422 | `remove_content` sur le signalement d'un compte : seul le classement est possible, la sanction passe par la fiche du compte |\n| `plus_required` | 403 | Avantage réservé à Clone Plus demandé sans abonnement actif (ADR-012) |\n| `story_not_found` | 404 | Story inexistante, supprimée, expirée ou invisible pour l'appelant (ADR-006, ADR-025) ; suppression de la story d'un autre auteur |\n\nPagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).\n"
+    "description": "Contrat unique des échanges entre l'API, l'app iOS et le backoffice (ADR-003).\n\n- Routes métier préfixées par `/v1` ; `GET /health` est hors version.\n- JSON UTF-8, identifiants UUID v7, dates ISO 8601 UTC.\n- Authentification : `Authorization: Bearer <JWT Supabase>` sur toutes les routes sauf `GET /health`.\n- Erreurs : Problem Details (RFC 9457), `Content-Type: application/problem+json`, avec un `code` stable.\n\nCodes d'erreur transverses :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |\n| `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |\n| `account_suspended` | 403 | Compte suspendu ou banni (ADR-005) : toute route `/v1` est refusée, sauf `GET /v1/me` (statut du compte) et `DELETE /v1/me` |\n| `route_not_found` | 404 | Route inexistante |\n| `rate_limited` | 429 | Trop de requêtes (ADR-005) : 120 par minute et par utilisateur sur toute route `/v1`, limite plus basse sur certaines routes (documentée sur la route) ; en-tête `Retry-After` en secondes |\n| `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |\n\nCodes d'erreur métier :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `conversation_not_found` | 404 | Conversation inexistante, invisible ou appartenant à un tiers |\n| `cannot_message_self` | 422 | Conversation avec soi-même |\n| `profile_not_found` | 404 | L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé) |\n| `username_taken` | 409 | Username déjà utilisé par un autre profil |\n| `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |\n| `age_requirement_not_met` | 422 | Moins de 13 ans à la date du jour (UTC) |\n| `media_not_found` | 404 | Média inexistant ou appartenant à un autre utilisateur ; URL signée d'une photo de message hors de mes conversations visibles |\n| `media_invalid_transition` | 409 | Le statut du média ne permet pas l'opération (ex. `complete` sur un média déjà traité) |\n| `media_not_ready` | 409 | Le média n'est pas encore `ready` |\n| `media_already_attached` | 409 | Le média est déjà utilisé, ou l'a été (un média ne sert qu'une fois) |\n| `media_kind_mismatch` | 422 | Le type du média ne correspond pas au type du post ou du message |\n| `media_purpose_mismatch` | 422 | Le `purpose` du média ne correspond pas à l'usage demandé |\n| `user_not_found` | 404 | Profil inexistant ou invisible pour l'appelant (blocage dans un sens ou dans l'autre, compte non actif : ADR-006) ; liste d'abonnés d'un compte privé non suivi |\n| `account_private` | 403 | Plus renvoyé depuis T20 : suivre un compte privé crée une demande d'abonnement |\n| `cannot_follow_self` | 422 | Se suivre, ne plus se suivre ou se retirer de ses abonnés soi-même |\n| `follow_request_not_found` | 404 | Demande d'abonnement inexistante (annulée, déjà acceptée ou refusée) ou dont le demandeur est invisible (ADR-006) |\n| `invalid_cursor` | 400 | Curseur de pagination mal formé |\n| `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |\n| `comment_not_found` | 404 | Commentaire inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; commentaire parent d'un autre post ; suppression par quelqu'un qui n'est ni l'auteur du commentaire ni celui du post |\n| `too_many_mentions` | 422 | Plus de 20 comptes distincts mentionnés dans un texte |\n| `reply_to_reply` | 422 | Réponse à une réponse (un seul niveau de réponse) |\n| `cannot_block_self` | 422 | Se bloquer ou se débloquer soi-même |\n| `cannot_close_friend_self` | 422 | S'ajouter ou se retirer soi-même de ses amis proches |\n| `cannot_report_self` | 422 | Se signaler soi-même ou signaler son propre post ou commentaire |\n| `admin_required` | 403 | Route d'administration (`/v1/admin/…`) appelée par un compte sans rôle `admin` (ADR-011) |\n| `invalid_status_transition` | 409 | Le statut actuel du compte ne permet pas l'action d'administration (ex. suspendre un compte banni) |\n| `cannot_moderate_self` | 422 | Un admin ne peut ni se suspendre, ni se bannir, ni se réactiver, ni se supprimer lui-même |\n| `report_not_found` | 404 | Signalement inexistant (backoffice) |\n| `report_already_resolved` | 409 | Le signalement n'est plus ouvert : déjà supprimé ou classé, seul ou avec les autres signalements du même contenu |\n| `cannot_remove_user` | 422 | `remove_content` sur le signalement d'un compte : seul le classement est possible, la sanction passe par la fiche du compte |\n| `plus_required` | 403 | Avantage réservé à Clone Plus demandé sans abonnement actif (ADR-012) |\n| `story_not_found` | 404 | Story inexistante, supprimée, expirée ou invisible pour l'appelant (ADR-006, ADR-025) ; suppression de la story d'un autre auteur |\n\nPagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).\n"
   },
   "servers": [
     {
@@ -10532,6 +10532,72 @@
                               "reel"
                             ]
                           },
+                          "mentions": {
+                            "type": "array",
+                            "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+                            "maxItems": 20,
+                            "items": {
+                              "type": "object",
+                              "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+                              "required": [
+                                "id",
+                                "username",
+                                "textUsername"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "textUsername": {
+                                  "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "avatar": {
+                                  "type": "object",
+                                  "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
                           "caption": {
                             "type": "string",
                             "description": "Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.",
@@ -11068,6 +11134,72 @@
                               "post",
                               "reel"
                             ]
+                          },
+                          "mentions": {
+                            "type": "array",
+                            "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+                            "maxItems": 20,
+                            "items": {
+                              "type": "object",
+                              "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+                              "required": [
+                                "id",
+                                "username",
+                                "textUsername"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "textUsername": {
+                                  "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "avatar": {
+                                  "type": "object",
+                                  "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           },
                           "caption": {
                             "type": "string",
@@ -11935,7 +12067,7 @@
           "posts"
         ],
         "summary": "Publier un post",
-        "description": "Crée un post à partir de médias `ready`, à moi, de `purpose` `post`, jamais utilisés (ADR-008) ; ils sont rattachés au post dans l'ordre de `mediaIds`.\nDe 1 à 10 images (carrousel), ou exactement une vidéo prête pour un reel. Un média de type incompatible renvoie `422 media_kind_mismatch`. Limité à 20 posts par heure (`429 rate_limited`).\n",
+        "description": "Crée un post à partir de médias `ready`, à moi, de `purpose` `post`, jamais utilisés (ADR-008) ; ils sont rattachés au post dans l'ordre de `mediaIds`.\nDe 1 à 10 images (carrousel), ou exactement une vidéo prête pour un reel. Un média de type incompatible renvoie `422 media_kind_mismatch`. Plus de 20 mentions distinctes renvoie `422 too_many_mentions`. Limité à 20 posts par heure (`429 rate_limited`).\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -12022,6 +12154,72 @@
                         "post",
                         "reel"
                       ]
+                    },
+                    "mentions": {
+                      "type": "array",
+                      "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+                      "maxItems": 20,
+                      "items": {
+                        "type": "object",
+                        "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+                        "required": [
+                          "id",
+                          "username",
+                          "textUsername"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "username": {
+                            "type": "string",
+                            "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                            "minLength": 1,
+                            "maxLength": 30,
+                            "pattern": "^[a-z0-9._]{1,30}$",
+                            "examples": [
+                              "killian.b"
+                            ]
+                          },
+                          "textUsername": {
+                            "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 30,
+                            "pattern": "^[a-z0-9._]{1,30}$",
+                            "examples": [
+                              "killian.b"
+                            ]
+                          },
+                          "avatar": {
+                            "type": "object",
+                            "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                            "required": [
+                              "thumb",
+                              "medium",
+                              "large"
+                            ],
+                            "properties": {
+                              "thumb": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "150 px de large."
+                              },
+                              "medium": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "640 px de large."
+                              },
+                              "large": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "1080 px de large."
+                              }
+                            }
+                          }
+                        }
+                      }
                     },
                     "caption": {
                       "type": "string",
@@ -12703,6 +12901,72 @@
                         "post",
                         "reel"
                       ]
+                    },
+                    "mentions": {
+                      "type": "array",
+                      "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+                      "maxItems": 20,
+                      "items": {
+                        "type": "object",
+                        "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+                        "required": [
+                          "id",
+                          "username",
+                          "textUsername"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "username": {
+                            "type": "string",
+                            "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                            "minLength": 1,
+                            "maxLength": 30,
+                            "pattern": "^[a-z0-9._]{1,30}$",
+                            "examples": [
+                              "killian.b"
+                            ]
+                          },
+                          "textUsername": {
+                            "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 30,
+                            "pattern": "^[a-z0-9._]{1,30}$",
+                            "examples": [
+                              "killian.b"
+                            ]
+                          },
+                          "avatar": {
+                            "type": "object",
+                            "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                            "required": [
+                              "thumb",
+                              "medium",
+                              "large"
+                            ],
+                            "properties": {
+                              "thumb": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "150 px de large."
+                              },
+                              "medium": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "640 px de large."
+                              },
+                              "large": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "1080 px de large."
+                              }
+                            }
+                          }
+                        }
+                      }
                     },
                     "caption": {
                       "type": "string",
@@ -14176,6 +14440,72 @@
                               }
                             }
                           },
+                          "mentions": {
+                            "type": "array",
+                            "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+                            "maxItems": 20,
+                            "items": {
+                              "type": "object",
+                              "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+                              "required": [
+                                "id",
+                                "username",
+                                "textUsername"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "textUsername": {
+                                  "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "avatar": {
+                                  "type": "object",
+                                  "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
                           "body": {
                             "type": "string",
                             "description": "Texte du commentaire, 2 200 caractères au plus, avec au moins un caractère visible ; espaces de début et de fin retirés.",
@@ -14553,6 +14883,72 @@
                         }
                       }
                     },
+                    "mentions": {
+                      "type": "array",
+                      "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+                      "maxItems": 20,
+                      "items": {
+                        "type": "object",
+                        "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+                        "required": [
+                          "id",
+                          "username",
+                          "textUsername"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "username": {
+                            "type": "string",
+                            "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                            "minLength": 1,
+                            "maxLength": 30,
+                            "pattern": "^[a-z0-9._]{1,30}$",
+                            "examples": [
+                              "killian.b"
+                            ]
+                          },
+                          "textUsername": {
+                            "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 30,
+                            "pattern": "^[a-z0-9._]{1,30}$",
+                            "examples": [
+                              "killian.b"
+                            ]
+                          },
+                          "avatar": {
+                            "type": "object",
+                            "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                            "required": [
+                              "thumb",
+                              "medium",
+                              "large"
+                            ],
+                            "properties": {
+                              "thumb": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "150 px de large."
+                              },
+                              "medium": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "640 px de large."
+                              },
+                              "large": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "1080 px de large."
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "body": {
                       "type": "string",
                       "description": "Texte du commentaire, 2 200 caractères au plus, avec au moins un caractère visible ; espaces de début et de fin retirés.",
@@ -14741,7 +15137,7 @@
             }
           },
           "422": {
-            "description": "Réponse à une réponse (`reply_to_reply`).",
+            "description": "Réponse à une réponse (`reply_to_reply`) ou plus de 20 mentions distinctes (`too_many_mentions`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -15029,6 +15425,72 @@
                                     "type": "string",
                                     "format": "uri",
                                     "description": "1080 px de large."
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "mentions": {
+                            "type": "array",
+                            "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+                            "maxItems": 20,
+                            "items": {
+                              "type": "object",
+                              "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+                              "required": [
+                                "id",
+                                "username",
+                                "textUsername"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "textUsername": {
+                                  "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "avatar": {
+                                  "type": "object",
+                                  "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
                                   }
                                 }
                               }
@@ -17669,6 +18131,72 @@
                               "reel"
                             ]
                           },
+                          "mentions": {
+                            "type": "array",
+                            "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+                            "maxItems": 20,
+                            "items": {
+                              "type": "object",
+                              "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+                              "required": [
+                                "id",
+                                "username",
+                                "textUsername"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "textUsername": {
+                                  "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "avatar": {
+                                  "type": "object",
+                                  "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
                           "caption": {
                             "type": "string",
                             "description": "Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.",
@@ -18143,6 +18671,72 @@
                               "reel"
                             ]
                           },
+                          "mentions": {
+                            "type": "array",
+                            "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+                            "maxItems": 20,
+                            "items": {
+                              "type": "object",
+                              "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+                              "required": [
+                                "id",
+                                "username",
+                                "textUsername"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "textUsername": {
+                                  "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "avatar": {
+                                  "type": "object",
+                                  "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
                           "caption": {
                             "type": "string",
                             "description": "Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.",
@@ -18616,6 +19210,72 @@
                               "post",
                               "reel"
                             ]
+                          },
+                          "mentions": {
+                            "type": "array",
+                            "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+                            "maxItems": 20,
+                            "items": {
+                              "type": "object",
+                              "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+                              "required": [
+                                "id",
+                                "username",
+                                "textUsername"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "textUsername": {
+                                  "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "avatar": {
+                                  "type": "object",
+                                  "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           },
                           "caption": {
                             "type": "string",
@@ -20124,7 +20784,7 @@
                           },
                           "type": {
                             "type": "string",
-                            "description": "Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné), `follow_request` (demande d'abonnement reçue, retirée quand elle est annulée, acceptée ou refusée), `follow_accepted` (un compte privé a accepté ma demande).\nListe ouverte : d'autres types arrivent avec les tranches suivantes ; le client ignore un groupe d'un type qu'il ne connaît pas (ADR-019).\n",
+                            "description": "Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné), `follow_request` (demande d'abonnement reçue, retirée quand elle est annulée, acceptée ou refusée), `follow_accepted` (un compte privé a accepté ma demande).\n`mention` : un compte vous a mentionné dans une publication ou un commentaire.\nListe ouverte : d'autres types arrivent avec les tranches suivantes ; le client ignore un groupe d'un type qu'il ne connaît pas (ADR-019).\n",
                             "examples": [
                               "like"
                             ]
@@ -30599,6 +31259,67 @@
           }
         }
       },
+      "TextMention": {
+        "type": "object",
+        "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+        "required": [
+          "id",
+          "username",
+          "textUsername"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string",
+            "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+            "minLength": 1,
+            "maxLength": 30,
+            "pattern": "^[a-z0-9._]{1,30}$",
+            "examples": [
+              "killian.b"
+            ]
+          },
+          "textUsername": {
+            "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30,
+            "pattern": "^[a-z0-9._]{1,30}$",
+            "examples": [
+              "killian.b"
+            ]
+          },
+          "avatar": {
+            "type": "object",
+            "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+            "required": [
+              "thumb",
+              "medium",
+              "large"
+            ],
+            "properties": {
+              "thumb": {
+                "type": "string",
+                "format": "uri",
+                "description": "150 px de large."
+              },
+              "medium": {
+                "type": "string",
+                "format": "uri",
+                "description": "640 px de large."
+              },
+              "large": {
+                "type": "string",
+                "format": "uri",
+                "description": "1080 px de large."
+              }
+            }
+          }
+        }
+      },
       "Post": {
         "type": "object",
         "required": [
@@ -30624,6 +31345,72 @@
               "post",
               "reel"
             ]
+          },
+          "mentions": {
+            "type": "array",
+            "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+              "required": [
+                "id",
+                "username",
+                "textUsername"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "username": {
+                  "type": "string",
+                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                  "minLength": 1,
+                  "maxLength": 30,
+                  "pattern": "^[a-z0-9._]{1,30}$",
+                  "examples": [
+                    "killian.b"
+                  ]
+                },
+                "textUsername": {
+                  "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 30,
+                  "pattern": "^[a-z0-9._]{1,30}$",
+                  "examples": [
+                    "killian.b"
+                  ]
+                },
+                "avatar": {
+                  "type": "object",
+                  "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                  "required": [
+                    "thumb",
+                    "medium",
+                    "large"
+                  ],
+                  "properties": {
+                    "thumb": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "150 px de large."
+                    },
+                    "medium": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "640 px de large."
+                    },
+                    "large": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "1080 px de large."
+                    }
+                  }
+                }
+              }
+            }
           },
           "caption": {
             "type": "string",
@@ -31075,6 +31862,72 @@
                     "post",
                     "reel"
                   ]
+                },
+                "mentions": {
+                  "type": "array",
+                  "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+                  "maxItems": 20,
+                  "items": {
+                    "type": "object",
+                    "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+                    "required": [
+                      "id",
+                      "username",
+                      "textUsername"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "username": {
+                        "type": "string",
+                        "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                        "minLength": 1,
+                        "maxLength": 30,
+                        "pattern": "^[a-z0-9._]{1,30}$",
+                        "examples": [
+                          "killian.b"
+                        ]
+                      },
+                      "textUsername": {
+                        "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 30,
+                        "pattern": "^[a-z0-9._]{1,30}$",
+                        "examples": [
+                          "killian.b"
+                        ]
+                      },
+                      "avatar": {
+                        "type": "object",
+                        "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                        "required": [
+                          "thumb",
+                          "medium",
+                          "large"
+                        ],
+                        "properties": {
+                          "thumb": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "150 px de large."
+                          },
+                          "medium": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "640 px de large."
+                          },
+                          "large": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "1080 px de large."
+                          }
+                        }
+                      }
+                    }
+                  }
                 },
                 "caption": {
                   "type": "string",
@@ -32303,6 +33156,72 @@
               }
             }
           },
+          "mentions": {
+            "type": "array",
+            "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+              "required": [
+                "id",
+                "username",
+                "textUsername"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "username": {
+                  "type": "string",
+                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                  "minLength": 1,
+                  "maxLength": 30,
+                  "pattern": "^[a-z0-9._]{1,30}$",
+                  "examples": [
+                    "killian.b"
+                  ]
+                },
+                "textUsername": {
+                  "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 30,
+                  "pattern": "^[a-z0-9._]{1,30}$",
+                  "examples": [
+                    "killian.b"
+                  ]
+                },
+                "avatar": {
+                  "type": "object",
+                  "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                  "required": [
+                    "thumb",
+                    "medium",
+                    "large"
+                  ],
+                  "properties": {
+                    "thumb": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "150 px de large."
+                    },
+                    "medium": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "640 px de large."
+                    },
+                    "large": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "1080 px de large."
+                    }
+                  }
+                }
+              }
+            }
+          },
           "body": {
             "type": "string",
             "description": "Texte du commentaire, 2 200 caractères au plus, avec au moins un caractère visible ; espaces de début et de fin retirés.",
@@ -32410,6 +33329,72 @@
                     }
                   }
                 },
+                "mentions": {
+                  "type": "array",
+                  "description": "Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.",
+                  "maxItems": 20,
+                  "items": {
+                    "type": "object",
+                    "description": "Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.",
+                    "required": [
+                      "id",
+                      "username",
+                      "textUsername"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "username": {
+                        "type": "string",
+                        "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                        "minLength": 1,
+                        "maxLength": 30,
+                        "pattern": "^[a-z0-9._]{1,30}$",
+                        "examples": [
+                          "killian.b"
+                        ]
+                      },
+                      "textUsername": {
+                        "description": "Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 30,
+                        "pattern": "^[a-z0-9._]{1,30}$",
+                        "examples": [
+                          "killian.b"
+                        ]
+                      },
+                      "avatar": {
+                        "type": "object",
+                        "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                        "required": [
+                          "thumb",
+                          "medium",
+                          "large"
+                        ],
+                        "properties": {
+                          "thumb": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "150 px de large."
+                          },
+                          "medium": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "640 px de large."
+                          },
+                          "large": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "1080 px de large."
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
                 "body": {
                   "type": "string",
                   "description": "Texte du commentaire, 2 200 caractères au plus, avec au moins un caractère visible ; espaces de début et de fin retirés.",
@@ -32441,7 +33426,7 @@
       },
       "ActivityType": {
         "type": "string",
-        "description": "Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné), `follow_request` (demande d'abonnement reçue, retirée quand elle est annulée, acceptée ou refusée), `follow_accepted` (un compte privé a accepté ma demande).\nListe ouverte : d'autres types arrivent avec les tranches suivantes ; le client ignore un groupe d'un type qu'il ne connaît pas (ADR-019).\n",
+        "description": "Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné), `follow_request` (demande d'abonnement reçue, retirée quand elle est annulée, acceptée ou refusée), `follow_accepted` (un compte privé a accepté ma demande).\n`mention` : un compte vous a mentionné dans une publication ou un commentaire.\nListe ouverte : d'autres types arrivent avec les tranches suivantes ; le client ignore un groupe d'un type qu'il ne connaît pas (ADR-019).\n",
         "examples": [
           "like"
         ]
@@ -32575,7 +33560,7 @@
           },
           "type": {
             "type": "string",
-            "description": "Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné), `follow_request` (demande d'abonnement reçue, retirée quand elle est annulée, acceptée ou refusée), `follow_accepted` (un compte privé a accepté ma demande).\nListe ouverte : d'autres types arrivent avec les tranches suivantes ; le client ignore un groupe d'un type qu'il ne connaît pas (ADR-019).\n",
+            "description": "Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné), `follow_request` (demande d'abonnement reçue, retirée quand elle est annulée, acceptée ou refusée), `follow_accepted` (un compte privé a accepté ma demande).\n`mention` : un compte vous a mentionné dans une publication ou un commentaire.\nListe ouverte : d'autres types arrivent avec les tranches suivantes ; le client ignore un groupe d'un type qu'il ne connaît pas (ADR-019).\n",
             "examples": [
               "like"
             ]
@@ -32735,7 +33720,7 @@
                 },
                 "type": {
                   "type": "string",
-                  "description": "Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné), `follow_request` (demande d'abonnement reçue, retirée quand elle est annulée, acceptée ou refusée), `follow_accepted` (un compte privé a accepté ma demande).\nListe ouverte : d'autres types arrivent avec les tranches suivantes ; le client ignore un groupe d'un type qu'il ne connaît pas (ADR-019).\n",
+                  "description": "Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné), `follow_request` (demande d'abonnement reçue, retirée quand elle est annulée, acceptée ou refusée), `follow_accepted` (un compte privé a accepté ma demande).\n`mention` : un compte vous a mentionné dans une publication ou un commentaire.\nListe ouverte : d'autres types arrivent avec les tranches suivantes ; le client ignore un groupe d'un type qu'il ne connaît pas (ADR-019).\n",
                   "examples": [
                     "like"
                   ]

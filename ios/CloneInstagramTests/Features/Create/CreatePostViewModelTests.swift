@@ -99,6 +99,19 @@ struct CreatePostViewModelTests {
         #expect(publisher.published.first?.images.first?.isEmpty == false)
     }
 
+    @Test func `vingt et une mentions gardent la légende modifiable puis un nouvel essai réussit`() async {
+        let viewModel = makeViewModel()
+        await viewModel.loadPhoto(Data("photo".utf8))
+        viewModel.caption = (0 ..< 21).map { "@user\($0)" }.joined(separator: " ")
+        let rejected = await viewModel.share()
+        #expect(!rejected)
+        #expect(publisher.published.isEmpty)
+        #expect(viewModel.shareErrorMessage?.contains("20") == true)
+        #expect(viewModel.caption.contains("@user20"))
+        viewModel.caption = "Avec @lea"
+        #expect(await viewModel.share())
+    }
+
     @Test func `partager en échec : message, écran gardé`() async {
         publisher.error = .unreadableImage
         let viewModel = makeViewModel()

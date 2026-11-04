@@ -91,6 +91,7 @@ final class CreatePostViewModel {
     }
 
     func shareReel() async -> Bool {
+        guard validateMentions() else { return false }
         guard let videoURL, !isSharing else { return false }
         isSharing = true
         defer { isSharing = false }
@@ -270,6 +271,7 @@ final class CreatePostViewModel {
 
     /// Recadre, prépare et ajoute les photos à la file ; `true` si l'écran peut se fermer.
     func share() async -> Bool {
+        guard validateMentions() else { return false }
         if isReel {
             return await shareReel()
         }
@@ -296,6 +298,15 @@ final class CreatePostViewModel {
             shareErrorMessage = UploadError.message(for: error)
             return false
         }
+    }
+
+    private func validateMentions() -> Bool {
+        guard MentionParser.usernames(in: caption).count <= 20 else {
+            shareErrorMessage = "Vous pouvez mentionner au maximum 20 comptes. Modifiez votre légende et réessayez."
+            return false
+        }
+        shareErrorMessage = nil
+        return true
     }
 
     private func cropRect(of photo: EditablePhoto) -> CGRect {

@@ -17,6 +17,7 @@ nonisolated enum PostServiceError: Error, Equatable {
     case mediaAlreadyAttached
     /// `422 media_purpose_mismatch`.
     case mediaKindMismatch
+    case tooManyMentions
     case mediaPurposeMismatch
     /// `429 rate_limited` ; `retryAfter` en secondes (`Retry-After`).
     case rateLimited(retryAfter: Int?)
@@ -266,6 +267,7 @@ struct APIPostService: PostService {
         case "media_not_ready": .mediaNotReady
         case "media_already_attached": .mediaAlreadyAttached
         case "media_kind_mismatch": .mediaKindMismatch
+        case "too_many_mentions": .tooManyMentions
         case "media_purpose_mismatch": .mediaPurposeMismatch
         case "invalid_cursor": .invalidCursor
         case "unauthenticated": .unauthenticated
@@ -335,7 +337,14 @@ private extension Post {
             commentCount: dto.commentCount,
             createdAt: dto.createdAt,
             friendInteractions: dto.friendInteractions?.map(FriendInteraction.init) ?? [],
-            friendInteractionCount: dto.friendInteractionCount ?? 0
+            friendInteractionCount: dto.friendInteractionCount ?? 0,
+            mentions: (dto.mentions ?? [])
+                .map { TextMention(
+                    id: $0.id,
+                    username: $0.username,
+                    textUsername: $0.textUsername,
+                    avatar: $0.avatar.flatMap(ImageVariants.init)
+                ) }
         )
     }
 }

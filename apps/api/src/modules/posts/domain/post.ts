@@ -1,3 +1,4 @@
+import type { Mention } from '../../../shared/domain/mention.ts';
 import type {
   ImageVariantPaths,
   MediaVariantPaths,
@@ -40,6 +41,7 @@ export interface Post {
   viewerHasLiked: boolean;
   /** Commentaires non supprimés, réponses comprises (T9). */
   commentCount: number;
+  mentions?: Mention[];
   createdAt: Date;
 }
 

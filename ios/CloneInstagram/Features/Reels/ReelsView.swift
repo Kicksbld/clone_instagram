@@ -166,7 +166,7 @@ struct ReelsView: View {
                 VStack(alignment: .leading) {
                     friendsSummary(post)
                     Text(post.author.username).bold()
-                    Text(post.caption).lineLimit(3)
+                    Text(MentionText.attributed(post.caption, mentions: post.mentions, blockedIds: blockedIds)).lineLimit(3)
                 }
                 Spacer()
                 VStack(spacing: 16) {

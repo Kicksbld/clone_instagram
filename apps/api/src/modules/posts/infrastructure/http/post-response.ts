@@ -9,6 +9,12 @@ export type PostResponse = components['schemas']['Post'];
 export function toPostResponse(post: Post, urls: PublicMediaUrls): PostResponse {
   const { avatarVariants } = post.author;
   return {
+    mentions: (post.mentions ?? []).map((user) => ({
+      id: user.id,
+      username: user.username,
+      textUsername: user.textUsername ?? user.username,
+      ...(user.avatarVariants && { avatar: urls.of(user.avatarVariants) }),
+    })),
     id: post.id,
     kind: post.kind,
     caption: post.caption,

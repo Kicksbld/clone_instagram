@@ -44,6 +44,7 @@ info:
     | `invalid_cursor` | 400 | Curseur de pagination mal formé |
     | `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |
     | `comment_not_found` | 404 | Commentaire inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; commentaire parent d'un autre post ; suppression par quelqu'un qui n'est ni l'auteur du commentaire ni celui du post |
+    | `too_many_mentions` | 422 | Plus de 20 comptes distincts mentionnés dans un texte |
     | `reply_to_reply` | 422 | Réponse à une réponse (un seul niveau de réponse) |
     | `cannot_block_self` | 422 | Se bloquer ou se débloquer soi-même |
     | `cannot_close_friend_self` | 422 | S'ajouter ou se retirer soi-même de ses amis proches |
@@ -963,7 +964,7 @@ paths:
       summary: Publier un post
       description: |
         Crée un post à partir de médias `ready`, à moi, de `purpose` `post`, jamais utilisés (ADR-008) ; ils sont rattachés au post dans l'ordre de `mediaIds`.
-        De 1 à 10 images (carrousel), ou exactement une vidéo prête pour un reel. Un média de type incompatible renvoie `422 media_kind_mismatch`. Limité à 20 posts par heure (`429 rate_limited`).
+        De 1 à 10 images (carrousel), ou exactement une vidéo prête pour un reel. Un média de type incompatible renvoie `422 media_kind_mismatch`. Plus de 20 mentions distinctes renvoie `422 too_many_mentions`. Limité à 20 posts par heure (`429 rate_limited`).
       requestBody:
         required: true
         content:
@@ -1158,7 +1159,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
         '422':
-          description: Réponse à une réponse (`reply_to_reply`).
+          description: Réponse à une réponse (`reply_to_reply`) ou plus de 20 mentions distinctes (`too_many_mentions`).
           content:
             application/problem+json:
               schema:
@@ -2853,6 +2854,21 @@ components:
           type: integer
           minimum: 1
           description: Durée du reel en millisecondes ; absente pour une image.
+    TextMention:
+      type: object
+      description: Compte mentionné et username écrit dans le texte, conservé si le compte change de nom.
+      required: [id, username, textUsername]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          $ref: '#/components/schemas/Username'
+        textUsername:
+          $ref: '#/components/schemas/Username'
+          description: Username résolu à la création, sans arobase ; sert à retrouver les occurrences dans le texte.
+        avatar:
+          $ref: '#/components/schemas/ImageVariants'
     Post:
       type: object
       required:
@@ -2863,6 +2879,12 @@ components:
           format: uuid
         kind:
           $ref: '#/components/schemas/PostKind'
+        mentions:
+          type: array
+          description: Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/TextMention'
         caption:
           $ref: '#/components/schemas/Caption'
         author:
@@ -3125,6 +3147,12 @@ components:
           description: Commentaire auquel celui-ci répond ; absent pour un commentaire de premier niveau.
         author:
           $ref: '#/components/schemas/PostAuthor'
+        mentions:
+          type: array
+          description: Comptes mentionnés encore visibles du lecteur, sans doublon ; absents ou vides pour les anciens contenus.
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/TextMention'
         body:
           $ref: '#/components/schemas/CommentBody'
         replyCount:
@@ -3153,6 +3181,7 @@ components:
       type: string
       description: |
         Type de notification (ADR-026) : `like` (J'aime d'un de mes posts), `comment` (commentaire d'un de mes posts), `comment_reply` (réponse à un de mes commentaires), `follow` (nouvel abonné), `follow_request` (demande d'abonnement reçue, retirée quand elle est annulée, acceptée ou refusée), `follow_accepted` (un compte privé a accepté ma demande).
+        `mention` : un compte vous a mentionné dans une publication ou un commentaire.
         Liste ouverte : d'autres types arrivent avec les tranches suivantes ; le client ignore un groupe d'un type qu'il ne connaît pas (ADR-019).
       examples: [like]
     ActivityActor:

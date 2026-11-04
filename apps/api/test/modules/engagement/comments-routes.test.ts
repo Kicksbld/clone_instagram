@@ -63,6 +63,7 @@ describe('POST /v1/posts/{id}/comments', () => {
     const { id, ...comment } = response.json<{ id: string }>();
     expect(id).toEqual(expect.any(String));
     expect(comment).toEqual({
+      mentions: [],
       postId,
       author: { id: ME, username: 'killian' },
       body: 'Bravo',
@@ -277,5 +278,19 @@ describe('commentCount dans les lectures de posts', () => {
     expect((await get(`/v1/posts/${postId}`)).json()).toMatchObject(counted);
     expect((await get(`/v1/users/${AUTHOR}/posts`)).json()).toMatchObject({ items: [counted] });
     expect((await get('/v1/feed')).json()).toMatchObject({ items: [counted] });
+  });
+});
+
+describe('mentions HTTP', () => {
+  it('renvoie les comptes résolus et une erreur métier pour 21 mentions', async () => {
+    const postId = await givenPost(AUTHOR);
+    const response = await post(postId, { body: 'Avec @ines' });
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({ mentions: [{ id: OTHER, username: 'ines' }] });
+    const rejected = await post(postId, {
+      body: Array.from({ length: 21 }, (_, index) => `@user${index}`).join(' '),
+    });
+    expect(rejected.statusCode).toBe(422);
+    expect(rejected.json()).toMatchObject({ code: 'too_many_mentions' });
   });
 });

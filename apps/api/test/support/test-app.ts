@@ -1,3 +1,4 @@
+import { InMemoryMentions } from './in-memory-mentions.ts';
 import { GetReelsFeed } from '../../src/modules/feed/application/use-cases/get-reels-feed.ts';
 import { GetFriendsReels } from '../../src/modules/feed/application/use-cases/get-friends-reels.ts';
 import { ListReelFriendInteractions } from '../../src/modules/feed/application/use-cases/list-reel-friend-interactions.ts';
@@ -236,11 +237,16 @@ export function buildTestApp() {
     counters: graph,
     notifications,
   });
+  const comments = new InMemoryComments(profiles, posts, relationships);
+  const mentions = new InMemoryMentions(profiles, relationships, posts, comments);
   const createPostTransaction = new InMemoryUnitOfWork({
     accounts: graph,
     media,
     posts,
     reader: posts,
+    mentions,
+    relationships,
+    notifications,
   });
   const likes = new InMemoryLikes(posts);
   const likeTransaction = new InMemoryUnitOfWork({
@@ -250,13 +256,13 @@ export function buildTestApp() {
     likes,
     notifications,
   });
-  const comments = new InMemoryComments(profiles, posts, relationships);
   const commentTransaction = new InMemoryUnitOfWork({
     accounts: graph,
     relationships,
     posts: likes,
     comments,
     reader: comments,
+    mentions,
     notifications,
   });
   const activity = new InMemoryActivity(
@@ -336,6 +342,7 @@ export function buildTestApp() {
           sequentialIds('0199a1b2-0000-7000-a000-'),
           clock,
           analytics,
+          notificationDispatcher,
         ),
         deletePost: new DeletePost(new InMemoryUnitOfWork({ media, posts })),
         getPost: new GetPost(posts, relationships),
