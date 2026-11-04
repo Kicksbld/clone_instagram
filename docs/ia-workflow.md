@@ -103,7 +103,7 @@ Une tranche = **une nouvelle session Claude Code, une branche, une PR.** On pren
 | 5 | **iOS** (puis backoffice) | « Étape 3 : service, ViewModel, vues, en `/tdd` sur les ViewModels. » | L'écran fonctionne dans le simulateur |
 | 6 | **Relire** | « `/code-review` depuis `main`. » (conformité à la fiche seulement, puis checklist ci-dessous) | Écarts à la fiche et à la checklist corrigés |
 | 7 | **Definition of done** | « Vérifie la definition of done d'ADR-014 ; lance `pnpm check:changed` et `ios/scripts/test.sh`. » (la CI vérifie tous les paquets) | Démo déployée, **test sur iPhone** |
-| 8 | **Clôturer** | « Commit en `feat(<module>): …`, puis PR (`/pr`) qui ferme l'issue. Une décision a-t-elle été prise en route ? » | Si oui : nouvel ADR (et ligne dans `09` du cahier) |
+| 8 | **Clôturer** (automatique) | L'IA commite en `feat(<module>): …`, pousse et ouvre la PR (`/pr`) qui ferme l'issue, sans attendre de demande, puis signale toute décision prise en route. | Si oui : nouvel ADR (et ligne dans `09` du cahier) |
 | 9 | **Rétrospective** | « `/retro` sur cette session. » | Les améliorations proposées à l'environnement (contrôle automatique, règle de revue, `CLAUDE.md`) |
 
 **Checklist de fin de tranche** (étape 6, vérifiée par l'IA sans sous-agent ; les règles mécaniques sont déjà couvertes par lint, typecheck, dependency-cruiser, SwiftLint et SwiftFormat) :

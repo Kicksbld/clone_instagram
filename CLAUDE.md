@@ -74,6 +74,7 @@ Outils de qualité et tests par niveau : ADR-014.
 ## Workflow et conventions
 
 - **Méthode** : [`docs/ia-workflow.md`](docs/ia-workflow.md), outillée par les skills de Matt Pocock (bloc « Agent skills » ci-dessous). On prend une tranche disponible du plan de phase (issue ouverte sans tranche bloquante ouverte), on reste dans sa fiche (ligne « Hors tranche »), la PR de la tranche ferme l'issue une fois la definition of done validée.
+- **Clôture automatique** : à la fin de chaque tranche (tests verts, `/code-review` fait et ses écarts corrigés), commiter, pousser la branche et ouvrir la PR (`/pr`, `Closes #<issue>`) sans attendre de demande ; ne jamais fusionner. La validation sur iPhone reste au lead dev, listée dans la PR.
 - **Ordre dans une tranche** : contrat → migration → backend (domaine → use case → adapters → route + tests) → iOS (service → ViewModel → vues + tests) → backoffice.
 - **Definition of done, cas limites obligatoires, interdits, commits** : ADR-014.
 - **README.md = guide de démarrage** (pour le lead dev et le professeur) : à chaque tranche qui change l'installation, les commandes, les services, les ports ou les variables d'environnement, mettre à jour `README.md` (prérequis, installation, lancement, arrêt / relance, problèmes fréquents, avancement). Clair et concis.
