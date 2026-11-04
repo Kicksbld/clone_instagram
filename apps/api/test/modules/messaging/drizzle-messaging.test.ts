@@ -1,4 +1,4 @@
-import { SharedPosts } from '../../../src/modules/messaging/application/shared-posts.ts';
+import { MessageReferences } from '../../../src/modules/messaging/application/message-references.ts';
 import { DrizzleSharedPostReader } from '../../../src/modules/messaging/infrastructure/persistence/drizzle-shared-post-reader.ts';
 import { publicMediaUrls } from '../../../src/shared/infrastructure/http/public-media-urls.ts';
 import { blocks, newId, profiles } from '@clone/db';
@@ -14,9 +14,11 @@ import { ListMessages } from '../../../src/modules/messaging/application/use-cas
 import { connectTestDatabase } from '../../support/database.ts';
 
 const database = connectTestDatabase();
-const sharedPosts = new SharedPosts(
+const messageReferences = new MessageReferences(
   new DrizzleSharedPostReader(database.db, publicMediaUrls('http://localhost:54321')),
   new DrizzleRelationshipReader(database.db),
+  { find: () => Promise.resolve(null) },
+  { now: () => new Date() },
 );
 const ids = [newId(), newId()];
 afterAll(async () => {
@@ -39,7 +41,12 @@ it('concurrent opens share one conversation; duplicate sends commit and publish 
     media: new DrizzleMediaRepository(tx),
   }));
   const clock = { now: () => new Date('2026-11-01T12:00:00.123Z') };
-  const create = new GetOrCreateConversation(transaction, { next: newId }, clock, sharedPosts);
+  const create = new GetOrCreateConversation(
+    transaction,
+    { next: newId },
+    clock,
+    messageReferences,
+  );
   const [a, b] = ids as [string, string];
   const opened = await Promise.all([
     create.execute({ viewerId: a, userId: b }),
@@ -60,7 +67,7 @@ it('concurrent opens share one conversation; duplicate sends commit and publish 
       },
       disconnect: () => {},
     },
-    sharedPosts,
+    messageReferences,
   );
   const input = {
     viewerId: a,
@@ -74,7 +81,7 @@ it('concurrent opens share one conversation; duplicate sends commit and publish 
   const history = new ListMessages(
     repository,
     new DrizzleRelationshipReader(database.db),
-    sharedPosts,
+    messageReferences,
   );
   expect(
     (
@@ -99,7 +106,7 @@ it('concurrent opens share one conversation; duplicate sends commit and publish 
       },
       disconnect: () => {},
     },
-    sharedPosts,
+    messageReferences,
   );
   await expect(
     failedSend.execute({

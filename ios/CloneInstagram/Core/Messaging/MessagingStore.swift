@@ -48,6 +48,18 @@ final class MessagingStore {
     /// Signed URLs of message photos, shared by every conversation screen.
     let photos: MessagePhotoURLs
 
+    func replyToStory(authorId: String, storyId: String, clientId: String, body: String) async throws {
+        guard let sendingAccount = account else { throw MessagingError.unavailable }
+        var conversation = try await service.open(userId: authorId)
+        guard sendingAccount == account, !Task.isCancelled else { throw MessagingError.unavailable }
+        let message = try await service.reply(conversationId: conversation.id, clientId: clientId, storyId: storyId, body: body)
+        guard sendingAccount == account, !Task.isCancelled else { return }
+        unavailableConversationIds.remove(conversation.id)
+        conversation.lastMessage = message
+        record(conversation)
+        receive(message)
+    }
+
     init(service: any MessagingService, uploads: (any UploadService)? = nil) {
         self.service = service
         self.uploads = uploads
@@ -344,7 +356,7 @@ final class MessagingStore {
 private extension MessagingStore {
     /// Re-read all displayed references when reopening or returning to the foreground, including older pages.
     func refreshSharedPosts(_ id: String) async {
-        var remaining = Set(messages[id, default: []].filter(\.isPostShare).map(\.id))
+        var remaining = Set(messages[id, default: []].filter { $0.isPostShare || $0.isStoryReply }.map(\.id))
         guard !remaining.isEmpty else { return }
         let started = revision
         let startedAccess = accessRevision
@@ -353,6 +365,9 @@ private extension MessagingStore {
             var current = message
             if current.isPostShare {
                 current.sharedPost = nil
+            }
+            if current.isStoryReply {
+                current.sharedStory = nil
             }
             return current
         }

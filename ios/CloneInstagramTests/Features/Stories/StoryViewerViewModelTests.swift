@@ -27,6 +27,39 @@ struct StoryViewerViewModelTests {
         )
     }
 
+    @Test func replyPausesAndRetriesWithTheSameClientId() async {
+        service.storiesByAuthor["alice"] = .success([.fixture(id: "a1", authorId: "alice")])
+        var ids: [String] = []
+        var fail = true
+        let model = StoryViewerViewModel(
+            viewerId: viewer, authors: [alice], startIndex: 0, service: service,
+            deletions: StoryDeletionStore(service: service),
+            reply: { _, storyId, clientId, body in
+                #expect(storyId == "a1")
+                #expect(body == "Bonjour")
+                ids.append(clientId)
+                if fail {
+                    throw MessagingError.requestFailed
+                }
+            }
+        )
+        await model.start()
+        await display(model)
+        model.isReplyFocused = true
+        model.replyBody = "Bonjour"
+        await model.advance(by: 10)
+        #expect(model.progress == 0)
+        await model.sendReply()
+        #expect(model.replyError != nil)
+        #expect(model.replyBody == "Bonjour")
+        fail = false
+        await model.sendReply()
+        #expect(ids.count == 2)
+        #expect(ids.first == ids.last)
+        #expect(model.replyBody.isEmpty)
+        #expect(model.replyError == nil)
+    }
+
     @Test func `commence à la première story non vue et envoie sa vue`() async {
         service.storiesByAuthor["alice"] = .success([
             .fixture(id: "a1", authorId: "alice", isSeen: true),

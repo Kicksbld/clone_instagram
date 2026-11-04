@@ -1,4 +1,4 @@
-import { SharedPosts } from '../../../src/modules/messaging/application/shared-posts.ts';
+import { MessageReferences } from '../../../src/modules/messaging/application/message-references.ts';
 import { DrizzleSharedPostReader } from '../../../src/modules/messaging/infrastructure/persistence/drizzle-shared-post-reader.ts';
 import { publicMediaUrls } from '../../../src/shared/infrastructure/http/public-media-urls.ts';
 import { blocks, newId, profiles } from '@clone/db';
@@ -14,9 +14,11 @@ import { MarkConversationRead } from '../../../src/modules/messaging/application
 import { connectTestDatabase } from '../../support/database.ts';
 
 const database = connectTestDatabase();
-const sharedPosts = new SharedPosts(
+const messageReferences = new MessageReferences(
   new DrizzleSharedPostReader(database.db, publicMediaUrls('http://localhost:54321')),
   new DrizzleRelationshipReader(database.db),
+  { find: () => Promise.resolve(null) },
+  { now: () => new Date() },
 );
 const ids = [newId(), newId(), newId()];
 afterAll(async () => {
@@ -47,8 +49,13 @@ it('counts unread messages per conversation, hides blocked ones from the badge, 
     },
     disconnect: () => {},
   };
-  const create = new GetOrCreateConversation(transaction, { next: newId }, clock, sharedPosts);
-  const send = new SendMessage(transaction, { next: newId }, clock, realtime, sharedPosts);
+  const create = new GetOrCreateConversation(
+    transaction,
+    { next: newId },
+    clock,
+    messageReferences,
+  );
+  const send = new SendMessage(transaction, { next: newId }, clock, realtime, messageReferences);
   const markRead = new MarkConversationRead(transaction, realtime);
   const withB = (await create.execute({ viewerId: a, userId: b })).conversation.id;
   const withC = (await create.execute({ viewerId: c, userId: b })).conversation.id;

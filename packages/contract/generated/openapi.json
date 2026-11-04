@@ -206,7 +206,7 @@
                               },
                               "kind": {
                                 "type": "string",
-                                "description": "`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches."
+                                "description": "`text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches."
                               },
                               "body": {
                                 "type": "string",
@@ -264,6 +264,87 @@
                                   "thumbnail": {
                                     "type": "string",
                                     "format": "uri"
+                                  }
+                                }
+                              },
+                              "storyId": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "sharedStory": {
+                                "description": "Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible.",
+                                "type": [
+                                  "object",
+                                  "null"
+                                ],
+                                "required": [
+                                  "id",
+                                  "author",
+                                  "thumbnail",
+                                  "expiresAt"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  "author": {
+                                    "type": "object",
+                                    "description": "Auteur d'un post.",
+                                    "required": [
+                                      "id",
+                                      "username"
+                                    ],
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                      },
+                                      "username": {
+                                        "type": "string",
+                                        "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                        "minLength": 1,
+                                        "maxLength": 30,
+                                        "pattern": "^[a-z0-9._]{1,30}$",
+                                        "examples": [
+                                          "killian.b"
+                                        ]
+                                      },
+                                      "avatar": {
+                                        "description": "Photo de profil ; absente si aucune photo.",
+                                        "type": "object",
+                                        "required": [
+                                          "thumb",
+                                          "medium",
+                                          "large"
+                                        ],
+                                        "properties": {
+                                          "thumb": {
+                                            "type": "string",
+                                            "format": "uri",
+                                            "description": "150 px de large."
+                                          },
+                                          "medium": {
+                                            "type": "string",
+                                            "format": "uri",
+                                            "description": "640 px de large."
+                                          },
+                                          "large": {
+                                            "type": "string",
+                                            "format": "uri",
+                                            "description": "1080 px de large."
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "thumbnail": {
+                                    "type": "string",
+                                    "format": "uri"
+                                  },
+                                  "expiresAt": {
+                                    "type": "string",
+                                    "format": "date-time"
                                   }
                                 }
                               },
@@ -600,7 +681,7 @@
                         },
                         "kind": {
                           "type": "string",
-                          "description": "`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches."
+                          "description": "`text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches."
                         },
                         "body": {
                           "type": "string",
@@ -658,6 +739,87 @@
                             "thumbnail": {
                               "type": "string",
                               "format": "uri"
+                            }
+                          }
+                        },
+                        "storyId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "sharedStory": {
+                          "description": "Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible.",
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "required": [
+                            "id",
+                            "author",
+                            "thumbnail",
+                            "expiresAt"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "author": {
+                              "type": "object",
+                              "description": "Auteur d'un post.",
+                              "required": [
+                                "id",
+                                "username"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "avatar": {
+                                  "description": "Photo de profil ; absente si aucune photo.",
+                                  "type": "object",
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "thumbnail": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "format": "date-time"
                             }
                           }
                         },
@@ -783,7 +945,7 @@
                         },
                         "kind": {
                           "type": "string",
-                          "description": "`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches."
+                          "description": "`text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches."
                         },
                         "body": {
                           "type": "string",
@@ -841,6 +1003,87 @@
                             "thumbnail": {
                               "type": "string",
                               "format": "uri"
+                            }
+                          }
+                        },
+                        "storyId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "sharedStory": {
+                          "description": "Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible.",
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "required": [
+                            "id",
+                            "author",
+                            "thumbnail",
+                            "expiresAt"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "author": {
+                              "type": "object",
+                              "description": "Auteur d'un post.",
+                              "required": [
+                                "id",
+                                "username"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "username": {
+                                  "type": "string",
+                                  "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                  "minLength": 1,
+                                  "maxLength": 30,
+                                  "pattern": "^[a-z0-9._]{1,30}$",
+                                  "examples": [
+                                    "killian.b"
+                                  ]
+                                },
+                                "avatar": {
+                                  "description": "Photo de profil ; absente si aucune photo.",
+                                  "type": "object",
+                                  "required": [
+                                    "thumb",
+                                    "medium",
+                                    "large"
+                                  ],
+                                  "properties": {
+                                    "thumb": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "150 px de large."
+                                    },
+                                    "medium": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "640 px de large."
+                                    },
+                                    "large": {
+                                      "type": "string",
+                                      "format": "uri",
+                                      "description": "1080 px de large."
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "thumbnail": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "expiresAt": {
+                              "type": "string",
+                              "format": "date-time"
                             }
                           }
                         },
@@ -1230,7 +1473,7 @@
                           },
                           "kind": {
                             "type": "string",
-                            "description": "`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches."
+                            "description": "`text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches."
                           },
                           "body": {
                             "type": "string",
@@ -1288,6 +1531,87 @@
                               "thumbnail": {
                                 "type": "string",
                                 "format": "uri"
+                              }
+                            }
+                          },
+                          "storyId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "sharedStory": {
+                            "description": "Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible.",
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "required": [
+                              "id",
+                              "author",
+                              "thumbnail",
+                              "expiresAt"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "author": {
+                                "type": "object",
+                                "description": "Auteur d'un post.",
+                                "required": [
+                                  "id",
+                                  "username"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  "username": {
+                                    "type": "string",
+                                    "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                                    "minLength": 1,
+                                    "maxLength": 30,
+                                    "pattern": "^[a-z0-9._]{1,30}$",
+                                    "examples": [
+                                      "killian.b"
+                                    ]
+                                  },
+                                  "avatar": {
+                                    "description": "Photo de profil ; absente si aucune photo.",
+                                    "type": "object",
+                                    "required": [
+                                      "thumb",
+                                      "medium",
+                                      "large"
+                                    ],
+                                    "properties": {
+                                      "thumb": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "150 px de large."
+                                      },
+                                      "medium": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "640 px de large."
+                                      },
+                                      "large": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "1080 px de large."
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "thumbnail": {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              "expiresAt": {
+                                "type": "string",
+                                "format": "date-time"
                               }
                             }
                           },
@@ -1632,6 +1956,37 @@
                         "maxLength": 1000
                       }
                     }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "clientId",
+                      "kind",
+                      "storyId",
+                      "body"
+                    ],
+                    "properties": {
+                      "clientId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "story_reply"
+                        ]
+                      },
+                      "storyId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "body": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      }
+                    }
                   }
                 ]
               }
@@ -1673,7 +2028,7 @@
                     },
                     "kind": {
                       "type": "string",
-                      "description": "`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches."
+                      "description": "`text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches."
                     },
                     "body": {
                       "type": "string",
@@ -1734,6 +2089,87 @@
                         }
                       }
                     },
+                    "storyId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "sharedStory": {
+                      "description": "Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible.",
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "required": [
+                        "id",
+                        "author",
+                        "thumbnail",
+                        "expiresAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "author": {
+                          "type": "object",
+                          "description": "Auteur d'un post.",
+                          "required": [
+                            "id",
+                            "username"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "username": {
+                              "type": "string",
+                              "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                              "minLength": 1,
+                              "maxLength": 30,
+                              "pattern": "^[a-z0-9._]{1,30}$",
+                              "examples": [
+                                "killian.b"
+                              ]
+                            },
+                            "avatar": {
+                              "description": "Photo de profil ; absente si aucune photo.",
+                              "type": "object",
+                              "required": [
+                                "thumb",
+                                "medium",
+                                "large"
+                              ],
+                              "properties": {
+                                "thumb": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "150 px de large."
+                                },
+                                "medium": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "640 px de large."
+                                },
+                                "large": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "1080 px de large."
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "thumbnail": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time"
@@ -1777,7 +2213,7 @@
                     },
                     "kind": {
                       "type": "string",
-                      "description": "`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches."
+                      "description": "`text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches."
                     },
                     "body": {
                       "type": "string",
@@ -1835,6 +2271,87 @@
                         "thumbnail": {
                           "type": "string",
                           "format": "uri"
+                        }
+                      }
+                    },
+                    "storyId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "sharedStory": {
+                      "description": "Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible.",
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "required": [
+                        "id",
+                        "author",
+                        "thumbnail",
+                        "expiresAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "author": {
+                          "type": "object",
+                          "description": "Auteur d'un post.",
+                          "required": [
+                            "id",
+                            "username"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "username": {
+                              "type": "string",
+                              "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                              "minLength": 1,
+                              "maxLength": 30,
+                              "pattern": "^[a-z0-9._]{1,30}$",
+                              "examples": [
+                                "killian.b"
+                              ]
+                            },
+                            "avatar": {
+                              "description": "Photo de profil ; absente si aucune photo.",
+                              "type": "object",
+                              "required": [
+                                "thumb",
+                                "medium",
+                                "large"
+                              ],
+                              "properties": {
+                                "thumb": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "150 px de large."
+                                },
+                                "medium": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "640 px de large."
+                                },
+                                "large": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "1080 px de large."
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "thumbnail": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time"
                         }
                       }
                     },
@@ -1956,7 +2473,7 @@
             }
           },
           "404": {
-            "description": "Conversation absente ou invisible (`conversation_not_found`), ou média inexistant ou d'un autre utilisateur (`media_not_found`), ou post invisible (`post_not_found`).",
+            "description": "Conversation absente ou invisible (`conversation_not_found`), ou média inexistant ou d'un autre utilisateur (`media_not_found`), ou post invisible (`post_not_found`), ou story expirée, invisible, personnelle ou dont l’auteur n’est pas le destinataire (`story_not_found`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -25123,6 +25640,113 @@
           }
         }
       },
+      "SendStoryReplyMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clientId",
+          "kind",
+          "storyId",
+          "body"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "story_reply"
+            ]
+          },
+          "storyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      },
+      "SharedStory": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "required": [
+          "id",
+          "author",
+          "thumbnail",
+          "expiresAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "author": {
+            "type": "object",
+            "description": "Auteur d'un post.",
+            "required": [
+              "id",
+              "username"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "username": {
+                "type": "string",
+                "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                "minLength": 1,
+                "maxLength": 30,
+                "pattern": "^[a-z0-9._]{1,30}$",
+                "examples": [
+                  "killian.b"
+                ]
+              },
+              "avatar": {
+                "description": "Photo de profil ; absente si aucune photo.",
+                "type": "object",
+                "required": [
+                  "thumb",
+                  "medium",
+                  "large"
+                ],
+                "properties": {
+                  "thumb": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "150 px de large."
+                  },
+                  "medium": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "640 px de large."
+                  },
+                  "large": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "1080 px de large."
+                  }
+                }
+              }
+            }
+          },
+          "thumbnail": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "SharedPost": {
         "type": [
           "object",
@@ -25198,7 +25822,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches."
+            "description": "`text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches."
           },
           "body": {
             "type": "string",
@@ -25256,6 +25880,87 @@
               "thumbnail": {
                 "type": "string",
                 "format": "uri"
+              }
+            }
+          },
+          "storyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sharedStory": {
+            "description": "Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible.",
+            "type": [
+              "object",
+              "null"
+            ],
+            "required": [
+              "id",
+              "author",
+              "thumbnail",
+              "expiresAt"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "author": {
+                "type": "object",
+                "description": "Auteur d'un post.",
+                "required": [
+                  "id",
+                  "username"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "username": {
+                    "type": "string",
+                    "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                    "minLength": 1,
+                    "maxLength": 30,
+                    "pattern": "^[a-z0-9._]{1,30}$",
+                    "examples": [
+                      "killian.b"
+                    ]
+                  },
+                  "avatar": {
+                    "description": "Photo de profil ; absente si aucune photo.",
+                    "type": "object",
+                    "required": [
+                      "thumb",
+                      "medium",
+                      "large"
+                    ],
+                    "properties": {
+                      "thumb": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "150 px de large."
+                      },
+                      "medium": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "640 px de large."
+                      },
+                      "large": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "1080 px de large."
+                      }
+                    }
+                  }
+                }
+              },
+              "thumbnail": {
+                "type": "string",
+                "format": "uri"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time"
               }
             }
           },
@@ -25362,7 +26067,7 @@
               },
               "kind": {
                 "type": "string",
-                "description": "`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches."
+                "description": "`text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches."
               },
               "body": {
                 "type": "string",
@@ -25420,6 +26125,87 @@
                   "thumbnail": {
                     "type": "string",
                     "format": "uri"
+                  }
+                }
+              },
+              "storyId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "sharedStory": {
+                "description": "Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible.",
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "required": [
+                  "id",
+                  "author",
+                  "thumbnail",
+                  "expiresAt"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "author": {
+                    "type": "object",
+                    "description": "Auteur d'un post.",
+                    "required": [
+                      "id",
+                      "username"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "username": {
+                        "type": "string",
+                        "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                        "minLength": 1,
+                        "maxLength": 30,
+                        "pattern": "^[a-z0-9._]{1,30}$",
+                        "examples": [
+                          "killian.b"
+                        ]
+                      },
+                      "avatar": {
+                        "description": "Photo de profil ; absente si aucune photo.",
+                        "type": "object",
+                        "required": [
+                          "thumb",
+                          "medium",
+                          "large"
+                        ],
+                        "properties": {
+                          "thumb": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "150 px de large."
+                          },
+                          "medium": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "640 px de large."
+                          },
+                          "large": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "1080 px de large."
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "thumbnail": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
                   }
                 }
               },
@@ -25547,7 +26333,7 @@
                     },
                     "kind": {
                       "type": "string",
-                      "description": "`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches."
+                      "description": "`text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches."
                     },
                     "body": {
                       "type": "string",
@@ -25605,6 +26391,87 @@
                         "thumbnail": {
                           "type": "string",
                           "format": "uri"
+                        }
+                      }
+                    },
+                    "storyId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "sharedStory": {
+                      "description": "Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible.",
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "required": [
+                        "id",
+                        "author",
+                        "thumbnail",
+                        "expiresAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "author": {
+                          "type": "object",
+                          "description": "Auteur d'un post.",
+                          "required": [
+                            "id",
+                            "username"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "username": {
+                              "type": "string",
+                              "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                              "minLength": 1,
+                              "maxLength": 30,
+                              "pattern": "^[a-z0-9._]{1,30}$",
+                              "examples": [
+                                "killian.b"
+                              ]
+                            },
+                            "avatar": {
+                              "description": "Photo de profil ; absente si aucune photo.",
+                              "type": "object",
+                              "required": [
+                                "thumb",
+                                "medium",
+                                "large"
+                              ],
+                              "properties": {
+                                "thumb": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "150 px de large."
+                                },
+                                "medium": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "640 px de large."
+                                },
+                                "large": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "description": "1080 px de large."
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "thumbnail": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time"
                         }
                       }
                     },
@@ -25688,7 +26555,7 @@
                 },
                 "kind": {
                   "type": "string",
-                  "description": "`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches."
+                  "description": "`text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches."
                 },
                 "body": {
                   "type": "string",
@@ -25749,6 +26616,87 @@
                     }
                   }
                 },
+                "storyId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "sharedStory": {
+                  "description": "Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible.",
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "id",
+                    "author",
+                    "thumbnail",
+                    "expiresAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "author": {
+                      "type": "object",
+                      "description": "Auteur d'un post.",
+                      "required": [
+                        "id",
+                        "username"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "username": {
+                          "type": "string",
+                          "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                          "minLength": 1,
+                          "maxLength": 30,
+                          "pattern": "^[a-z0-9._]{1,30}$",
+                          "examples": [
+                            "killian.b"
+                          ]
+                        },
+                        "avatar": {
+                          "description": "Photo de profil ; absente si aucune photo.",
+                          "type": "object",
+                          "required": [
+                            "thumb",
+                            "medium",
+                            "large"
+                          ],
+                          "properties": {
+                            "thumb": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "150 px de large."
+                            },
+                            "medium": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "640 px de large."
+                            },
+                            "large": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "1080 px de large."
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "thumbnail": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                },
                 "createdAt": {
                   "type": "string",
                   "format": "date-time"
@@ -25804,7 +26752,7 @@
               },
               "kind": {
                 "type": "string",
-                "description": "`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches."
+                "description": "`text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches."
               },
               "body": {
                 "type": "string",
@@ -25862,6 +26810,87 @@
                   "thumbnail": {
                     "type": "string",
                     "format": "uri"
+                  }
+                }
+              },
+              "storyId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "sharedStory": {
+                "description": "Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible.",
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "required": [
+                  "id",
+                  "author",
+                  "thumbnail",
+                  "expiresAt"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "author": {
+                    "type": "object",
+                    "description": "Auteur d'un post.",
+                    "required": [
+                      "id",
+                      "username"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "username": {
+                        "type": "string",
+                        "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                        "minLength": 1,
+                        "maxLength": 30,
+                        "pattern": "^[a-z0-9._]{1,30}$",
+                        "examples": [
+                          "killian.b"
+                        ]
+                      },
+                      "avatar": {
+                        "description": "Photo de profil ; absente si aucune photo.",
+                        "type": "object",
+                        "required": [
+                          "thumb",
+                          "medium",
+                          "large"
+                        ],
+                        "properties": {
+                          "thumb": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "150 px de large."
+                          },
+                          "medium": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "640 px de large."
+                          },
+                          "large": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "1080 px de large."
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "thumbnail": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
                   }
                 }
               },
@@ -26131,7 +27160,7 @@
                   },
                   "kind": {
                     "type": "string",
-                    "description": "`text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches."
+                    "description": "`text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches."
                   },
                   "body": {
                     "type": "string",
@@ -26189,6 +27218,87 @@
                       "thumbnail": {
                         "type": "string",
                         "format": "uri"
+                      }
+                    }
+                  },
+                  "storyId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "sharedStory": {
+                    "description": "Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible.",
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "required": [
+                      "id",
+                      "author",
+                      "thumbnail",
+                      "expiresAt"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "author": {
+                        "type": "object",
+                        "description": "Auteur d'un post.",
+                        "required": [
+                          "id",
+                          "username"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "username": {
+                            "type": "string",
+                            "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                            "minLength": 1,
+                            "maxLength": 30,
+                            "pattern": "^[a-z0-9._]{1,30}$",
+                            "examples": [
+                              "killian.b"
+                            ]
+                          },
+                          "avatar": {
+                            "description": "Photo de profil ; absente si aucune photo.",
+                            "type": "object",
+                            "required": [
+                              "thumb",
+                              "medium",
+                              "large"
+                            ],
+                            "properties": {
+                              "thumb": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "150 px de large."
+                              },
+                              "medium": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "640 px de large."
+                              },
+                              "large": {
+                                "type": "string",
+                                "format": "uri",
+                                "description": "1080 px de large."
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "thumbnail": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "expiresAt": {
+                        "type": "string",
+                        "format": "date-time"
                       }
                     }
                   },

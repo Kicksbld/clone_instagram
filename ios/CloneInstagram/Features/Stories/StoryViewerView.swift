@@ -7,6 +7,7 @@ import SwiftUI
 struct StoryViewerView: View {
     @State private var viewModel: StoryViewerViewModel
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var replyFocused: Bool
     @State private var dragOffset: CGFloat = 0
     @State private var isConfirmingDelete = false
     @State private var viewersStory: Story?
@@ -50,6 +51,8 @@ struct StoryViewerView: View {
                 dismiss()
             }
         }
+        .onChange(of: replyFocused) { _, focused in viewModel.isReplyFocused = focused }
+        .onChange(of: viewModel.isReplyFocused) { _, focused in replyFocused = focused }
         .onChange(of: isConfirmingDelete) { _, isConfirming in viewModel.isPaused = isConfirming }
         .confirmationDialog("Supprimer cette story ?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
             Button("Supprimer", role: .destructive) { Task { await viewModel.deleteCurrent() } }
@@ -120,6 +123,23 @@ struct StoryViewerView: View {
                         .overlay(alignment: .top) { header(story) }
                     if viewModel.isMine {
                         Button("Vues", systemImage: "eye") { viewersStory = story }
+                    }
+                    if viewModel.canReply {
+                        HStack {
+                            TextField("Envoyer un message", text: $viewModel.replyBody, axis: .vertical)
+                                .focused($replyFocused)
+                                .lineLimit(1 ... 3)
+                                .disabled(viewModel.isSendingReply)
+                            Button("Envoyer", systemImage: "paperplane") { Task { await viewModel.sendReply() } }
+                                .labelStyle(.iconOnly)
+                                .disabled(!viewModel.canSendReply)
+                        }
+                        .padding(.horizontal)
+                        if let error = viewModel.replyError {
+                            Text(error).font(.footnote)
+                            Button("Réessayer") { Task { await viewModel.sendReply() } }
+                                .disabled(!viewModel.canSendReply)
+                        }
                     }
                     Spacer(minLength: 0)
                 }

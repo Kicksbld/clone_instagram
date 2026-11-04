@@ -9,6 +9,13 @@ struct SharedPostPreview: Equatable, Sendable {
     let thumbnail: URL?
 }
 
+struct SharedStoryPreview: Equatable, Sendable {
+    let id: String
+    let author: PostAuthor
+    let thumbnail: URL?
+    let expiresAt: Date
+}
+
 struct ChatMessage: Equatable, Identifiable, Sendable {
     let id: String
     let conversationId: String
@@ -22,9 +29,14 @@ struct ChatMessage: Equatable, Identifiable, Sendable {
     var sharedPostId: String?
     var sharedPost: SharedPostPreview?
     var isPostShare = false
+    var isStoryReply = false
+    var sharedStory: SharedStoryPreview?
 
     /// Inbox preview: the text, or « Photo » for a photo without text.
     var summary: String {
+        if isStoryReply {
+            return sharedStory == nil ? "Contenu indisponible" : body
+        }
         if isPostShare {
             return sharedPost == nil ? "Contenu indisponible" : (body.isEmpty ? "Post partagé" : body)
         }
@@ -71,6 +83,7 @@ nonisolated enum MessagingError: Error {
     case notFound
     case requestFailed
     /// The shared post has disappeared or is no longer visible to me.
+    case storyUnavailable
     case postUnavailable
     /// The photo cannot be attached (not ready, already used, wrong kind…): upload it again.
     case photoRejected
@@ -84,6 +97,7 @@ protocol MessagingService: Sendable {
     /// Sends a `ready` photo of purpose `message` (ADR-023), same `clientId` for every retry.
     func sendPhoto(conversationId: String, clientId: String, mediaId: String) async throws -> ChatMessage
     func share(conversationId: String, clientId: String, postId: String) async throws -> ChatMessage
+    func reply(conversationId: String, clientId: String, storyId: String, body: String) async throws -> ChatMessage
     /// Signed URL of a message photo; `notFound` outside my visible conversations.
     func photoURL(mediaId: String, variant: PhotoVariant) async throws -> SignedPhotoURL
     func markRead(conversationId: String, messageId: String) async throws
@@ -142,6 +156,13 @@ struct APIMessagingService: MessagingService {
         )
     }
 
+    func reply(conversationId: String, clientId: String, storyId: String, body: String) async throws -> ChatMessage {
+        try await send(
+            conversationId: conversationId,
+            .SendStoryReplyMessage(.init(clientId: clientId, kind: .storyReply, storyId: storyId, body: body))
+        )
+    }
+
     private func send(
         conversationId: String,
         _ body: Operations.SendMessage.Input.Body.JsonPayload
@@ -158,6 +179,9 @@ struct APIMessagingService: MessagingService {
             }
             if case let .applicationProblemJson(problem) = value.body, problem.code == "post_not_found" {
                 throw MessagingError.postUnavailable
+            }
+            if case let .applicationProblemJson(problem) = value.body, problem.code == "story_not_found" {
+                throw MessagingError.storyUnavailable
             }
             throw MessagingError.notFound
         case .conflict, .unprocessableContent: throw MessagingError.photoRejected
@@ -196,7 +220,7 @@ extension ChatMessage {
     init?(_ dto: Components.Schemas.Message) {
         // Kinds of later slices are ignored; a photo always carries its media.
         switch dto.kind {
-        case "text", "post_share": break
+        case "text", "post_share", "story_reply": break
         case "image" where dto.mediaId != nil: break
         default: return nil
         }
@@ -218,7 +242,16 @@ extension ChatMessage {
                     thumbnail: preview.thumbnail.flatMap(URL.init(string:))
                 )
             },
-            isPostShare: dto.kind == "post_share"
+            isPostShare: dto.kind == "post_share",
+            isStoryReply: dto.kind == "story_reply",
+            sharedStory: dto.sharedStory.map { preview in
+                SharedStoryPreview(
+                    id: preview.id,
+                    author: PostAuthor(id: preview.author.id, username: preview.author.username, avatar: nil),
+                    thumbnail: URL(string: preview.thumbnail),
+                    expiresAt: preview.expiresAt
+                )
+            }
         )
     }
 }
@@ -274,6 +307,12 @@ struct UnavailableMessagingService: MessagingService {
     }
 
     func markRead(conversationId _: String, messageId _: String) async throws {
+        throw MessagingError.unavailable
+    }
+}
+
+extension UnavailableMessagingService {
+    func reply(conversationId _: String, clientId _: String, storyId _: String, body _: String) async throws -> ChatMessage {
         throw MessagingError.unavailable
     }
 }

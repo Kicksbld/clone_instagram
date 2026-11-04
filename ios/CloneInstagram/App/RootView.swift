@@ -334,7 +334,10 @@ private extension RootView {
                     startIndex: index,
                     service: dependencies.stories,
                     deletions: deletions,
-                    isPlus: { hasActivePlus }
+                    isPlus: { hasActivePlus },
+                    reply: { authorId, storyId, clientId, body in
+                        try await dependencies.messaging.replyToStory(authorId: authorId, storyId: storyId, clientId: clientId, body: body)
+                    }
                 )
             },
             makeCreate: { onPublished in

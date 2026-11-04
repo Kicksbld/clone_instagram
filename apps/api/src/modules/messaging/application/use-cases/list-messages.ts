@@ -1,4 +1,4 @@
-import type { SharedPosts } from '../shared-posts.ts';
+import type { MessageReferences } from '../message-references.ts';
 import type { RelationshipReader } from '../../../../shared/application/relationship-reader.ts';
 import type { PageCursor } from '../../../../shared/domain/pagination.ts';
 import { InvalidCursorError } from '../../../../shared/domain/pagination.ts';
@@ -8,7 +8,7 @@ export class ListMessages {
   constructor(
     private readonly repository: MessagingRepository,
     private readonly relationships: RelationshipReader,
-    private readonly sharedPosts: SharedPosts,
+    private readonly messageReferences: MessageReferences,
   ) {}
   async execute(input: {
     viewerId: string;
@@ -41,7 +41,7 @@ export class ListMessages {
     return {
       ...page,
       items: await Promise.all(
-        page.items.map((message) => this.sharedPosts.resolve(message, input.viewerId)),
+        page.items.map((message) => this.messageReferences.resolve(message, input.viewerId)),
       ),
     };
   }

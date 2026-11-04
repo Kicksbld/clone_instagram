@@ -461,3 +461,9 @@ final class FakeMessagingService: MessagingService {
         }
     }
 }
+
+extension FakeMessagingService {
+    func reply(conversationId: String, clientId: String, storyId _: String, body: String) async throws -> ChatMessage {
+        try await send(conversationId: conversationId, clientId: clientId, body: body)
+    }
+}

@@ -1,4 +1,4 @@
-import { SharedPosts } from '../../../src/modules/messaging/application/shared-posts.ts';
+import { MessageReferences } from '../../../src/modules/messaging/application/message-references.ts';
 import { DrizzleSharedPostReader } from '../../../src/modules/messaging/infrastructure/persistence/drizzle-shared-post-reader.ts';
 import { publicMediaUrls } from '../../../src/shared/infrastructure/http/public-media-urls.ts';
 import { findMediaById, media, newId, profiles } from '@clone/db';
@@ -13,9 +13,11 @@ import { DrizzleUnitOfWork } from '../../../src/shared/infrastructure/persistenc
 import { connectTestDatabase } from '../../support/database.ts';
 
 const database = connectTestDatabase();
-const sharedPosts = new SharedPosts(
+const messageReferences = new MessageReferences(
   new DrizzleSharedPostReader(database.db, publicMediaUrls('http://localhost:54321')),
   new DrizzleRelationshipReader(database.db),
+  { find: () => Promise.resolve(null) },
+  { now: () => new Date() },
 );
 const ids = [newId(), newId()];
 afterAll(async () => {
@@ -58,7 +60,12 @@ it('envoie une photo : média rattaché dans la transaction, relu par message, r
   }));
   const clock = { now: () => new Date('2026-11-04T12:00:00.000Z') };
   const conversationId = (
-    await new GetOrCreateConversation(transaction, { next: newId }, clock, sharedPosts).execute({
+    await new GetOrCreateConversation(
+      transaction,
+      { next: newId },
+      clock,
+      messageReferences,
+    ).execute({
       viewerId: a,
       userId: b,
     })
@@ -71,7 +78,7 @@ it('envoie une photo : média rattaché dans la transaction, relu par message, r
       publish: () => {},
       disconnect: () => {},
     },
-    sharedPosts,
+    messageReferences,
   );
   const input = {
     viewerId: a,

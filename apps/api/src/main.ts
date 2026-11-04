@@ -1,4 +1,5 @@
-import { SharedPosts } from './modules/messaging/application/shared-posts.ts';
+import { DrizzleSharedStoryReader } from './modules/messaging/infrastructure/persistence/drizzle-shared-story-reader.ts';
+import { MessageReferences } from './modules/messaging/application/message-references.ts';
 import { DrizzleSharedPostReader } from './modules/messaging/infrastructure/persistence/drizzle-shared-post-reader.ts';
 import { GetOrCreateConversation } from './modules/messaging/application/use-cases/get-or-create-conversation.ts';
 import { ListConversations } from './modules/messaging/application/use-cases/list-conversations.ts';
@@ -173,9 +174,11 @@ const messagingTransaction = new DrizzleUnitOfWork(database.db, (tx) => ({
   relationships: new DrizzleRelationshipReader(tx),
   media: new DrizzleMediaRepository(tx),
 }));
-const sharedPosts = new SharedPosts(
+const messageReferences = new MessageReferences(
   new DrizzleSharedPostReader(database.db, publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL)),
   new DrizzleRelationshipReader(database.db),
+  new DrizzleSharedStoryReader(database.db, publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL)),
+  { now: () => new Date() },
 );
 const profiles = new DrizzleProfileRepository(database.db);
 const media = new DrizzleMediaRepository(database.db);
@@ -309,16 +312,16 @@ const app = buildApp({
         messagingTransaction,
         uuidV7Generator,
         systemClock,
-        sharedPosts,
+        messageReferences,
       ),
-      listConversations: new ListConversations(messagingRepository, sharedPosts),
-      listMessages: new ListMessages(messagingRepository, relationships, sharedPosts),
+      listConversations: new ListConversations(messagingRepository, messageReferences),
+      listMessages: new ListMessages(messagingRepository, relationships, messageReferences),
       sendMessage: new SendMessage(
         messagingTransaction,
         uuidV7Generator,
         systemClock,
         realtime,
-        sharedPosts,
+        messageReferences,
       ),
       markConversationRead: new MarkConversationRead(messagingTransaction, realtime),
       getMessagePhotoUrl: new GetMessagePhotoUrl(

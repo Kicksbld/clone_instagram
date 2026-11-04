@@ -1,4 +1,4 @@
-import { SharedPosts } from '../../src/modules/messaging/application/shared-posts.ts';
+import { MessageReferences } from '../../src/modules/messaging/application/message-references.ts';
 import { GetOrCreateConversation } from '../../src/modules/messaging/application/use-cases/get-or-create-conversation.ts';
 import { ListConversations } from '../../src/modules/messaging/application/use-cases/list-conversations.ts';
 import { ListMessages } from '../../src/modules/messaging/application/use-cases/list-messages.ts';
@@ -121,7 +121,8 @@ export function buildTestApp() {
   const jobs = new InMemoryJobQueue();
   const relationships = new InMemoryRelationshipReader();
   const posts = new InMemoryPosts(profiles, media);
-  const sharedPosts = new SharedPosts(
+  const stories = new InMemoryStories(profiles, media, relationships);
+  const messageReferences = new MessageReferences(
     {
       find: async (id) => {
         const post = await posts.findById(id, '');
@@ -138,6 +139,24 @@ export function buildTestApp() {
       },
     },
     relationships,
+    {
+      find: (id) => {
+        const row = stories.rows.get(id);
+        const owner = row && profiles.rows.get(row.authorId);
+        if (!row || row.deletedAt || !owner) return Promise.resolve(null);
+        return Promise.resolve({
+          owner,
+          audience: row.audience,
+          preview: {
+            id: row.id,
+            author: { id: owner.id, username: owner.username },
+            thumbnail: 'https://example.com/story.jpg',
+            expiresAt: row.expiresAt.toISOString(),
+          },
+        });
+      },
+    },
+    { now: () => TEST_NOW },
   );
   const messaging = new InMemoryMessaging(profiles, relationships, media);
   const messagingTransaction = new InMemoryUnitOfWork({
@@ -153,10 +172,10 @@ export function buildTestApp() {
       {
         now: () => TEST_NOW,
       },
-      sharedPosts,
+      messageReferences,
     ),
-    listConversations: new ListConversations(messaging, sharedPosts),
-    listMessages: new ListMessages(messaging, relationships, sharedPosts),
+    listConversations: new ListConversations(messaging, messageReferences),
+    listMessages: new ListMessages(messaging, relationships, messageReferences),
     sendMessage: new SendMessage(
       messagingTransaction,
       messagingIds,
@@ -167,7 +186,7 @@ export function buildTestApp() {
         },
         disconnect: () => {},
       },
-      sharedPosts,
+      messageReferences,
     ),
     markConversationRead: new MarkConversationRead(messagingTransaction, {
       publish: (ids, event) => {
@@ -264,7 +283,7 @@ export function buildTestApp() {
     comments,
     audit: auditLog,
   });
-  const stories = new InMemoryStories(profiles, media, relationships);
+
   const realtime = new RealtimeBroker(() => undefined);
   const app = buildApp({
     logLevel: 'silent',

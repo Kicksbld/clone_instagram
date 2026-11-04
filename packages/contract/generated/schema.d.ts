@@ -1248,6 +1248,24 @@ export interface components {
             sharedPostId: string;
             body?: string;
         };
+        SendStoryReplyMessage: {
+            /** Format: uuid */
+            clientId: string;
+            /** @enum {string} */
+            kind: "story_reply";
+            /** Format: uuid */
+            storyId: string;
+            body: string;
+        };
+        SharedStory: {
+            /** Format: uuid */
+            id: string;
+            author: components["schemas"]["PostAuthor"];
+            /** Format: uri */
+            thumbnail: string;
+            /** Format: date-time */
+            expiresAt: string;
+        } | null;
         SharedPost: {
             /** Format: uuid */
             id: string;
@@ -1271,7 +1289,7 @@ export interface components {
             senderId: string;
             /** Format: uuid */
             clientId: string;
-            /** @description `text`, `image` ou `post_share` ; type ouvert pour les ajouts compatibles des prochaines tranches. */
+            /** @description `text`, `image`, `post_share` ou `story_reply` ; type ouvert pour les ajouts compatibles des prochaines tranches. */
             kind: string;
             /** @description Texte du message ; chaîne vide pour une photo sans texte. */
             body: string;
@@ -1284,6 +1302,10 @@ export interface components {
             sharedPostId?: string;
             /** @description Aperçu relu pour le lecteur ; null si supprimé ou invisible. Présent pour post_share. */
             sharedPost?: components["schemas"]["SharedPost"];
+            /** Format: uuid */
+            storyId?: string;
+            /** @description Aperçu relu à chaque lecture ; null si la story est expirée, supprimée ou invisible. */
+            sharedStory?: components["schemas"]["SharedStory"];
             /** Format: date-time */
             createdAt: string;
         };
@@ -2362,7 +2384,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SendTextMessage"] | components["schemas"]["SendImageMessage"] | components["schemas"]["SendPostShareMessage"];
+                "application/json": components["schemas"]["SendTextMessage"] | components["schemas"]["SendImageMessage"] | components["schemas"]["SendPostShareMessage"] | components["schemas"]["SendStoryReplyMessage"];
             };
         };
         responses: {
@@ -2386,7 +2408,7 @@ export interface operations {
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
-            /** @description Conversation absente ou invisible (`conversation_not_found`), ou média inexistant ou d'un autre utilisateur (`media_not_found`), ou post invisible (`post_not_found`). */
+            /** @description Conversation absente ou invisible (`conversation_not_found`), ou média inexistant ou d'un autre utilisateur (`media_not_found`), ou post invisible (`post_not_found`), ou story expirée, invisible, personnelle ou dont l’auteur n’est pas le destinataire (`story_not_found`). */
             404: {
                 headers: {
                     [name: string]: unknown;
