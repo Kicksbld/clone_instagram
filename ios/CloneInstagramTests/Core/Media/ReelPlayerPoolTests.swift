@@ -30,4 +30,21 @@ struct ReelPlayerPoolTests {
         #expect(player.currentItem !== item)
         pool.pause()
     }
+
+    @Test func `une vue qui s'arrête ne met pas en pause le reel repris par une autre vue`() {
+        let pool = ReelPlayerPool()
+        let url = URL(fileURLWithPath: "/shared.m3u8")
+        let feed = UUID()
+        let fullScreen = UUID()
+        _ = pool.play(url, owner: feed)
+        let player = pool.play(url, owner: fullScreen)
+
+        pool.stop(owner: feed)
+        #expect(pool.isPlaying(owner: fullScreen))
+        #expect(!pool.isPlaying(owner: feed))
+
+        pool.stop(owner: fullScreen)
+        #expect(!pool.isPlaying(owner: fullScreen))
+        #expect(player.rate == 0)
+    }
 }

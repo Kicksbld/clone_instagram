@@ -141,3 +141,11 @@ Ce que chaque tranche a posé dans le code, pour retrouver où vit une fonctionn
 - iOS : feature `Reels` injectée par `RootView` dans `HomeView`, pager vertical, pagination et réessai, miniature Nuke, lecture du seul reel sélectionné et préchargement du suivant par le pool de deux `AVPlayer` de `Core/Media`. Son coupé par défaut, boucle, pause à la sortie, en arrière-plan et pendant les feuilles de commentaires/partage. Likes optimistes et compteurs de commentaires partagés ; auteurs bloqués masqués immédiatement. « Amis » désactivé jusqu'à T33.
 - Application des ADR existants, aucune nouvelle décision d'architecture.
 - Reste à valider : déployer la migration et l'API, recompiler l'app, démo sur iPhone physique (reels muets, auteur bloqué absent) et fluidité avec Instruments.
+
+
+## T32 — Les reels se lisent dans mon feed (#43)
+
+- Contrat, base, API, backoffice : aucun changement.
+- iOS : `PostView` (`DesignSystem`) lit un reel sur place avec `ReelPlayerView` (`playsReel`), au ratio de la vidéo limité à 4:5, son coupé ; un appui l'ouvre en plein écran (`fullScreenCover`, même lecteur du pool), double tap = J'aime. `FeedViewModel.playingReelId` : seul joue le premier reel du feed dont la vidéo est visible aux deux tiers (`onScrollVisibilityChange` dans `PostView`, sans retrait à la disparition de la vue : le plein écran garde la lecture), pause à la sortie de l'écran ; miniatures des reels à venir préchargées (variante `large`). `ReelPlayerPool` : propriétaire de la lecture (`play(owner:)`, `stop(owner:)`), pour qu'une vue qui disparaît ne coupe pas le même reel repris par le plein écran ou l'onglet Reels. Échec de lecture : miniature avec « Réessayer » (feed, plein écran et onglet Reels).
+- Décisions : application d'ADR-024 et ADR-010, aucune nouvelle décision d'architecture.
+- Reste à valider : fluidité du feed avec Instruments, démo sur iPhone physique (le reel visible joue sans son, s'arrête hors de l'écran, s'ouvre en plein écran d'un appui).

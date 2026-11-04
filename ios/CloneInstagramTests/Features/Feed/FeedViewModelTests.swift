@@ -40,6 +40,25 @@ struct FeedViewModelTests {
         )
     }
 
+    /// Reel `number` : miniature dans `variants`, playlist HLS dans `hls` (comme `PostService`).
+    private func reel(_ number: Int) -> Post {
+        let thumbnail = URL(filePath: "/media-public/\(number)/thumbnail.webp")
+        let video = PostMediaItem(
+            variants: ImageVariants(thumb: thumbnail, medium: thumbnail, large: thumbnail),
+            width: 720,
+            height: 1280,
+            hls: URL(filePath: "/media-public/\(number)/hls/master.m3u8")
+        )
+        return Post(
+            kind: .reel,
+            id: "0199a1b2-0000-7000-a000-\(String(format: "%012d", number))",
+            caption: "",
+            author: PostAuthor(id: Self.otherId, username: "lea.martin", avatar: nil),
+            media: [video],
+            createdAt: Self.now
+        )
+    }
+
     private func page(_ posts: [Post], next: String? = nil) -> Result<PostPage, PostServiceError> {
         .success(PostPage(items: posts, nextCursor: next))
     }
@@ -286,5 +305,54 @@ struct FeedViewModelTests {
         await viewModel.delete(post(2))
 
         #expect(service.deleted.isEmpty)
+    }
+}
+
+// MARK: - Reels dans le feed
+
+extension FeedViewModelTests {
+    @Test func `plusieurs reels à l'écran : seul le premier visible joue, le suivant prend le relais`() async {
+        service.feedResults = [page([reel(1), post(2), reel(3), reel(4)])]
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        #expect(viewModel.playingReelId == nil)
+
+        viewModel.reelVisibilityChanged(reel(3), isVisible: true)
+        viewModel.reelVisibilityChanged(reel(1), isVisible: true)
+        viewModel.reelVisibilityChanged(post(2), isVisible: true)
+        #expect(viewModel.playingReelId == reel(1).id)
+
+        viewModel.reelVisibilityChanged(reel(1), isVisible: false)
+        #expect(viewModel.playingReelId == reel(3).id)
+
+        viewModel.reelVisibilityChanged(reel(3), isVisible: false)
+        #expect(viewModel.playingReelId == nil)
+    }
+
+    @Test func `reel supprimé pendant sa lecture : il ne joue plus`() async {
+        service.feedResults = [page([reel(1), reel(2)])]
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        viewModel.reelVisibilityChanged(reel(1), isVisible: true)
+        viewModel.reelVisibilityChanged(reel(2), isVisible: true)
+
+        await deletions.delete(postId: reel(1).id)
+
+        #expect(viewModel.playingReelId == reel(2).id)
+    }
+
+    @Test func `reels à venir : miniatures préchargées`() async {
+        let posts = [post(1), reel(2), reel(3), post(4)]
+        service.feedResults = [page(posts)]
+        let viewModel = makeViewModel()
+        await viewModel.load()
+
+        await viewModel.postAppeared(posts[0])
+
+        #expect(prefetcher.prefetched.suffix(3) == [
+            URL(filePath: "/media-public/2/thumbnail.webp"),
+            URL(filePath: "/media-public/3/thumbnail.webp"),
+            URL(filePath: "/media-public/4/large.webp"),
+        ])
     }
 }

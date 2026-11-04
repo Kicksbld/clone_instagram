@@ -146,7 +146,10 @@ struct FeedView<Header: View>: View {
             onDelete: viewModel.canDelete(post) ? { postToDelete = post } : nil,
             onToggleLike: { Task { await viewModel.toggleLike(post) } },
             onDoubleTapLike: { Task { await viewModel.likeFromDoubleTap(post) } },
-            collapsesCaption: true
+            collapsesCaption: true,
+            playsReel: viewModel.playingReelId == post.id,
+            // Vidéo visible aux deux tiers : candidate à la lecture ; une seule joue (`playingReelId`).
+            onReelVisibilityChange: { viewModel.reelVisibilityChanged(post, isVisible: $0) }
         )
         .task { await viewModel.postAppeared(post) }
     }
