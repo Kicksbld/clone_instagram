@@ -13,7 +13,8 @@ struct UsernameStepView: View {
         ) {
             TextField(
                 "Nom d'utilisateur",
-                text: Binding(get: { viewModel.username }, set: viewModel.usernameChanged)
+                // Une closure explicite évite le crash IRGen de Swift 6.3.3 sur la conversion de méthode isolée.
+                text: Binding(get: { viewModel.username }, set: { value in viewModel.usernameChanged(value) })
             )
             .onboardingField()
             .textContentType(.username)
