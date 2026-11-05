@@ -10,6 +10,7 @@ struct TypewriterText: View {
     var onFinished: () -> Void = {}
     @State private var shownWords = 0
     @Environment(\.feedback) private var feedback
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var words: [Substring] {
@@ -26,12 +27,13 @@ struct TypewriterText: View {
         .accessibilityLabel(text)
         .contentShape(.rect)
         .onTapGesture { revealAll() }
+        .accessibilityAction(named: "Afficher tout le texte") { revealAll() }
         .task(id: text) { await reveal() }
     }
 
     private func reveal() async {
         shownWords = 0
-        guard !reduceMotion else {
+        guard !reduceMotion, !voiceOverEnabled else {
             revealAll()
             return
         }

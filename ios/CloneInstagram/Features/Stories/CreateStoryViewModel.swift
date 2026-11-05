@@ -16,6 +16,7 @@ final class CreateStoryViewModel {
     /// Photo choisie, telle que lue par la vue.
     private(set) var photo: Data?
     var audience: StoryAudience = .everyone
+    var altText = ""
 
     private let uploads: any UploadService
     private let service: any StoryService
@@ -35,6 +36,7 @@ final class CreateStoryViewModel {
 
     func select(_ data: Data) {
         photo = data
+        altText = ""
         uploadedMediaId = nil
         state = .editing
     }
@@ -42,6 +44,10 @@ final class CreateStoryViewModel {
     /// « Partager » ou « Réessayer ».
     func share() async {
         guard let photo, state != .sharing else { return }
+        guard altText.unicodeScalars.count <= 1000 else {
+            state = .failed(message: "La description est limitée à 1 000 caractères.")
+            return
+        }
         state = .sharing
         do {
             let mediaId: String
@@ -51,7 +57,7 @@ final class CreateStoryViewModel {
                 mediaId = try await uploads.uploadImage(photo, purpose: .story)
                 uploadedMediaId = mediaId
             }
-            _ = try await service.publish(mediaId: mediaId, audience: audience)
+            _ = try await service.publish(mediaId: mediaId, audience: audience, altText: altText)
             state = .published
             onPublished()
         } catch let error as UploadError {

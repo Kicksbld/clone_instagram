@@ -6,6 +6,7 @@ struct EditPostRoute: Hashable, Identifiable {
     let postId: String
     /// Légende affichée à l'ouverture.
     let caption: String
+    var mediaAltTexts: [String] = []
 
     var id: String {
         postId

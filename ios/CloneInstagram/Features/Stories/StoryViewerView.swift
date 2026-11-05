@@ -7,10 +7,14 @@ import SwiftUI
 struct StoryViewerView: View {
     @State private var viewModel: StoryViewerViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @AccessibilityFocusState private var photoFocused: Bool
+    @State private var manuallyPaused = false
     @FocusState private var replyFocused: Bool
     @State private var dragOffset: CGFloat = 0
     @State private var isConfirmingDelete = false
     @State private var viewersStory: Story?
+    @State private var editingStory: Story?
     @State private var isShowingPlus = false
     @AppStorage("anonymousStoryViews") private var anonymousPreference = false
     @Environment(\.plusPaywall) private var plusPaywall
@@ -23,6 +27,65 @@ struct StoryViewerView: View {
     }
 
     var body: some View {
+        presentedViewer
+            .alert("Vue non envoyée", isPresented: Binding(
+                get: { viewModel.viewErrorMessage != nil && !isShowingPlus },
+                set: {
+                    if !$0 {
+                        viewModel.viewErrorMessage = nil
+                    }
+                }
+            )) {
+                Button("Réessayer") { Task { await viewModel.retryView() } }
+                Button("Fermer", role: .cancel) { viewModel.viewErrorMessage = nil }
+            } message: { Text(viewModel.viewErrorMessage ?? "") }
+            .preferredColorScheme(.dark)
+            .statusBarHidden()
+    }
+
+    private var presentedViewer: some View {
+        playback
+            .alert(
+                "Action impossible",
+                isPresented: Binding(
+                    get: { viewModel.deletions.errorMessage != nil },
+                    set: {
+                        if !$0 {
+                            viewModel.deletions.errorMessage = nil
+                        }
+                    }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(viewModel.deletions.errorMessage ?? "")
+            }
+            .sheet(item: $editingStory) { story in
+                StoryDescriptionView(viewModel: viewModel.descriptionEditor(for: story))
+            }
+            .onChange(of: editingStory) { _, story in
+                updatePause(hasViewers: viewersStory != nil)
+                if story == nil {
+                    photoFocused = true
+                }
+            }
+            .sheet(item: $viewersStory) { story in
+                StoryViewersView(
+                    viewModel: StoryViewersViewModel(storyId: story.id, service: viewModel.viewersService),
+                    isPlus: { viewModel.isPlus }
+                )
+            }
+            .sheet(isPresented: $isShowingPlus) { plusPaywall() }
+            .onChange(of: viewersStory) { _, value in updatePause(hasViewers: value != nil) }
+            .onChange(of: isShowingPlus) { _, _ in updatePause(hasViewers: viewersStory != nil) }
+            .onChange(of: viewModel.needsPlus) { _, needed in
+                if needed {
+                    isShowingPlus = true; viewModel.needsPlus = false
+                }
+            }
+    }
+
+    private var playback: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             content
@@ -40,12 +103,24 @@ struct StoryViewerView: View {
                 }
         )
         .task {
+            viewModel.usesScreenReader = voiceOverEnabled
             if anonymousPreference {
                 viewModel.restoreAnonymousPreference()
             }
             await viewModel.start()
         }
-        .task(id: viewModel.currentStory?.id) { await runClock() }
+        .task(id: viewModel.currentStory?.id) {
+            photoFocused = true
+            await runClock()
+        }
+        .onChange(of: voiceOverEnabled) { _, enabled in viewModel.usesScreenReader = enabled }
+        .accessibilityAction(.escape) { dismiss() }
+        .accessibilityStatus(viewModel.replyError ?? "")
+        .onChange(of: viewModel.isSendingReply) { wasSending, sending in
+            if wasSending, !sending, viewModel.replyError == nil {
+                AccessibilityFeedback.announce("Message envoyé")
+            }
+        }
         .onChange(of: viewModel.state) { _, state in
             if state == .finished {
                 dismiss()
@@ -53,60 +128,18 @@ struct StoryViewerView: View {
         }
         .onChange(of: replyFocused) { _, focused in viewModel.isReplyFocused = focused }
         .onChange(of: viewModel.isReplyFocused) { _, focused in replyFocused = focused }
-        .onChange(of: isConfirmingDelete) { _, isConfirming in viewModel.isPaused = isConfirming }
+        .onChange(of: isConfirmingDelete) { _, _ in updatePause(hasViewers: viewersStory != nil) }
         .confirmationDialog("Supprimer cette story ?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
             Button("Supprimer", role: .destructive) { Task { await viewModel.deleteCurrent() } }
             Button("Annuler", role: .cancel) {}
         }
-        .alert(
-            "Action impossible",
-            isPresented: Binding(
-                get: { viewModel.deletions.errorMessage != nil },
-                set: {
-                    if !$0 {
-                        viewModel.deletions.errorMessage = nil
-                    }
-                }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel.deletions.errorMessage ?? "")
-        }
-        .sheet(item: $viewersStory) { story in
-            StoryViewersView(
-                viewModel: StoryViewersViewModel(storyId: story.id, service: viewModel.viewersService),
-                isPlus: { viewModel.isPlus }
-            )
-        }
-        .sheet(isPresented: $isShowingPlus) { plusPaywall() }
-        .onChange(of: viewersStory) { _, value in updatePause(hasViewers: value != nil) }
-        .onChange(of: isShowingPlus) { _, _ in updatePause(hasViewers: viewersStory != nil) }
-        .onChange(of: viewModel.needsPlus) { _, needed in
-            if needed {
-                isShowingPlus = true; viewModel.needsPlus = false
-            }
-        }
-        .alert("Vue non envoyée", isPresented: Binding(
-            get: { viewModel.viewErrorMessage != nil && !isShowingPlus },
-            set: {
-                if !$0 {
-                    viewModel.viewErrorMessage = nil
-                }
-            }
-        )) {
-            Button("Réessayer") { Task { await viewModel.retryView() } }
-            Button("Fermer", role: .cancel) { viewModel.viewErrorMessage = nil }
-        } message: { Text(viewModel.viewErrorMessage ?? "") }
-        .preferredColorScheme(.dark)
-        .statusBarHidden()
     }
 
     @ViewBuilder
     private var content: some View {
         switch viewModel.state {
         case .loading, .finished:
-            ProgressView()
+            ProgressView().accessibilityLabel("Chargement en cours")
         case let .failed(message):
             ContentUnavailableView {
                 Label("Stories indisponibles", systemImage: "wifi.exclamationmark")
@@ -121,6 +154,16 @@ struct StoryViewerView: View {
                 VStack(spacing: 8) {
                     canvas(story)
                         .overlay(alignment: .top) { header(story) }
+                    HStack {
+                        Button("Story précédente", systemImage: "backward.end") { Task { await viewModel.previous() } }
+                        Button(manuallyPaused ? "Reprendre" : "Pause", systemImage: manuallyPaused ? "play" : "pause") {
+                            manuallyPaused.toggle()
+                            updatePause(hasViewers: viewersStory != nil)
+                        }
+                        .accessibilityHint(voiceOverEnabled ? "Le passage à la story suivante reste manuel avec VoiceOver" : "")
+                        Button("Story suivante", systemImage: "forward.end") { Task { await viewModel.next() } }
+                    }
+                    .labelStyle(.iconOnly)
                     if viewModel.isMine {
                         Button("Vues", systemImage: "eye") { viewersStory = story }
                     }
@@ -154,15 +197,20 @@ struct StoryViewerView: View {
             LazyImage(url: story.photo.variants.thumb) { state in
                 state.image?.resizable().scaledToFill().blur(radius: 40)
             }
+            .accessibilityHidden(true)
             LazyImage(url: story.photo.variants.large) { state in
                 if let image = state.image {
                     image.resizable().scaledToFit()
                         .task(id: story.id) { await viewModel.photoDidAppear(storyId: story.id) }
                 } else {
-                    ProgressView()
+                    ProgressView().accessibilityLabel("Chargement en cours")
                 }
             }
-            .accessibilityLabel("Story de \(story.author.username)")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                "Story de \(story.author.username), \(viewModel.storyIndex + 1) sur \(viewModel.stories.count). \(story.photo.accessibilityDescription)"
+            )
+            .accessibilityFocused($photoFocused)
             GeometryReader { proxy in
                 HStack(spacing: 0) {
                     // Comme Instagram : le tiers gauche revient en arrière, le reste passe.
@@ -180,10 +228,16 @@ struct StoryViewerView: View {
         Color.clear
             .contentShape(Rectangle())
             .onTapGesture { Task { await action() } }
-            .onLongPressGesture(minimumDuration: 0.2) {} onPressingChanged: { viewModel.isPaused = $0 }
+            .onLongPressGesture(minimumDuration: 0.2) {} onPressingChanged: { pressing in
+                viewModel
+                    .isPaused = pressing || manuallyPaused || viewersStory != nil || isShowingPlus || isConfirmingDelete || editingStory !=
+                    nil
+            }
+            .accessibilityHidden(voiceOverEnabled)
             .accessibilityElement()
             .accessibilityLabel(label)
             .accessibilityAddTraits(.isButton)
+            .accessibilityAction { Task { await action() } }
     }
 
     private func header(_ story: Story) -> some View {
@@ -223,6 +277,7 @@ struct StoryViewerView: View {
                 }
                 if viewModel.isMine {
                     Menu("Options", systemImage: "ellipsis") {
+                        Button("Modifier la description", systemImage: "pencil") { editingStory = story }
                         Button("Supprimer", systemImage: "trash", role: .destructive) { isConfirmingDelete = true }
                     }
                     .labelStyle(.iconOnly)
@@ -236,7 +291,7 @@ struct StoryViewerView: View {
     }
 
     private func updatePause(hasViewers: Bool) {
-        viewModel.isPaused = hasViewers || isShowingPlus || isConfirmingDelete
+        viewModel.isPaused = manuallyPaused || hasViewers || isShowingPlus || isConfirmingDelete || editingStory != nil
     }
 
     private func barValue(_ index: Int) -> Double {

@@ -1,3 +1,4 @@
+import type { components } from '@clone/contract';
 import { encodeCursor } from '@clone/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -557,5 +558,72 @@ describe('PATCH /v1/posts/{id}', () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ code: 'validation_failed' });
+  });
+});
+
+describe('Descriptions alternatives des médias', () => {
+  it('conserve l’ordre, normalise et permet de modifier puis retirer une description', async () => {
+    const ids = givenReadyPhotos(ME, 2);
+    const created = await publish({
+      kind: 'post',
+      mediaIds: ids,
+      mediaAltTexts: ['  Montagne  ', 'Un lac'],
+    });
+    expect(created.statusCode).toBe(201);
+    const id = created.json<{ id: string }>().id;
+    expect(
+      created
+        .json<components['schemas']['Post']>()
+        .media.map((item: { altText?: string }) => item.altText),
+    ).toEqual(['Montagne', 'Un lac']);
+    const patch = (body: object) =>
+      context.app.inject({ method: 'PATCH', url: `/v1/posts/${id}`, headers: auth, payload: body });
+    expect(
+      (await patch({ caption: 'Nouvelle légende' })).json<components['schemas']['Post']>().media[0]
+        ?.altText,
+    ).toBe('Montagne');
+    const updated = await patch({
+      caption: 'Nouvelle légende',
+      mediaAltTexts: ['', 'Lac sous la neige'],
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json<components['schemas']['Post']>().media[0]?.altText).toBeUndefined();
+    expect(
+      (await get(`/v1/posts/${id}`)).json<components['schemas']['Post']>().media[1]?.altText,
+    ).toBe('Lac sous la neige');
+    const forbidden = await context.app.inject({
+      method: 'PATCH',
+      url: `/v1/posts/${id}`,
+      headers: { authorization: `Bearer ${await signTestToken(OTHER)}` },
+      payload: { caption: '', mediaAltTexts: ['x', 'y'] },
+    });
+    expect(forbidden.statusCode).toBe(404);
+    expect(
+      (await get(`/v1/posts/${id}`)).json<components['schemas']['Post']>().media[1]?.altText,
+    ).toBe('Lac sous la neige');
+  });
+
+  it('refuse une longueur ou un nombre incorrect avant de rattacher les médias', async () => {
+    const ids = givenReadyPhotos(ME, 2);
+    for (const mediaAltTexts of [['Une seule'], ['x'.repeat(1001), ''], []]) {
+      const result = await publish({ kind: 'post', mediaIds: ids, mediaAltTexts });
+      expect(result.statusCode).toBe(400);
+      expect(ids.every((id) => !context.media.rows.get(id)?.attachedAt)).toBe(true);
+    }
+    const created = await publish({
+      kind: 'post',
+      mediaIds: ids,
+      mediaAltTexts: ['😀'.repeat(1000), ''],
+    });
+    expect(created.statusCode).toBe(201);
+    const id = created.json<{ id: string }>().id;
+    const failed = await context.app.inject({
+      method: 'PATCH',
+      url: `/v1/posts/${id}`,
+      headers: auth,
+      payload: { caption: 'Ne doit pas changer', mediaAltTexts: ['Incomplet'] },
+    });
+    expect(failed.statusCode).toBe(400);
+    expect((await get(`/v1/posts/${id}`)).json<components['schemas']['Post']>().caption).toBe('');
   });
 });

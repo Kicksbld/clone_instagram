@@ -59,11 +59,13 @@ final class SharePostViewModel {
             attempts[userId]?.conversationId = conversation.id
         } else {
             attempts[userId]?.state = .failed
+            AccessibilityFeedback.announce("Partage non envoyé. Vous pouvez réessayer.")
             return
         }
         guard store.isActive(viewerId: viewerId), !Task.isCancelled else { return }
         await store.share(conversationId: conversationId, postId: postId, clientId: attempt.clientId)
         let confirmed = store.messages[conversationId, default: []].contains { $0.clientId == attempt.clientId }
         attempts[userId]?.state = confirmed ? .sent : .failed
+        AccessibilityFeedback.announce(confirmed ? "Publication partagée" : "Partage non envoyé. Vous pouvez réessayer.")
     }
 }

@@ -37,7 +37,7 @@ struct ActivityView: View {
     private var content: some View {
         switch viewModel.state {
         case .loading:
-            ProgressView()
+            ProgressView().accessibilityLabel("Chargement en cours")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case let .failed(message):
             ContentUnavailableView {
@@ -73,7 +73,7 @@ struct ActivityView: View {
                 }
             }
             if viewModel.isLoadingMore {
-                ProgressView()
+                ProgressView().accessibilityLabel("Chargement en cours")
                     .frame(maxWidth: .infinity)
             }
             if viewModel.loadMoreFailed {
@@ -97,7 +97,7 @@ struct ActivityView: View {
                 followRequestRow(requester)
             }
             if viewModel.isLoadingMoreRequests {
-                ProgressView()
+                ProgressView().accessibilityLabel("Chargement en cours")
                     .frame(maxWidth: .infinity)
             } else if viewModel.hasMoreRequests {
                 Button("Voir plus") { Task { await viewModel.loadMoreRequests() } }

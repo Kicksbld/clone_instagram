@@ -11,11 +11,14 @@ import { attachMediaOrThrow } from '../../../media/application/attach-media.ts';
 import { normalizeCaption, type Post, type PostKind } from '../../domain/post.ts';
 import type { CreatePostTransaction } from '../ports/create-post-transaction.ts';
 
+import { normalizeMediaAltTexts } from '../../../../shared/domain/alt-text.ts';
+
 export interface CreatePostInput {
   authorId: string;
   kind: PostKind;
   caption: string;
   mediaIds: string[];
+  mediaAltTexts?: string[];
 }
 
 /**
@@ -34,6 +37,7 @@ export class CreatePost {
 
   async execute(input: CreatePostInput): Promise<Post> {
     const caption = normalizeCaption(input.caption);
+    const mediaAltTexts = normalizeMediaAltTexts(input.mediaAltTexts, input.mediaIds.length);
     mentionedUsernames(caption);
 
     const { created, notifications } = await this.transaction.run(async (scope) => {
@@ -59,6 +63,7 @@ export class CreatePost {
         kind: input.kind,
         caption,
         mediaIds: input.mediaIds,
+        ...(mediaAltTexts !== undefined && { mediaAltTexts }),
         createdAt: this.clock.now(),
       });
       await posts.incrementPostCount(input.authorId);

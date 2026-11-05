@@ -6,6 +6,7 @@ import SwiftUI
 struct CommentsView: View {
     @State private var viewModel: CommentsViewModel
     @FocusState private var isFieldFocused: Bool
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.blockedUserIds) private var blockedUserIds
 
     init(viewModel: CommentsViewModel) {
@@ -17,7 +18,11 @@ struct CommentsView: View {
             content
                 .modifier(MentionNavigation())
                 .navigationTitle("Commentaires")
+                .accessibilityStatus(commentsStatus)
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Fermer") { dismiss() } }
+                }
                 .safeAreaInset(edge: .bottom) {
                     if viewModel.state == .loaded {
                         composer
@@ -25,6 +30,7 @@ struct CommentsView: View {
                 }
         }
         .task { await viewModel.load() }
+        .accessibilityAction(.escape) { dismiss() }
         .onChange(of: blockedUserIds) { viewModel.hideComments(by: blockedUserIds) }
         .alert(
             "Action impossible",
@@ -43,11 +49,20 @@ struct CommentsView: View {
         }
     }
 
+    private var commentsStatus: String {
+        switch viewModel.state {
+        case .loading: ""
+        case .loaded: "Commentaires chargés"
+        case .postGone: "Cette publication n’est plus disponible"
+        case let .failed(message): message
+        }
+    }
+
     @ViewBuilder
     private var content: some View {
         switch viewModel.state {
         case .loading:
-            ProgressView()
+            ProgressView().accessibilityLabel("Chargement en cours")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .postGone:
             ContentUnavailableView(
@@ -86,7 +101,7 @@ struct CommentsView: View {
                     }
                 }
                 if thread.isLoadingReplies {
-                    ProgressView()
+                    ProgressView().accessibilityLabel("Chargement en cours")
                         .padding(.leading, 44)
                         .listRowSeparator(.hidden)
                 } else {
@@ -94,7 +109,7 @@ struct CommentsView: View {
                 }
             }
             if viewModel.isLoadingMore {
-                ProgressView()
+                ProgressView().accessibilityLabel("Chargement en cours")
                     .frame(maxWidth: .infinity)
                     .listRowSeparator(.hidden)
             }
@@ -134,6 +149,12 @@ struct CommentsView: View {
                 }
             }
             Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAction(named: "Répondre") {
+            guard !comment.isPending else { return }
+            viewModel.reply(to: comment)
+            isFieldFocused = true
         }
         .opacity(comment.isPending ? 0.5 : 1)
         .listRowSeparator(.hidden)
@@ -232,7 +253,19 @@ private struct CommentActions: ViewModifier {
                     Button("Signaler", systemImage: "exclamationmark.bubble") { moderation.report(reportRoute) }
                 }
             }
+            .accessibilityActions {
+                if comment.canDelete, !comment.isPending {
+                    Button("Supprimer", role: .destructive, action: onDelete)
+                }
+                if isFromOtherAccount, let moderation {
+                    Button("Signaler") { moderation.report(reportRoute) }
+                    Button("Bloquer") { moderation.block(author) }
+                }
+            }
             .contextMenu {
+                if comment.canDelete, !comment.isPending {
+                    Button("Supprimer", systemImage: "trash", role: .destructive, action: onDelete)
+                }
                 if isFromOtherAccount, let moderation {
                     Button("Signaler", systemImage: "exclamationmark.bubble", role: .destructive) {
                         moderation.report(reportRoute)

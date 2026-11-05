@@ -11,13 +11,20 @@ import type { UpdatePostCaptionTransaction } from '../ports/update-post-caption-
  * puis mentions recalculées (ADR-025) : nouvelles créées et notifiées, retirées supprimées avec
  * leur notification. Post inexistant, supprimé ou d'un autre auteur → `404 post_not_found`.
  */
+import { normalizeMediaAltTexts } from '../../../../shared/domain/alt-text.ts';
+
 export class UpdatePostCaption {
   constructor(
     private readonly transaction: UnitOfWork<UpdatePostCaptionTransaction>,
     private readonly notifications: NotificationDispatcher,
   ) {}
 
-  async execute(input: { authorId: string; postId: string; caption: string }): Promise<Post> {
+  async execute(input: {
+    authorId: string;
+    postId: string;
+    caption: string;
+    mediaAltTexts?: string[];
+  }): Promise<Post> {
     const caption = normalizeCaption(input.caption);
     mentionedUsernames(caption);
 
@@ -25,7 +32,8 @@ export class UpdatePostCaption {
       const { posts, reader, mentions } = scope;
       const current = await reader.findById(input.postId, input.authorId);
       if (current?.author.id !== input.authorId) throw new PostNotFoundError();
-      if (!(await posts.updateCaption(input.postId, input.authorId, caption)))
+      const mediaAltTexts = normalizeMediaAltTexts(input.mediaAltTexts, current.media.length);
+      if (!(await posts.updateCaption(input.postId, input.authorId, caption, mediaAltTexts)))
         throw new PostNotFoundError();
 
       const target = { postId: input.postId };

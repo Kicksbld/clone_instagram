@@ -93,8 +93,10 @@ final class ReportViewModel {
         do {
             try await service.report(route.target, reason: reason, details: details)
             step = .sent
+            AccessibilityFeedback.announce("Signalement envoyé. Merci de nous l’avoir signalé.")
         } catch .targetNotFound {
             step = .targetGone
+            AccessibilityFeedback.announce("Ce contenu n’est plus disponible")
         } catch {
             errorMessage = Self.message(for: error)
         }

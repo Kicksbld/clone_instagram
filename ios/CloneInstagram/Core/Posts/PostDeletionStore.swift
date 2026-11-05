@@ -69,6 +69,9 @@ final class PostDeletionStore {
             }
             return true
         }
+        if case .confirmed = outcome {
+            AccessibilityFeedback.announce("Publication supprimée")
+        }
         if case let .failed(error, _, _) = outcome {
             deletedIds.remove(postId)
             uncountedIds.remove(postId)

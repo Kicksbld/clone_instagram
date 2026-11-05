@@ -9,7 +9,7 @@ struct Post: Equatable, Identifiable {
     /// Modifiable après une modification de la légende par l'auteur (`PostEditStore`).
     var caption: String
     let author: PostAuthor
-    let media: [PostMediaItem]
+    var media: [PostMediaItem]
     /// Modifiables pour la mise à jour optimiste du like (ADR-010).
     var likeCount = 0
     /// J'aime ce post.
@@ -69,6 +69,12 @@ struct PostMediaItem: Equatable {
 
     var hls: URL?
     var durationMs: Int?
+    var altText: String?
+
+    var accessibilityDescription: String {
+        let text = altText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return text.isEmpty ? (hls == nil ? "Photo sans description" : "Vidéo sans description") : text
+    }
 
     /// Largeur / hauteur.
     var aspectRatio: Double {

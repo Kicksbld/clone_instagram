@@ -26,7 +26,7 @@ struct StoryArchiveView: View {
                             if let image = state.image {
                                 image.resizable().scaledToFill()
                             } else {
-                                Rectangle().fill(.quaternary).overlay { ProgressView() }
+                                Rectangle().fill(.quaternary).overlay { ProgressView().accessibilityLabel("Chargement en cours") }
                             }
                         }
                         .aspectRatio(9 / 16, contentMode: .fit)
@@ -35,11 +35,13 @@ struct StoryArchiveView: View {
                             Text(story.createdAt, style: .date).font(.caption).padding(4)
                         }
                     }
-                    .accessibilityLabel("Story du \(story.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                    .accessibilityLabel(
+                        "Story du \(story.createdAt.formatted(date: .abbreviated, time: .omitted)). \(story.photo.accessibilityDescription)"
+                    )
                 }
             }
             if viewModel.isLoading {
-                ProgressView().padding()
+                ProgressView().accessibilityLabel("Chargement en cours").padding()
             }
             if let error = viewModel.errorMessage {
                 Text(error).padding()
@@ -62,10 +64,11 @@ struct StoryArchiveView: View {
                 )
             }
         }
+        .accessibilityStatus(viewModel.errorMessage ?? "")
         .navigationTitle("Archive")
         .task { await viewModel.load() }
         .refreshable { await viewModel.load() }
-        .fullScreenCover(item: $selectedStory) { story in
+        .fullScreenCover(item: $selectedStory, onDismiss: { Task { await viewModel.load() } }) { story in
             StoryViewerView(viewModel: StoryViewerViewModel(
                 viewerId: viewerId, authors: [story.author], startIndex: 0, service: service, deletions: deletions,
                 isPlus: isPlus, archivedStories: deletions.visible(viewModel.items), initialStoryId: story.id

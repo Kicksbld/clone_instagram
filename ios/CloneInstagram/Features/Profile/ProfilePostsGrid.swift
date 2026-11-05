@@ -62,7 +62,7 @@ struct ProfilePostsGrid: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(post.caption.isEmpty ? "Publication" : post.caption)
+                .accessibilityLabel(post.accessibilitySummary(page: 0))
                 .accessibilityValue(post.media.count > 1 ? "\(post.media.count) photos" : "")
                 .task {
                     if viewModel.shouldLoadMore(after: post) {

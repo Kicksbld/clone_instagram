@@ -20,6 +20,13 @@ struct EditPostView: View {
                     .focused($isEditing)
                     .disabled(viewModel.isSaving)
                 MentionSuggestions(text: $viewModel.caption)
+                    .disabled(viewModel.isSaving)
+                Section("Descriptions alternatives") {
+                    ForEach(viewModel.mediaAltTexts.indices, id: \.self) { index in
+                        AltTextField(title: "Description du média \(index + 1)", text: $viewModel.mediaAltTexts[index])
+                            .disabled(viewModel.isSaving)
+                    }
+                }
             }
             .navigationTitle("Modifier les infos")
             .navigationBarTitleDisplayMode(.inline)
@@ -30,7 +37,7 @@ struct EditPostView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.isSaving {
-                        ProgressView()
+                        ProgressView().accessibilityLabel("Chargement en cours")
                     } else {
                         Button("OK") {
                             Task {

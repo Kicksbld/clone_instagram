@@ -61,7 +61,10 @@ struct HookPromiseView: View {
             .tabViewStyle(.page(indexDisplayMode: .always))
             .frame(height: 440)
         }
-        .onChange(of: page) { feedback.play(.swipe) }
+        .onChange(of: page) {
+            feedback.play(.swipe)
+            AccessibilityFeedback.announce("\(page + 1) sur \(cards.count). \(cards[page].title). \(cards[page].text)")
+        }
     }
 
     private func card(_ card: (symbol: String, title: String, text: String)) -> some View {

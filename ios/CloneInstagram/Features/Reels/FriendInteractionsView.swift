@@ -3,6 +3,7 @@ import SwiftUI
 /// Feuille des amis qui ont interagi avec un reel (ADR-029) : « a aimé », « a commenté : texte »,
 /// « a créé » ; chaque ligne ouvre le profil.
 struct FriendInteractionsView: View {
+    @Environment(\.dismiss) private var dismiss
     @State private var viewModel: FriendInteractionsViewModel
     let profileDestination: (ProfileRoute) -> AnyView
     @Environment(\.blockedUserIds) private var blockedIds
@@ -17,15 +18,17 @@ struct FriendInteractionsView: View {
             content
                 .navigationTitle("Amis")
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fermer") { dismiss() } } }
                 .navigationDestination(for: ProfileRoute.self, destination: profileDestination)
         }
         .task { await viewModel.load() }
+        .accessibilityAction(.escape) { dismiss() }
     }
 
     @ViewBuilder private var content: some View {
         switch viewModel.state {
         case .loading:
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            ProgressView().accessibilityLabel("Chargement en cours").frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed:
             ContentUnavailableView {
                 Label("Amis indisponibles", systemImage: "wifi.exclamationmark")
@@ -58,6 +61,7 @@ struct FriendInteractionsView: View {
                                 Text(item.detail).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
                             }
                         }
+                        .accessibilityElement(children: .combine)
                     }
                 }
                 .listStyle(.plain)

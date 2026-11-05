@@ -3,7 +3,7 @@
   "info": {
     "title": "Clone Instagram API",
     "version": "0.1.0",
-    "description": "Contrat unique des échanges entre l'API, l'app iOS et le backoffice (ADR-003).\n\n- Routes métier préfixées par `/v1` ; `GET /health` est hors version.\n- JSON UTF-8, identifiants UUID v7, dates ISO 8601 UTC.\n- Authentification : `Authorization: Bearer <JWT Supabase>` sur toutes les routes sauf `GET /health`.\n- Erreurs : Problem Details (RFC 9457), `Content-Type: application/problem+json`, avec un `code` stable.\n\nCodes d'erreur transverses :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |\n| `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |\n| `account_suspended` | 403 | Compte suspendu ou banni (ADR-005) : toute route `/v1` est refusée, sauf `GET /v1/me` (statut du compte) et `DELETE /v1/me` |\n| `route_not_found` | 404 | Route inexistante |\n| `rate_limited` | 429 | Trop de requêtes (ADR-005) : 120 par minute et par utilisateur sur toute route `/v1`, limite plus basse sur certaines routes (documentée sur la route) ; en-tête `Retry-After` en secondes |\n| `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |\n\nCodes d'erreur métier :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `conversation_not_found` | 404 | Conversation inexistante, invisible ou appartenant à un tiers |\n| `cannot_message_self` | 422 | Conversation avec soi-même |\n| `profile_not_found` | 404 | L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé) |\n| `username_taken` | 409 | Username déjà utilisé par un autre profil |\n| `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |\n| `age_requirement_not_met` | 422 | Moins de 13 ans à la date du jour (UTC) |\n| `media_not_found` | 404 | Média inexistant ou appartenant à un autre utilisateur ; URL signée d'une photo de message hors de mes conversations visibles |\n| `media_invalid_transition` | 409 | Le statut du média ne permet pas l'opération (ex. `complete` sur un média déjà traité) |\n| `media_not_ready` | 409 | Le média n'est pas encore `ready` |\n| `media_already_attached` | 409 | Le média est déjà utilisé, ou l'a été (un média ne sert qu'une fois) |\n| `media_kind_mismatch` | 422 | Le type du média ne correspond pas au type du post ou du message |\n| `media_purpose_mismatch` | 422 | Le `purpose` du média ne correspond pas à l'usage demandé |\n| `user_not_found` | 404 | Profil inexistant ou invisible pour l'appelant (blocage dans un sens ou dans l'autre, compte non actif : ADR-006) ; liste d'abonnés d'un compte privé non suivi |\n| `account_private` | 403 | Plus renvoyé depuis T20 : suivre un compte privé crée une demande d'abonnement |\n| `cannot_follow_self` | 422 | Se suivre, ne plus se suivre ou se retirer de ses abonnés soi-même |\n| `follow_request_not_found` | 404 | Demande d'abonnement inexistante (annulée, déjà acceptée ou refusée) ou dont le demandeur est invisible (ADR-006) |\n| `invalid_cursor` | 400 | Curseur de pagination mal formé |\n| `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |\n| `comment_not_found` | 404 | Commentaire inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; commentaire parent d'un autre post ; suppression par quelqu'un qui n'est ni l'auteur du commentaire ni celui du post |\n| `too_many_mentions` | 422 | Plus de 20 comptes distincts mentionnés dans un texte |\n| `reply_to_reply` | 422 | Réponse à une réponse (un seul niveau de réponse) |\n| `cannot_block_self` | 422 | Se bloquer ou se débloquer soi-même |\n| `cannot_close_friend_self` | 422 | S'ajouter ou se retirer soi-même de ses amis proches |\n| `cannot_report_self` | 422 | Se signaler soi-même ou signaler son propre post ou commentaire |\n| `admin_required` | 403 | Route d'administration (`/v1/admin/…`) appelée par un compte sans rôle `admin` (ADR-011) |\n| `invalid_status_transition` | 409 | Le statut actuel du compte ne permet pas l'action d'administration (ex. suspendre un compte banni) |\n| `cannot_moderate_self` | 422 | Un admin ne peut ni se suspendre, ni se bannir, ni se réactiver, ni se supprimer lui-même |\n| `report_not_found` | 404 | Signalement inexistant (backoffice) |\n| `report_already_resolved` | 409 | Le signalement n'est plus ouvert : déjà supprimé ou classé, seul ou avec les autres signalements du même contenu |\n| `cannot_remove_user` | 422 | `remove_content` sur le signalement d'un compte : seul le classement est possible, la sanction passe par la fiche du compte |\n| `plus_required` | 403 | Avantage réservé à Clone Plus demandé sans abonnement actif (ADR-012) |\n| `story_not_found` | 404 | Story inexistante, supprimée, expirée ou invisible pour l'appelant (ADR-006, ADR-025) ; suppression de la story d'un autre auteur |\n\nPagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).\n"
+    "description": "Contrat unique des échanges entre l'API, l'app iOS et le backoffice (ADR-003).\n\n- Routes métier préfixées par `/v1` ; `GET /health` est hors version.\n- JSON UTF-8, identifiants UUID v7, dates ISO 8601 UTC.\n- Authentification : `Authorization: Bearer <JWT Supabase>` sur toutes les routes sauf `GET /health`.\n- Erreurs : Problem Details (RFC 9457), `Content-Type: application/problem+json`, avec un `code` stable.\n\nCodes d'erreur transverses :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `validation_failed` | 400 | Entrée non conforme au schéma (dont champ inconnu) |\n| `unauthenticated` | 401 | JWT absent, mal formé, mal signé, expiré ou d'un autre émetteur |\n| `account_suspended` | 403 | Compte suspendu ou banni (ADR-005) : toute route `/v1` est refusée, sauf `GET /v1/me` (statut du compte) et `DELETE /v1/me` |\n| `route_not_found` | 404 | Route inexistante |\n| `rate_limited` | 429 | Trop de requêtes (ADR-005) : 120 par minute et par utilisateur sur toute route `/v1`, limite plus basse sur certaines routes (documentée sur la route) ; en-tête `Retry-After` en secondes |\n| `internal_error` | 500 | Erreur inattendue ; aucun détail interne exposé |\n\nCodes d'erreur métier :\n\n| Code | Statut | Cas |\n|---|---|---|\n| `conversation_not_found` | 404 | Conversation inexistante, invisible ou appartenant à un tiers |\n| `cannot_message_self` | 422 | Conversation avec soi-même |\n| `profile_not_found` | 404 | L'utilisateur authentifié n'a pas encore de profil (onboarding non terminé) |\n| `username_taken` | 409 | Username déjà utilisé par un autre profil |\n| `profile_already_exists` | 409 | L'onboarding a déjà créé le profil |\n| `age_requirement_not_met` | 422 | Moins de 13 ans à la date du jour (UTC) |\n| `media_not_found` | 404 | Média inexistant ou appartenant à un autre utilisateur ; URL signée d'une photo de message hors de mes conversations visibles |\n| `media_invalid_transition` | 409 | Le statut du média ne permet pas l'opération (ex. `complete` sur un média déjà traité) |\n| `media_not_ready` | 409 | Le média n'est pas encore `ready` |\n| `media_already_attached` | 409 | Le média est déjà utilisé, ou l'a été (un média ne sert qu'une fois) |\n| `media_kind_mismatch` | 422 | Le type du média ne correspond pas au type du post ou du message |\n| `media_purpose_mismatch` | 422 | Le `purpose` du média ne correspond pas à l'usage demandé |\n| `user_not_found` | 404 | Profil inexistant ou invisible pour l'appelant (blocage dans un sens ou dans l'autre, compte non actif : ADR-006) ; liste d'abonnés d'un compte privé non suivi |\n| `account_private` | 403 | Plus renvoyé depuis T20 : suivre un compte privé crée une demande d'abonnement |\n| `cannot_follow_self` | 422 | Se suivre, ne plus se suivre ou se retirer de ses abonnés soi-même |\n| `follow_request_not_found` | 404 | Demande d'abonnement inexistante (annulée, déjà acceptée ou refusée) ou dont le demandeur est invisible (ADR-006) |\n| `invalid_cursor` | 400 | Curseur de pagination mal formé |\n| `invalid_media_descriptions` | 400 | Nombre de descriptions différent du nombre de médias, ou description dépassant 1 000 caractères |\n| `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |\n| `comment_not_found` | 404 | Commentaire inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; commentaire parent d'un autre post ; suppression par quelqu'un qui n'est ni l'auteur du commentaire ni celui du post |\n| `too_many_mentions` | 422 | Plus de 20 comptes distincts mentionnés dans un texte |\n| `reply_to_reply` | 422 | Réponse à une réponse (un seul niveau de réponse) |\n| `cannot_block_self` | 422 | Se bloquer ou se débloquer soi-même |\n| `cannot_close_friend_self` | 422 | S'ajouter ou se retirer soi-même de ses amis proches |\n| `cannot_report_self` | 422 | Se signaler soi-même ou signaler son propre post ou commentaire |\n| `admin_required` | 403 | Route d'administration (`/v1/admin/…`) appelée par un compte sans rôle `admin` (ADR-011) |\n| `invalid_status_transition` | 409 | Le statut actuel du compte ne permet pas l'action d'administration (ex. suspendre un compte banni) |\n| `cannot_moderate_self` | 422 | Un admin ne peut ni se suspendre, ni se bannir, ni se réactiver, ni se supprimer lui-même |\n| `report_not_found` | 404 | Signalement inexistant (backoffice) |\n| `report_already_resolved` | 409 | Le signalement n'est plus ouvert : déjà supprimé ou classé, seul ou avec les autres signalements du même contenu |\n| `cannot_remove_user` | 422 | `remove_content` sur le signalement d'un compte : seul le classement est possible, la sanction passe par la fiche du compte |\n| `plus_required` | 403 | Avantage réservé à Clone Plus demandé sans abonnement actif (ADR-012) |\n| `story_not_found` | 404 | Story inexistante, supprimée, expirée ou invisible pour l'appelant (ADR-006, ADR-025) ; suppression de la story d'un autre auteur |\n\nPagination : `?cursor=` (valeur opaque de `nextCursor`) ; réponse `{ items, nextCursor }`, `nextCursor` absent sur la dernière page (ADR-007).\n"
   },
   "servers": [
     {
@@ -10667,6 +10667,11 @@
                                 "height"
                               ],
                               "properties": {
+                                "altText": {
+                                  "type": "string",
+                                  "maxLength": 1000,
+                                  "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                                },
                                 "variants": {
                                   "oneOf": [
                                     {
@@ -11270,6 +11275,11 @@
                                 "height"
                               ],
                               "properties": {
+                                "altText": {
+                                  "type": "string",
+                                  "maxLength": 1000,
+                                  "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                                },
                                 "variants": {
                                   "oneOf": [
                                     {
@@ -11784,6 +11794,11 @@
                               "height"
                             ],
                             "properties": {
+                              "altText": {
+                                "type": "string",
+                                "maxLength": 1000,
+                                "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                              },
                               "variants": {
                                 "type": "object",
                                 "description": "URL publiques des variantes WebP d'une image (ADR-008).",
@@ -12080,6 +12095,17 @@
                   "mediaIds"
                 ],
                 "properties": {
+                  "mediaAltTexts": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "description": "Une description par média, dans le même ordre. Si fourni, le nombre doit correspondre exactement aux médias du post ; sinon 400 invalid_media_descriptions. Absent en modification, conserve les descriptions existantes.",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 1000,
+                      "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                    }
+                  },
                   "kind": {
                     "type": "string",
                     "description": "Post photo ou reel vidéo.",
@@ -12290,6 +12316,11 @@
                           "height"
                         ],
                         "properties": {
+                          "altText": {
+                            "type": "string",
+                            "maxLength": 1000,
+                            "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                          },
                           "variants": {
                             "oneOf": [
                               {
@@ -13037,6 +13068,11 @@
                           "height"
                         ],
                         "properties": {
+                          "altText": {
+                            "type": "string",
+                            "maxLength": 1000,
+                            "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                          },
                           "variants": {
                             "oneOf": [
                               {
@@ -13696,6 +13732,17 @@
                   "caption"
                 ],
                 "properties": {
+                  "mediaAltTexts": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "description": "Une description par média, dans le même ordre. Si fourni, le nombre doit correspondre exactement aux médias du post ; sinon 400 invalid_media_descriptions. Absent en modification, conserve les descriptions existantes.",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 1000,
+                      "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                    }
+                  },
                   "caption": {
                     "type": "string",
                     "description": "Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.",
@@ -13872,6 +13919,11 @@
                           "height"
                         ],
                         "properties": {
+                          "altText": {
+                            "type": "string",
+                            "maxLength": 1000,
+                            "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                          },
                           "variants": {
                             "oneOf": [
                               {
@@ -16658,6 +16710,11 @@
                   "audience"
                 ],
                 "properties": {
+                  "altText": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                  },
                   "mediaId": {
                     "type": "string",
                     "format": "uuid",
@@ -16764,6 +16821,11 @@
                         "height"
                       ],
                       "properties": {
+                        "altText": {
+                          "type": "string",
+                          "maxLength": 1000,
+                          "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                        },
                         "variants": {
                           "type": "object",
                           "description": "URL publiques des variantes WebP d'une image (ADR-008).",
@@ -17423,6 +17485,410 @@
       }
     },
     "/v1/stories/{id}": {
+      "patch": {
+        "operationId": "updateStoryDescription",
+        "tags": [
+          "stories"
+        ],
+        "summary": "Modifier la description alternative d’une de mes stories",
+        "description": "Auteur uniquement, story active ou archivée. Une chaîne vide retire la description. Story absente, supprimée ou d’un autre auteur → 404 story_not_found.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "altText"
+                ],
+                "properties": {
+                  "altText": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Story mise à jour.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "author",
+                    "audience",
+                    "media",
+                    "viewerHasSeen",
+                    "createdAt",
+                    "expiresAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "author": {
+                      "type": "object",
+                      "description": "Auteur d'un post.",
+                      "required": [
+                        "id",
+                        "username"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "username": {
+                          "type": "string",
+                          "description": "1 à 30 caractères `[a-z0-9._]`, en minuscules (ADR-007).",
+                          "minLength": 1,
+                          "maxLength": 30,
+                          "pattern": "^[a-z0-9._]{1,30}$",
+                          "examples": [
+                            "killian.b"
+                          ]
+                        },
+                        "avatar": {
+                          "description": "Photo de profil ; absente si aucune photo.",
+                          "type": "object",
+                          "required": [
+                            "thumb",
+                            "medium",
+                            "large"
+                          ],
+                          "properties": {
+                            "thumb": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "150 px de large."
+                            },
+                            "medium": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "640 px de large."
+                            },
+                            "large": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "1080 px de large."
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "audience": {
+                      "type": "string",
+                      "description": "`everyone` : qui peut voir mes contenus ; `close_friends` : mes amis proches seulement (ADR-025).",
+                      "enum": [
+                        "everyone",
+                        "close_friends"
+                      ]
+                    },
+                    "media": {
+                      "type": "object",
+                      "description": "Photo de la story ; `width` et `height` (en pixels) donnent son ratio.",
+                      "required": [
+                        "variants",
+                        "width",
+                        "height"
+                      ],
+                      "properties": {
+                        "altText": {
+                          "type": "string",
+                          "maxLength": 1000,
+                          "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                        },
+                        "variants": {
+                          "type": "object",
+                          "description": "URL publiques des variantes WebP d'une image (ADR-008).",
+                          "required": [
+                            "thumb",
+                            "medium",
+                            "large"
+                          ],
+                          "properties": {
+                            "thumb": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "150 px de large."
+                            },
+                            "medium": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "640 px de large."
+                            },
+                            "large": {
+                              "type": "string",
+                              "format": "uri",
+                              "description": "1080 px de large."
+                            }
+                          }
+                        },
+                        "width": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      }
+                    },
+                    "viewerHasSeen": {
+                      "type": "boolean",
+                      "description": "L'appelant a déjà vu cette story (toujours `true` pour l'auteur)."
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "Fin de la période active (24 h, ou 48 h pour une story publiée en Clone Plus)."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrée non conforme au schéma (`validation_failed`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Story inexistante, supprimée, expirée ou invisible pour l'appelant (`story_not_found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "operationId": "deleteStory",
         "tags": [
@@ -18175,6 +18641,11 @@
                               "height"
                             ],
                             "properties": {
+                              "altText": {
+                                "type": "string",
+                                "maxLength": 1000,
+                                "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                              },
                               "variants": {
                                 "type": "object",
                                 "description": "URL publiques des variantes WebP d'une image (ADR-008).",
@@ -18915,6 +19386,11 @@
                                 "height"
                               ],
                               "properties": {
+                                "altText": {
+                                  "type": "string",
+                                  "maxLength": 1000,
+                                  "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                                },
                                 "variants": {
                                   "oneOf": [
                                     {
@@ -19455,6 +19931,11 @@
                                 "height"
                               ],
                               "properties": {
+                                "altText": {
+                                  "type": "string",
+                                  "maxLength": 1000,
+                                  "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                                },
                                 "variants": {
                                   "oneOf": [
                                     {
@@ -19995,6 +20476,11 @@
                                 "height"
                               ],
                               "properties": {
+                                "altText": {
+                                  "type": "string",
+                                  "maxLength": 1000,
+                                  "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                                },
                                 "variants": {
                                   "oneOf": [
                                     {
@@ -27174,6 +27660,11 @@
                                   "height"
                                 ],
                                 "properties": {
+                                  "altText": {
+                                    "type": "string",
+                                    "maxLength": 1000,
+                                    "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                                  },
                                   "variants": {
                                     "oneOf": [
                                       {
@@ -27974,6 +28465,11 @@
                                   "height"
                                 ],
                                 "properties": {
+                                  "altText": {
+                                    "type": "string",
+                                    "maxLength": 1000,
+                                    "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                                  },
                                   "variants": {
                                     "oneOf": [
                                       {
@@ -31737,6 +32233,22 @@
         "description": "Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.",
         "maxLength": 2200
       },
+      "AltText": {
+        "type": "string",
+        "maxLength": 1000,
+        "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+      },
+      "MediaAltTexts": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 10,
+        "description": "Une description par média, dans le même ordre. Si fourni, le nombre doit correspondre exactement aux médias du post ; sinon 400 invalid_media_descriptions. Absent en modification, conserve les descriptions existantes.",
+        "items": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+        }
+      },
       "UpdatePostCaptionRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -31744,6 +32256,17 @@
           "caption"
         ],
         "properties": {
+          "mediaAltTexts": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "description": "Une description par média, dans le même ordre. Si fourni, le nombre doit correspondre exactement aux médias du post ; sinon 400 invalid_media_descriptions. Absent en modification, conserve les descriptions existantes.",
+            "items": {
+              "type": "string",
+              "maxLength": 1000,
+              "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+            }
+          },
           "caption": {
             "type": "string",
             "description": "Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.",
@@ -31759,6 +32282,17 @@
           "mediaIds"
         ],
         "properties": {
+          "mediaAltTexts": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "description": "Une description par média, dans le même ordre. Si fourni, le nombre doit correspondre exactement aux médias du post ; sinon 400 invalid_media_descriptions. Absent en modification, conserve les descriptions existantes.",
+            "items": {
+              "type": "string",
+              "maxLength": 1000,
+              "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+            }
+          },
           "kind": {
             "type": "string",
             "description": "Post photo ou reel vidéo.",
@@ -31859,6 +32393,11 @@
           "height"
         ],
         "properties": {
+          "altText": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+          },
           "variants": {
             "oneOf": [
               {
@@ -32144,6 +32683,11 @@
                 "height"
               ],
               "properties": {
+                "altText": {
+                  "type": "string",
+                  "maxLength": 1000,
+                  "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                },
                 "variants": {
                   "oneOf": [
                     {
@@ -32661,6 +33205,11 @@
                       "height"
                     ],
                     "properties": {
+                      "altText": {
+                        "type": "string",
+                        "maxLength": 1000,
+                        "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                      },
                       "variants": {
                         "oneOf": [
                           {
@@ -32853,6 +33402,11 @@
           "audience"
         ],
         "properties": {
+          "altText": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+          },
           "mediaId": {
             "type": "string",
             "format": "uuid",
@@ -32865,6 +33419,20 @@
               "everyone",
               "close_friends"
             ]
+          }
+        }
+      },
+      "UpdateStoryDescriptionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "altText"
+        ],
+        "properties": {
+          "altText": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
           }
         }
       },
@@ -32891,6 +33459,11 @@
           "height"
         ],
         "properties": {
+          "altText": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+          },
           "variants": {
             "type": "object",
             "description": "URL publiques des variantes WebP d'une image (ADR-008).",
@@ -33010,6 +33583,11 @@
               "height"
             ],
             "properties": {
+              "altText": {
+                "type": "string",
+                "maxLength": 1000,
+                "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+              },
               "variants": {
                 "type": "object",
                 "description": "URL publiques des variantes WebP d'une image (ADR-008).",
@@ -33331,6 +33909,11 @@
                     "height"
                   ],
                   "properties": {
+                    "altText": {
+                      "type": "string",
+                      "maxLength": 1000,
+                      "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                    },
                     "variants": {
                       "type": "object",
                       "description": "URL publiques des variantes WebP d'une image (ADR-008).",
@@ -33481,6 +34064,11 @@
                     "height"
                   ],
                   "properties": {
+                    "altText": {
+                      "type": "string",
+                      "maxLength": 1000,
+                      "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                    },
                     "variants": {
                       "type": "object",
                       "description": "URL publiques des variantes WebP d'une image (ADR-008).",
@@ -35856,6 +36444,11 @@
                 "height"
               ],
               "properties": {
+                "altText": {
+                  "type": "string",
+                  "maxLength": 1000,
+                  "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                },
                 "variants": {
                   "oneOf": [
                     {
@@ -36233,6 +36826,11 @@
                         "height"
                       ],
                       "properties": {
+                        "altText": {
+                          "type": "string",
+                          "maxLength": 1000,
+                          "description": "Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description."
+                        },
                         "variants": {
                           "oneOf": [
                             {

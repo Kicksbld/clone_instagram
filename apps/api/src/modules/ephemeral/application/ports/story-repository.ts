@@ -8,6 +8,7 @@ export interface NewStory {
   /** Média déjà rattaché (ADR-008). */
   mediaId: string;
   audience: StoryAudience;
+  altText?: string;
   createdAt: Date;
   expiresAt: Date;
 }
@@ -15,6 +16,7 @@ export interface NewStory {
 /** Écritures des tables `stories` et `story_views`. */
 export interface StoryRepository {
   create(story: NewStory): Promise<void>;
+  updateDescription(id: string, authorId: string, altText: string): Promise<boolean>;
   /**
    * Suppression logique, active ou expirée, seulement si la story est à `authorId` et pas encore
    * supprimée. Renvoie son média, ou `null` si aucune ligne n'est touchée.

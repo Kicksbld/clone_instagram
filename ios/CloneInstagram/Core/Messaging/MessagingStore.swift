@@ -281,6 +281,9 @@ final class MessagingStore {
             }
             if started == self.revision {
                 self.receive(message)
+                if self.opened[message.conversationId] != nil {
+                    AccessibilityFeedback.announce("Message envoyé")
+                }
             }
             return true
         }
@@ -460,6 +463,7 @@ extension MessagingStore {
         receive(message)
         guard !isKnown, !isUnavailable, message.senderId != account else { return }
         if opened[id] != nil {
+            AccessibilityFeedback.announce("Nouveau message. \(message.accessibilitySummary)")
             Task { await markLatestRead(id) }
         } else if let index = conversations.firstIndex(where: { $0.id == id }) {
             if conversations[index].unreadCount == 0 {

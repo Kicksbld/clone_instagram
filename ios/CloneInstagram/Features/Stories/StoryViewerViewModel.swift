@@ -25,6 +25,8 @@ final class StoryViewerViewModel {
     private(set) var progress = 0.0
     /// Doigt appuyé ou confirmation de suppression ouverte.
     var isPaused = false
+    /// VoiceOver contrôle la navigation, indépendamment des pauses temporaires et de la saisie.
+    var usesScreenReader = false
     var isReplyFocused = false
     var replyBody = ""
     private(set) var isSendingReply = false
@@ -67,6 +69,13 @@ final class StoryViewerViewModel {
 
     private var isComposingReply: Bool {
         isReplyFocused || isSendingReply || !replyBody.isEmpty
+    }
+
+    func descriptionEditor(for story: Story) -> StoryDescriptionViewModel {
+        StoryDescriptionViewModel(story: story, service: service) { [weak self] updated in
+            guard let self, let index = loadedStories.firstIndex(where: { $0.id == updated.id }) else { return }
+            loadedStories[index] = updated
+        }
     }
 
     /// Photo de la story affichée chargée : le temps s'écoule.
@@ -165,7 +174,7 @@ final class StoryViewerViewModel {
 
     /// Temps écoulé à l'écran ; la story suivante s'affiche au bout de 5 secondes.
     func advance(by seconds: Double) async {
-        guard state == .showing, isPhotoDisplayed, !isPaused, !isComposingReply else { return }
+        guard state == .showing, isPhotoDisplayed, !isPaused, !usesScreenReader, !isComposingReply else { return }
         progress = min(1, progress + seconds / Self.storyDuration)
         if progress >= 1 {
             await next()

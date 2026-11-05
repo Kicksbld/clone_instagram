@@ -58,6 +58,7 @@ final class StoryDeletionStore {
             revision += 1
         case .confirmed:
             revision += 1
+            AccessibilityFeedback.announce("Story supprimée")
         case .pending:
             break
         }

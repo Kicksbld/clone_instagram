@@ -111,6 +111,7 @@ struct StoryTrayView: View {
                 }
         }
         .buttonStyle(.plain)
+        .accessibilityAction(named: "Ajouter une story") { isCreating = true }
     }
 
     private func bubble(_ author: PostAuthor, title: String, item: StoryTrayItem?) -> some View {

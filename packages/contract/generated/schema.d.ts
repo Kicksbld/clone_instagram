@@ -777,7 +777,11 @@ export interface paths {
         delete: operations["deleteStory"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Modifier la description alternative d’une de mes stories
+         * @description Auteur uniquement, story active ou archivée. Une chaîne vide retire la description. Story absente, supprimée ou d’un autre auteur → 404 story_not_found.
+         */
+        patch: operations["updateStoryDescription"];
         trace?: never;
     };
     "/v1/stories/{id}/viewers": {
@@ -1727,10 +1731,16 @@ export interface components {
         PostKind: "post" | "reel";
         /** @description Légende, 2 200 caractères au plus ; chaîne vide si aucune légende. */
         Caption: string;
+        /** @description Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description. */
+        AltText: string;
+        /** @description Une description par média, dans le même ordre. Si fourni, le nombre doit correspondre exactement aux médias du post ; sinon 400 invalid_media_descriptions. Absent en modification, conserve les descriptions existantes. */
+        MediaAltTexts: components["schemas"]["AltText"][];
         UpdatePostCaptionRequest: {
+            mediaAltTexts?: components["schemas"]["MediaAltTexts"];
             caption: components["schemas"]["Caption"];
         };
         CreatePostRequest: {
+            mediaAltTexts?: components["schemas"]["MediaAltTexts"];
             kind: components["schemas"]["PostKind"];
             caption?: components["schemas"]["Caption"];
             /** @description Médias du post, dans l'ordre d'affichage (1 à 10 images). */
@@ -1746,6 +1756,7 @@ export interface components {
         };
         /** @description Un média de post ; `width` et `height` (en pixels) donnent son ratio d'affichage. */
         PostMedia: {
+            altText?: components["schemas"]["AltText"];
             variants: components["schemas"]["ImageVariants"] | components["schemas"]["VideoVariants"];
             width: number;
             height: number;
@@ -1815,12 +1826,16 @@ export interface components {
          */
         StoryAudience: "everyone" | "close_friends";
         CreateStoryRequest: {
+            altText?: components["schemas"]["AltText"];
             /**
              * Format: uuid
              * @description Image `ready`, de `purpose` `story`.
              */
             mediaId: string;
             audience: components["schemas"]["StoryAudience"];
+        };
+        UpdateStoryDescriptionRequest: {
+            altText: components["schemas"]["AltText"];
         };
         ViewStoryRequest: {
             /**
@@ -1831,6 +1846,7 @@ export interface components {
         };
         /** @description Photo de la story ; `width` et `height` (en pixels) donnent son ratio. */
         StoryMedia: {
+            altText?: components["schemas"]["AltText"];
             variants: components["schemas"]["ImageVariants"];
             width: number;
             height: number;
@@ -3799,6 +3815,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["StoryNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateStoryDescription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["StoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateStoryDescriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description Story mise à jour. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Story"];
+                };
             };
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];

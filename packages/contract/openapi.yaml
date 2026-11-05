@@ -42,6 +42,7 @@ info:
     | `cannot_follow_self` | 422 | Se suivre, ne plus se suivre ou se retirer de ses abonnés soi-même |
     | `follow_request_not_found` | 404 | Demande d'abonnement inexistante (annulée, déjà acceptée ou refusée) ou dont le demandeur est invisible (ADR-006) |
     | `invalid_cursor` | 400 | Curseur de pagination mal formé |
+    | `invalid_media_descriptions` | 400 | Nombre de descriptions différent du nombre de médias, ou description dépassant 1 000 caractères |
     | `post_not_found` | 404 | Post inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; suppression du post d'un autre auteur |
     | `comment_not_found` | 404 | Commentaire inexistant, supprimé ou invisible pour l'appelant (ADR-006) ; commentaire parent d'un autre post ; suppression par quelqu'un qui n'est ni l'auteur du commentaire ni celui du post |
     | `too_many_mentions` | 422 | Plus de 20 comptes distincts mentionnés dans un texte |
@@ -1318,6 +1319,34 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
   /v1/stories/{id}:
+    patch:
+      operationId: updateStoryDescription
+      tags: [stories]
+      summary: Modifier la description alternative d’une de mes stories
+      description: Auteur uniquement, story active ou archivée. Une chaîne vide retire la description. Story absente, supprimée ou d’un autre auteur → 404 story_not_found.
+      parameters:
+        - $ref: '#/components/parameters/StoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStoryDescriptionRequest'
+      responses:
+        '200':
+          description: Story mise à jour.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Story'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/StoryNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
     delete:
       operationId: deleteStory
       tags: [stories]
@@ -2831,11 +2860,24 @@ components:
       type: string
       description: Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.
       maxLength: 2200
+    AltText:
+      type: string
+      maxLength: 1000
+      description: Description du contenu visuel rédigée par l’auteur pour le lecteur d’écran ; chaîne vide pour retirer la description.
+    MediaAltTexts:
+      type: array
+      minItems: 1
+      maxItems: 10
+      description: Une description par média, dans le même ordre. Si fourni, le nombre doit correspondre exactement aux médias du post ; sinon 400 invalid_media_descriptions. Absent en modification, conserve les descriptions existantes.
+      items:
+        $ref: '#/components/schemas/AltText'
     UpdatePostCaptionRequest:
       type: object
       additionalProperties: false
       required: [caption]
       properties:
+        mediaAltTexts:
+          $ref: '#/components/schemas/MediaAltTexts'
         caption:
           $ref: '#/components/schemas/Caption'
     CreatePostRequest:
@@ -2843,6 +2885,8 @@ components:
       additionalProperties: false
       required: [kind, mediaIds]
       properties:
+        mediaAltTexts:
+          $ref: '#/components/schemas/MediaAltTexts'
         kind:
           $ref: '#/components/schemas/PostKind'
         caption:
@@ -2883,6 +2927,8 @@ components:
       description: Un média de post ; `width` et `height` (en pixels) donnent son ratio d'affichage.
       required: [variants, width, height]
       properties:
+        altText:
+          $ref: '#/components/schemas/AltText'
         variants:
           oneOf:
             - $ref: '#/components/schemas/ImageVariants'
@@ -3016,12 +3062,21 @@ components:
       additionalProperties: false
       required: [mediaId, audience]
       properties:
+        altText:
+          $ref: '#/components/schemas/AltText'
         mediaId:
           type: string
           format: uuid
           description: Image `ready`, de `purpose` `story`.
         audience:
           $ref: '#/components/schemas/StoryAudience'
+    UpdateStoryDescriptionRequest:
+      type: object
+      additionalProperties: false
+      required: [altText]
+      properties:
+        altText:
+          $ref: '#/components/schemas/AltText'
     ViewStoryRequest:
       type: object
       additionalProperties: false
@@ -3035,6 +3090,8 @@ components:
       description: Photo de la story ; `width` et `height` (en pixels) donnent son ratio.
       required: [variants, width, height]
       properties:
+        altText:
+          $ref: '#/components/schemas/AltText'
         variants:
           $ref: '#/components/schemas/ImageVariants'
         width:

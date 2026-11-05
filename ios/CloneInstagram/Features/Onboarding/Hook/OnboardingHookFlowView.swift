@@ -141,6 +141,7 @@ extension HookScaffold where Secondary == EmptyView {
 
 /// Titre d'un écran du hook.
 struct HookTitle: View {
+    @AccessibilityFocusState private var titleFocused: Bool
     let text: String
     var subtitle: String?
 
@@ -148,6 +149,8 @@ struct HookTitle: View {
         VStack(spacing: 8) {
             Text(text)
                 .font(.onboardingTitle(.title))
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityFocused($titleFocused)
             if let subtitle {
                 Text(subtitle)
                     .font(.onboardingBody())
@@ -155,6 +158,7 @@ struct HookTitle: View {
             }
         }
         .multilineTextAlignment(.center)
+        .task(id: text) { titleFocused = true }
         .frame(maxWidth: .infinity)
     }
 }

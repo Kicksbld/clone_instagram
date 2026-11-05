@@ -150,6 +150,7 @@ final class CloseFriendsViewModel {
             break
         case let .confirmed(isMember):
             setConfirmed(isMember, for: user.id)
+            AccessibilityFeedback.announce(isMember ? "Compte ajouté aux amis proches" : "Compte retiré des amis proches")
             apply(isMember, to: user)
         case let .failed(error, _, wasMember):
             if error == .userNotFound {

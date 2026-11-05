@@ -25,6 +25,7 @@ export interface PostAuthor extends VisibilitySubject {
 export interface PostMediaItem {
   variants: MediaVariantPaths;
   durationMs?: number;
+  altText?: string;
   width: number;
   height: number;
 }

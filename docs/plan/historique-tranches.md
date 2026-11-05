@@ -202,3 +202,11 @@ Ce que chaque tranche a posé dans le code, pour retrouver où vit une fonctionn
   - `ios/scripts/test.sh` sur le Mac (code écrit sans compilateur) ;
   - iPhone physique : son on et off, Reduce Motion, « Passer », reprise d'un onboarding, achat sandbox, permission, splash à froid ;
   - dashboard PostHog.
+
+
+## Accessibilité iOS — navigation sans vision (validation en cours)
+
+- Périmètre confirmé après entretien avec le lead dev : [spec et recette](../accessibility/spec.md).
+- Contrat et données : descriptions facultatives par média, 1 000 points de code maximum ; `mediaAltTexts` ordonnées à la création et à la modification des posts/reels, `altText` des stories ; `PATCH /v1/stories/{id}` réservé à l’auteur, actif ou archivé. Migration `0026_talented_reaper` (descriptions de `post_media` et `stories`).
+- iOS : descriptions conservées dans la file persistée et modifiables, cartes de feed représentées par une lecture unique et leurs actions, listes regroupées, libellés/états/chargements explicites, commandes de carrousel/reels/stories et recadrage accessible avec conservation de l’image entière. Horloge des stories arrêtée sous VoiceOver ; commandes de lecture vidéo ; annonces ciblées et focus des étapes/du lecteur, sans défilement forcé des conversations sous VoiceOver.
+- Vérifications : [bilan technique](../accessibility/verification.md). La migration locale et les tests de persistance sur Postgres réel sont validés ; déploiement sur la démo et validation physique restent à réaliser avant clôture.

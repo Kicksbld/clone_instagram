@@ -25,6 +25,7 @@ export function toPostResponse(post: Post, urls: PublicMediaUrls): PostResponse 
     },
     media: post.media.map((item) => ({
       variants: urls.of(item.variants),
+      ...(item.altText && { altText: item.altText }),
       width: item.width,
       height: item.height,
       ...(item.durationMs !== undefined && { durationMs: item.durationMs }),

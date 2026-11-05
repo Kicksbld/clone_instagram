@@ -14,6 +14,7 @@ struct OnboardingStepLayout<Content: View, Secondary: View>: View {
     @ViewBuilder let content: Content
     @ViewBuilder var secondary: Secondary
     @Environment(\.feedback) private var feedback
+    @AccessibilityFocusState private var titleFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -23,6 +24,8 @@ struct OnboardingStepLayout<Content: View, Secondary: View>: View {
             }
             Text(title)
                 .font(.onboardingTitle(.title))
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityFocused($titleFocused)
             if let subtitle {
                 Text(subtitle)
                     .font(.onboardingBody())
@@ -47,6 +50,7 @@ struct OnboardingStepLayout<Content: View, Secondary: View>: View {
                     }
                 }
             }
+            .accessibilityLabel(isLoading ? "Chargement en cours" : primaryTitle)
             .buttonStyle(.onboardingPrimary)
             .disabled(!isPrimaryEnabled || isLoading)
             secondary
@@ -56,6 +60,8 @@ struct OnboardingStepLayout<Content: View, Secondary: View>: View {
         .padding()
         .animation(.spring(duration: 0.3), value: errorMessage)
         .onboardingScreen()
+        .task(id: title) { titleFocused = true }
+        .accessibilityStatus(errorMessage ?? "")
         .onChange(of: errorMessage) { _, message in
             if message != nil {
                 feedback.play(.error)

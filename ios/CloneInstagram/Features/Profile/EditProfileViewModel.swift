@@ -104,6 +104,7 @@ final class EditProfileViewModel {
         do {
             let updated = try await identity.updateMe(changes)
             apply(updated)
+            AccessibilityFeedback.announce("Profil enregistré")
             didFinish = true
         } catch .usernameTaken {
             errorMessage = "Ce nom d'utilisateur est déjà pris."
@@ -125,6 +126,7 @@ final class EditProfileViewModel {
             let updated = try await operation()
             // Photo seulement : les champs en cours de saisie ne sont pas écrasés.
             profile.avatar = updated.avatar
+            AccessibilityFeedback.announce("Photo de profil mise à jour")
             onUpdated(profile)
             return true
         } catch let error as UploadError {

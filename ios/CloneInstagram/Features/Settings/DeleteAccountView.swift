@@ -31,7 +31,7 @@ struct DeleteAccountView: View {
                     isConfirming = true
                 } label: {
                     if viewModel.isDeleting {
-                        ProgressView()
+                        ProgressView().accessibilityLabel("Chargement en cours")
                     } else {
                         Text("Supprimer le compte")
                     }

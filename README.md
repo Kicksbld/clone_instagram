@@ -12,6 +12,8 @@ Le projet tourne dans deux environnements : en local pour le développement, et 
 
 ---
 
+> **Accessibilité iOS** : passe VoiceOver implémentée ([périmètre et recette](docs/accessibility/spec.md)). Migration `0026_talented_reaper` appliquée en local et tests Postgres validés ; migration à déployer sur la démo avant la nouvelle API, puis recompiler l’app. Recette VoiceOver sur iPhone physique encore à réaliser.
+
 ## 1. Prérequis
 
 | Outil | Version | Installation (macOS) |

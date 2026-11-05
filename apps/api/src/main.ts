@@ -1,3 +1,4 @@
+import { UpdateStoryDescription } from './modules/ephemeral/application/use-cases/update-story-description.ts';
 import { DrizzleMentionWriter } from './modules/engagement/infrastructure/persistence/drizzle-mention-writer.ts';
 import { GetReelsFeed } from './modules/feed/application/use-cases/get-reels-feed.ts';
 import { GetFriendsReels } from './modules/feed/application/use-cases/get-friends-reels.ts';
@@ -414,6 +415,12 @@ const app = buildApp({
       ),
     },
     stories: {
+      updateStoryDescription: new UpdateStoryDescription(
+        new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+          stories: new DrizzleStoryRepository(tx),
+          reader: new DrizzleStoryReader(tx),
+        })),
+      ),
       listArchivedStories: new ListArchivedStories(storyReader, systemClock),
       listStoryViewers: new ListStoryViewers(storyReader, plusStatus),
       publishStory: new PublishStory(

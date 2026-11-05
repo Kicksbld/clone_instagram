@@ -13,6 +13,8 @@ import type { PublishStoryTransaction } from '../ports/story-transactions.ts';
  * rattachée dans la transaction (ADR-008). Expire après 24 h, ou 48 h si l'auteur est Plus à cet
  * instant ; la durée ne change plus ensuite (ADR-012).
  */
+import { normalizeAltText } from '../../../../shared/domain/alt-text.ts';
+
 export class PublishStory {
   constructor(
     private readonly transaction: UnitOfWork<PublishStoryTransaction>,
@@ -25,6 +27,7 @@ export class PublishStory {
     authorId: string;
     mediaId: string;
     audience: StoryAudience;
+    altText?: string;
   }): Promise<Story> {
     const authorIsPlus = await this.plus.isPlus(input.authorId);
 
@@ -46,6 +49,7 @@ export class PublishStory {
         authorId: input.authorId,
         mediaId: input.mediaId,
         audience: input.audience,
+        altText: normalizeAltText(input.altText ?? ''),
         createdAt,
         expiresAt: storyExpiresAt(createdAt, authorIsPlus),
       });

@@ -37,8 +37,8 @@ nonisolated enum PostServiceError: Error, Equatable {
 /// Profile et Post.
 protocol PostService: Sendable {
     /// `POST /v1/posts` : 1 à 10 images (carrousel), dans l'ordre d'affichage.
-    func createPost(caption: String, mediaIds: [String]) async throws(PostServiceError) -> Post
-    func createReel(caption: String, mediaId: String) async throws(PostServiceError) -> Post
+    func createPost(caption: String, mediaIds: [String], mediaAltTexts: [String]?) async throws(PostServiceError) -> Post
+    func createReel(caption: String, mediaId: String, mediaAltTexts: [String]?) async throws(PostServiceError) -> Post
     func listReels(of userId: String, cursor: String?) async throws(PostServiceError) -> PostPage
     /// `GET /v1/posts/{id}`.
     func fetchPost(id: String) async throws(PostServiceError) -> Post
@@ -55,23 +55,28 @@ protocol PostService: Sendable {
     /// `DELETE /v1/posts/{id}` : un de mes posts ; déjà supprimé ou d'un autre → `postNotFound`.
     func deletePost(id: String) async throws(PostServiceError)
     /// `PATCH /v1/posts/{id}` : nouvelle légende d'un de mes posts ou reels ; mentions recalculées par l'API.
-    func updateCaption(postId: String, caption: String) async throws(PostServiceError) -> Post
+    func updateCaption(postId: String, caption: String, mediaAltTexts: [String]?) async throws(PostServiceError) -> Post
 }
 
 /// `PostService` sur le client généré (ADR-003) : convertit DTO et erreurs en modèles de l'app.
 struct APIPostService: PostService {
     let client: any APIProtocol
 
-    func createPost(caption: String, mediaIds: [String]) async throws(PostServiceError) -> Post {
-        try await create(kind: .post, caption: caption, mediaIds: mediaIds)
+    func createPost(caption: String, mediaIds: [String], mediaAltTexts: [String]?) async throws(PostServiceError) -> Post {
+        try await create(kind: .post, caption: caption, mediaIds: mediaIds, mediaAltTexts: mediaAltTexts)
     }
 
-    func createReel(caption: String, mediaId: String) async throws(PostServiceError) -> Post {
-        try await create(kind: .reel, caption: caption, mediaIds: [mediaId])
+    func createReel(caption: String, mediaId: String, mediaAltTexts: [String]?) async throws(PostServiceError) -> Post {
+        try await create(kind: .reel, caption: caption, mediaIds: [mediaId], mediaAltTexts: mediaAltTexts)
     }
 
-    private func create(kind: Components.Schemas.PostKind, caption: String, mediaIds: [String]) async throws(PostServiceError) -> Post {
-        let body = Components.Schemas.CreatePostRequest(kind: kind, caption: caption, mediaIds: mediaIds)
+    private func create(
+        kind: Components.Schemas.PostKind,
+        caption: String,
+        mediaIds: [String],
+        mediaAltTexts: [String]?
+    ) async throws(PostServiceError) -> Post {
+        let body = Components.Schemas.CreatePostRequest(mediaAltTexts: mediaAltTexts, kind: kind, caption: caption, mediaIds: mediaIds)
         let output = try await call { try await client.createPost(body: .json(body)) }
         switch output {
         case let .created(response):
@@ -242,8 +247,8 @@ struct APIPostService: PostService {
         }
     }
 
-    func updateCaption(postId: String, caption: String) async throws(PostServiceError) -> Post {
-        let body = Components.Schemas.UpdatePostCaptionRequest(caption: caption)
+    func updateCaption(postId: String, caption: String, mediaAltTexts: [String]?) async throws(PostServiceError) -> Post {
+        let body = Components.Schemas.UpdatePostCaptionRequest(mediaAltTexts: mediaAltTexts, caption: caption)
         let output = try await call {
             try await client.updatePostCaption(path: .init(id: postId), body: .json(body))
         }
@@ -296,7 +301,7 @@ struct APIPostService: PostService {
         case "media_purpose_mismatch": .mediaPurposeMismatch
         case "invalid_cursor": .invalidCursor
         case "unauthenticated": .unauthenticated
-        case "validation_failed": .invalidInput
+        case "validation_failed", "invalid_media_descriptions": .invalidInput
         default: .unexpectedResponse(statusCode: status)
         }
     }
@@ -304,7 +309,7 @@ struct APIPostService: PostService {
 
 /// Utilisé quand l'URL de l'API est absente ou invalide.
 struct UnavailablePostService: PostService {
-    func createPost(caption _: String, mediaIds _: [String]) async throws(PostServiceError) -> Post {
+    func createPost(caption _: String, mediaIds _: [String], mediaAltTexts _: [String]?) async throws(PostServiceError) -> Post {
         throw .unreachable
     }
 
@@ -328,7 +333,7 @@ struct UnavailablePostService: PostService {
         throw .unreachable
     }
 
-    func updateCaption(postId _: String, caption _: String) async throws(PostServiceError) -> Post {
+    func updateCaption(postId _: String, caption _: String, mediaAltTexts _: [String]?) async throws(PostServiceError) -> Post {
         throw .unreachable
     }
 }
@@ -349,7 +354,14 @@ private extension Post {
                 variants = ImageVariants(thumb: thumbnail, medium: thumbnail, large: thumbnail)
                 hls = url
             }
-            media.append(PostMediaItem(variants: variants, width: item.width, height: item.height, hls: hls, durationMs: item.durationMs))
+            media.append(PostMediaItem(
+                variants: variants,
+                width: item.width,
+                height: item.height,
+                hls: hls,
+                durationMs: item.durationMs,
+                altText: item.altText
+            ))
         }
         self.init(
             kind: dto.kind == .reel ? .reel : .post,
@@ -394,7 +406,7 @@ private extension FriendInteraction {
 }
 
 extension PostService {
-    func createReel(caption _: String, mediaId _: String) async throws(PostServiceError) -> Post {
+    func createReel(caption _: String, mediaId _: String, mediaAltTexts _: [String]?) async throws(PostServiceError) -> Post {
         throw .unreachable
     }
 
@@ -408,5 +420,20 @@ extension PostService {
 
     func listReelFriendInteractions(reelId _: String) async throws(PostServiceError) -> [FriendInteraction] {
         throw .unreachable
+    }
+}
+
+/// Existing callers omit descriptions; omitting them on PATCH preserves the saved descriptions.
+extension PostService {
+    func createPost(caption: String, mediaIds: [String]) async throws(PostServiceError) -> Post {
+        try await createPost(caption: caption, mediaIds: mediaIds, mediaAltTexts: nil)
+    }
+
+    func createReel(caption: String, mediaId: String) async throws(PostServiceError) -> Post {
+        try await createReel(caption: caption, mediaId: mediaId, mediaAltTexts: nil)
+    }
+
+    func updateCaption(postId: String, caption: String) async throws(PostServiceError) -> Post {
+        try await updateCaption(postId: postId, caption: caption, mediaAltTexts: nil)
     }
 }

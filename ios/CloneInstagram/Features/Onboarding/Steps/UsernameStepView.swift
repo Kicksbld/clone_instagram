@@ -29,7 +29,7 @@ struct UsernameStepView: View {
         case .idle:
             EmptyView()
         case .checking:
-            ProgressView()
+            ProgressView().accessibilityLabel("Chargement en cours")
         case .available:
             Label("Ce nom d'utilisateur est disponible.", systemImage: "checkmark.circle")
                 .font(.footnote)

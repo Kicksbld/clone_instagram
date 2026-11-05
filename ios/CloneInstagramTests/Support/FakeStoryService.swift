@@ -7,6 +7,18 @@ final class FakeStoryService: StoryService {
     /// Stories par auteur ; un auteur absent renvoie une liste vide.
     var storiesByAuthor: [String: Result<[Story], StoryServiceError>] = [:]
     var publishError: StoryServiceError?
+    var updateDescriptionError: StoryServiceError?
+    private(set) var descriptionUpdates: [String] = []
+    func updateDescription(storyId: String, altText: String) async throws(StoryServiceError) -> Story {
+        descriptionUpdates.append(altText)
+        if let updateDescriptionError {
+            throw updateDescriptionError
+        }
+        var story = Story.fixture(id: storyId, authorId: "me")
+        story.photo.altText = altText
+        return story
+    }
+
     var deleteError: StoryServiceError?
     var viewersResult: Result<StoryViewerPage, StoryServiceError> = .success(.init(items: [], nextCursor: nil))
     var archiveResult: Result<ArchivedStoryPage, StoryServiceError> = .success(.init(items: [], nextCursor: nil))
@@ -16,12 +28,14 @@ final class FakeStoryService: StoryService {
     var duringDelete: (() async -> Void)?
 
     private(set) var published: [(mediaId: String, audience: StoryAudience)] = []
+    private(set) var descriptions: [String?] = []
     private(set) var viewed: [String] = []
     private(set) var deleted: [String] = []
     private(set) var trayRequests = 0
 
-    func publish(mediaId: String, audience: StoryAudience) async throws(StoryServiceError) -> Story {
+    func publish(mediaId: String, audience: StoryAudience, altText: String?) async throws(StoryServiceError) -> Story {
         published.append((mediaId, audience))
+        descriptions.append(altText)
         if let publishError {
             throw publishError
         }

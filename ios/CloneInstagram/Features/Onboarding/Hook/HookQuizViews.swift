@@ -63,6 +63,7 @@ struct HookRhythmQuizView: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
+        .accessibilityStatus(viewModel.rhythmReaction ?? "")
         .animation(.spring(duration: 0.35, bounce: 0.5), value: viewModel.rhythm)
     }
 }

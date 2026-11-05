@@ -10,6 +10,15 @@ struct APIPostServiceTests {
     "width":1080,"height":1440}],"likeCount":3,"viewerHasLiked":true,"commentCount":4,"createdAt":"2026-09-25T12:00:00.000Z"}
     """
 
+    @Test func authoredMediaDescriptionIsConvertedWithoutUsingTheCaption() async throws {
+        let body = Self.postJSON.replacingOccurrences(of: "\"width\":1080", with: "\"altText\":\"Un chat\",\"width\":1080")
+        let service = try makeService(json(body))
+        let post = try await service.fetchPost(id: "post")
+        #expect(post.media.first?.altText == "Un chat")
+        #expect(post.media.first?.accessibilityDescription == "Un chat")
+        #expect(post.caption == "Salut")
+    }
+
     @Test func `reel converti avec HLS et durée`() async throws {
         let body = Self.postJSON.replacingOccurrences(of: "\"kind\":\"post\"", with: "\"kind\":\"reel\"")
             .replacingOccurrences(

@@ -88,6 +88,7 @@ final class LikeSynchronizer {
             return nil
         case let .confirmed(status):
             statuses[post.id] = status
+            AccessibilityFeedback.announce(status.isLiked ? "Mention J’aime ajoutée" : "Mention J’aime retirée")
             // Like confirmé par l'API (ADR-013) ; un unlike n'est pas suivi.
             if status.isLiked, !shown.isLiked {
                 analytics.track(.postLiked(source))

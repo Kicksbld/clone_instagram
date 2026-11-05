@@ -34,7 +34,7 @@ afterEach(async () => {
 const as = (userId: string) => ({ authorization: tokens.get(userId) ?? '' });
 const request = (
   userId: string,
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   url: string,
   payload?: object,
 ) =>
@@ -499,4 +499,52 @@ describe('Règles de lecture T25', () => {
     expect(second.items.map((s: { id: string }) => s.id)).toEqual(ids.slice(20));
     expect(second.nextCursor).toBeUndefined();
   });
+});
+
+describe('Description alternative des stories', () => {
+  it('publie et restitue la description, sans inventer celle d’une ancienne story', async () => {
+    const created = await request(ME, 'POST', '/v1/stories', {
+      mediaId: givenPhoto(ME),
+      audience: 'everyone',
+      altText: '  Un chat sur un canapé  ',
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json<components['schemas']['Story']>().media.altText).toBe(
+      'Un chat sur un canapé',
+    );
+    const read = await request(ME, 'GET', `/v1/users/${ME}/stories`);
+    expect(read.json<components['schemas']['StoryList']>().items[0]?.media.altText).toBe(
+      'Un chat sur un canapé',
+    );
+    const invalid = await request(ME, 'POST', '/v1/stories', {
+      mediaId: givenPhoto(ME),
+      audience: 'everyone',
+      altText: 'x'.repeat(1001),
+    });
+    expect(invalid.statusCode).toBe(400);
+  });
+});
+
+it('l’auteur peut modifier puis retirer la description d’une story, active ou archivée', async () => {
+  const id = await publish(ME);
+  const edited = await request(ME, 'PATCH', `/v1/stories/${id}`, { altText: '  Un chat  ' });
+  expect(edited.statusCode).toBe(200);
+  expect(edited.json<components['schemas']['Story']>().media.altText).toBe('Un chat');
+  const forbidden = await request(FRIEND, 'PATCH', `/v1/stories/${id}`, {
+    altText: 'Autre description',
+  });
+  expect(forbidden.statusCode).toBe(404);
+  const row = context.stories.rows.get(id);
+  if (!row) throw new Error('Story absente');
+  row.expiresAt = new Date(TEST_NOW.getTime() - 1);
+  const archived = await request(ME, 'PATCH', `/v1/stories/${id}`, { altText: '' });
+  expect(archived.statusCode).toBe(200);
+  expect(archived.json<components['schemas']['Story']>().media.altText).toBeUndefined();
+  expect(
+    (await request(ME, 'PATCH', `/v1/stories/${id}`, { altText: 'x'.repeat(1001) })).statusCode,
+  ).toBe(400);
+  await request(ME, 'DELETE', `/v1/stories/${id}`);
+  expect(
+    (await request(ME, 'PATCH', `/v1/stories/${id}`, { altText: 'Supprimée' })).statusCode,
+  ).toBe(404);
 });

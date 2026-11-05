@@ -23,14 +23,16 @@ final class FakePostService: PostService {
     /// Appelé pendant `deletePost`, avant la réponse (ex. l'écran affiché pendant l'appel).
     var duringDelete: (() async -> Void)?
 
+    private(set) var mediaDescriptions: [[String]?] = []
+    private(set) var editedDescriptions: [[String]?] = []
     private(set) var createdReels: [String] = []
     func createReel(
         caption: String,
-        mediaId: String
+        mediaId: String, mediaAltTexts: [String]?
     ) async throws(PostServiceError) -> Post {
         createdReels.append(mediaId); return try await createPost(
             caption: caption,
-            mediaIds: [mediaId]
+            mediaIds: [mediaId], mediaAltTexts: mediaAltTexts
         )
     }
 
@@ -47,8 +49,9 @@ final class FakePostService: PostService {
     private(set) var feedRequests: [String?] = []
     private(set) var deleted: [String] = []
 
-    func createPost(caption: String, mediaIds: [String]) async throws(PostServiceError) -> Post {
+    func createPost(caption: String, mediaIds: [String], mediaAltTexts: [String]?) async throws(PostServiceError) -> Post {
         created.append((caption, mediaIds))
+        mediaDescriptions.append(mediaAltTexts)
         guard !createResults.isEmpty else { return .fixture(caption: caption) }
         return try createResults.removeFirst().get()
     }
@@ -99,8 +102,9 @@ final class FakePostService: PostService {
     var updateCaptionResults: [Result<Post, PostServiceError>] = []
     private(set) var captionUpdates: [(postId: String, caption: String)] = []
 
-    func updateCaption(postId: String, caption: String) async throws(PostServiceError) -> Post {
+    func updateCaption(postId: String, caption: String, mediaAltTexts: [String]?) async throws(PostServiceError) -> Post {
         captionUpdates.append((postId, caption))
+        editedDescriptions.append(mediaAltTexts)
         guard !updateCaptionResults.isEmpty else { return .fixture(id: postId, caption: caption) }
         return try updateCaptionResults.removeFirst().get()
     }

@@ -88,7 +88,7 @@ struct ReportView: View {
         }
         .overlay {
             if viewModel.isSending {
-                ProgressView()
+                ProgressView().accessibilityLabel("Chargement en cours")
             }
         }
     }
@@ -109,7 +109,7 @@ struct ReportView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 if viewModel.isSending {
-                    ProgressView()
+                    ProgressView().accessibilityLabel("Chargement en cours")
                 } else {
                     Button("Envoyer") { Task { await viewModel.sendDetails() } }
                         .disabled(!viewModel.canSendDetails)

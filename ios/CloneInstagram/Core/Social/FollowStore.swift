@@ -197,6 +197,9 @@ final class FollowStore {
             return nil
         case let .confirmed(state):
             states[userId] = state
+            AccessibilityFeedback
+                .announce(state
+                    .isRequested ? "Demande d’abonnement envoyée" : (state.isFollowing ? "Compte suivi" : "Abonnement ou demande retiré"))
             // Follow confirmé par l'API (ADR-013) ; un unfollow n'est pas suivi.
             if state.isFollowing, !shown.isFollowing {
                 analytics.track(.userFollowed(source))

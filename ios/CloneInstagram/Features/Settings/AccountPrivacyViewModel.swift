@@ -61,6 +61,7 @@ final class AccountPrivacyViewModel {
             break
         case let .confirmed(value):
             self.isPrivate = value
+            AccessibilityFeedback.announce(value ? "Compte privé" : "Compte public")
         case let .failed(error, _, confirmed):
             self.isPrivate = confirmed
             errorMessage = Self.message(for: error)
@@ -92,6 +93,7 @@ final class AccountPrivacyViewModel {
             break
         case let .confirmed(value):
             friendsTabActivity = value
+            AccessibilityFeedback.announce("Visibilité de votre activité mise à jour")
         case let .failed(error, _, confirmed):
             friendsTabActivity = confirmed
             errorMessage = Self.message(for: error)

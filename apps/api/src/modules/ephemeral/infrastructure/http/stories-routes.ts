@@ -15,7 +15,10 @@ import type { PublishStory } from '../../application/use-cases/publish-story.ts'
 import type { ViewStory } from '../../application/use-cases/view-story.ts';
 import type { Story, StoryTrayEntry } from '../../domain/story.ts';
 
+import type { UpdateStoryDescription } from '../../application/use-cases/update-story-description.ts';
+
 export interface StoriesUseCases {
+  updateStoryDescription: UpdateStoryDescription;
   listArchivedStories: ListArchivedStories;
   listStoryViewers: ListStoryViewers;
   publishStory: PublishStory;
@@ -48,6 +51,7 @@ export function registerStoriesRoutes(
     audience: story.audience,
     media: {
       variants: urls.of(story.media.variants),
+      ...(story.media.altText && { altText: story.media.altText }),
       width: story.media.width,
       height: story.media.height,
     },
@@ -64,6 +68,7 @@ export function registerStoriesRoutes(
         authorId: authenticatedUserId(request),
         mediaId: request.body.mediaId,
         audience: request.body.audience,
+        ...(request.body.altText !== undefined && { altText: request.body.altText }),
       });
       reply.status(201);
       return toStory(story);
@@ -146,6 +151,19 @@ export function registerStoriesRoutes(
         ...(page.next && { nextCursor: encodeCursor(page.next) }),
       };
     },
+  );
+
+  app.patch<{ Params: { id: string }; Body: Schemas['UpdateStoryDescriptionRequest'] }>(
+    '/v1/stories/:id',
+    { schema: routeSchemaFor('updateStoryDescription') },
+    async (request): Promise<Schemas['Story']> =>
+      toStory(
+        await useCases.updateStoryDescription.execute({
+          authorId: authenticatedUserId(request),
+          storyId: request.params.id,
+          altText: request.body.altText,
+        }),
+      ),
   );
 
   app.delete<{ Params: { id: string } }>(
