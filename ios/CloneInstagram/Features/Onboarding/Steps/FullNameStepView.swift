@@ -13,7 +13,7 @@ struct FullNameStepView: View {
             primaryAction: viewModel.submitFullName
         ) {
             TextField("Nom complet", text: $viewModel.fullName)
-                .textFieldStyle(.roundedBorder)
+                .onboardingField()
                 .textContentType(.name)
                 .onChange(of: viewModel.fullName) { _, value in
                     if value.count > OnboardingViewModel.fullNameMaxLength {

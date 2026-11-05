@@ -1,7 +1,8 @@
 import Foundation
 import Observation
 
-/// État de tout l'onboarding (fiche T2) : une étape par écran, profil créé au « J'accepte » (ADR-018).
+/// État de tout l'onboarding (fiche T2) : hook interactif pour un nouveau compte (ADR-038), puis une étape par
+/// écran, profil créé au « J'accepte » (ADR-018).
 @Observable
 final class OnboardingViewModel {
     /// Écran racine de la pile ; devient `profilePhoto` une fois le profil créé (pas de retour arrière).
@@ -34,6 +35,13 @@ final class OnboardingViewModel {
     private(set) var resendAvailableAt: Date?
     private(set) var profile: Profile?
 
+    /// Hook avant l'inscription, seulement pour un nouveau compte (ADR-038) ; `nil` à la reprise.
+    let hook: OnboardingHookViewModel?
+    /// Hook terminé ou passé : l'inscription s'affiche.
+    private(set) var isHookDone: Bool
+    /// Réponses et photo du hook, gardées dans l'app.
+    private(set) var hookResult = OnboardingHookResult()
+
     private let auth: any AuthService
     private let identity: any IdentityService
     private let uploads: any UploadService
@@ -50,6 +58,7 @@ final class OnboardingViewModel {
         identity: any IdentityService,
         uploads: any UploadService,
         analytics: any AnalyticsService = NoopAnalyticsService(),
+        feedback: any FeedbackService = NoopFeedbackService(),
         now: @escaping () -> Date = Date.init,
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         onFinished: @escaping (Profile) -> Void
@@ -63,6 +72,26 @@ final class OnboardingViewModel {
         self.sleep = sleep
         self.onFinished = onFinished
         birthDate = now()
+        if entry == .newAccount {
+            isHookDone = false
+            hook = OnboardingHookViewModel(analytics: analytics, feedback: feedback) { _ in }
+        } else {
+            isHookDone = true
+            hook = nil
+        }
+        hook?.onFinished = { [weak self] result in self?.hookFinished(result) }
+    }
+
+    // MARK: - Hook (ADR-038)
+
+    func hookFinished(_ result: OnboardingHookResult) {
+        hookResult = result
+        isHookDone = true
+    }
+
+    /// Appelé par la vue à chaque étape affichée de l'inscription (entonnoir écran par écran).
+    func screenViewed() {
+        analytics.track(.onboardingScreenViewed(currentStep.screen))
     }
 
     // MARK: - Compte (email, code, mot de passe, Apple)
@@ -301,6 +330,12 @@ extension OnboardingViewModel {
     /// La photo choisie n'a pas pu être chargée depuis la photothèque.
     func profilePhotoLoadFailed() {
         errorMessage = UploadError.message(for: .unreadableImage)
+    }
+
+    /// Photo publiée pendant le hook, envoyée comme photo de profil.
+    func useHookPhoto() async {
+        guard let photo = hookResult.photo else { return }
+        await addProfilePhoto(photo)
     }
 
     func skipProfilePhoto() {

@@ -31,6 +31,15 @@ enum AnalyticsEvent: Equatable, Sendable {
     case postPublished(mediaCount: Int)
     case postLiked(LikeSource)
     case userFollowed(FollowSource)
+    /// Écran du parcours d'onboarding affiché (ADR-038) : base de l'entonnoir écran par écran.
+    case onboardingScreenViewed(OnboardingScreen)
+    /// Une réponse choisie au quiz (un événement par valeur, au passage à l'écran suivant).
+    case onboardingQuizAnswered(OnboardingQuizAnswer)
+    case onboardingInteractionCompleted(OnboardingInteraction)
+    /// « Passer » : le reste du hook est sauté, l'inscription commence.
+    case onboardingSkipped(OnboardingScreen)
+    case onboardingSoundToggled(muted: Bool)
+    case notificationPermissionResponded(granted: Bool)
 
     var name: String {
         switch self {
@@ -42,6 +51,12 @@ enum AnalyticsEvent: Equatable, Sendable {
         case .postPublished: "post_published"
         case .postLiked: "post_liked"
         case .userFollowed: "user_followed"
+        case .onboardingScreenViewed: "onboarding_screen_viewed"
+        case .onboardingQuizAnswered: "onboarding_quiz_answered"
+        case .onboardingInteractionCompleted: "onboarding_interaction_completed"
+        case .onboardingSkipped: "onboarding_skipped"
+        case .onboardingSoundToggled: "onboarding_sound_toggled"
+        case .notificationPermissionResponded: "notification_permission_responded"
         }
     }
 
@@ -60,6 +75,18 @@ enum AnalyticsEvent: Equatable, Sendable {
             ["source": source.rawValue]
         case let .userFollowed(source):
             ["source": source.rawValue]
+        case let .onboardingScreenViewed(screen):
+            ["screen": screen.rawValue, "index": String(screen.index)]
+        case let .onboardingQuizAnswered(answer):
+            ["question": answer.question.rawValue, "answer": answer.value]
+        case let .onboardingInteractionCompleted(interaction):
+            ["kind": interaction.kind.rawValue, "method": interaction.method.rawValue]
+        case let .onboardingSkipped(screen):
+            ["screen": screen.rawValue]
+        case let .onboardingSoundToggled(muted):
+            ["muted": String(muted)]
+        case let .notificationPermissionResponded(granted):
+            ["granted": String(granted)]
         }
     }
 }

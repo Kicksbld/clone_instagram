@@ -13,7 +13,7 @@ struct EmailStepView: View {
             primaryAction: viewModel.submitEmail
         ) {
             TextField("Adresse e-mail", text: $viewModel.email)
-                .textFieldStyle(.roundedBorder)
+                .onboardingField()
                 .textContentType(.emailAddress)
                 .keyboardType(.emailAddress)
                 .textInputAutocapitalization(.never)

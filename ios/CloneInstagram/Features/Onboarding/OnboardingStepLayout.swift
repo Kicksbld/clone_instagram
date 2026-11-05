@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// Gabarit d'une étape (wireframe) : titre, explication, un champ, erreur, bouton principal en bas.
+/// Gabarit d'une étape de l'inscription (ADR-038) : mascotte, titre, explication, un champ, erreur, bouton
+/// principal en bas. Fond noir, repère `error` à chaque nouvelle erreur.
 struct OnboardingStepLayout<Content: View, Secondary: View>: View {
     let title: String
     var subtitle: String?
+    var mascot: MascotPose? = .guide
     var primaryTitle = "Suivant"
     var isPrimaryEnabled = true
     var isLoading = false
@@ -11,19 +13,27 @@ struct OnboardingStepLayout<Content: View, Secondary: View>: View {
     let primaryAction: () async -> Void
     @ViewBuilder let content: Content
     @ViewBuilder var secondary: Secondary
+    @Environment(\.feedback) private var feedback
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            if let mascot {
+                MascotView(pose: mascot, size: 120)
+                    .frame(maxWidth: .infinity)
+            }
             Text(title)
-                .font(.title2.bold())
+                .font(.onboardingTitle(.title))
             if let subtitle {
                 Text(subtitle)
-                    .foregroundStyle(.secondary)
+                    .font(.onboardingBody())
+                    .foregroundStyle(Color.onboardingSecondaryText)
             }
             content
             if let errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.circle")
-                    .font(.footnote)
+                Label(errorMessage, systemImage: "exclamationmark.circle.fill")
+                    .font(.onboardingBody(.footnote, weight: .semibold))
+                    .foregroundStyle(Color.likeRed)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
             Spacer()
             Button {
@@ -31,20 +41,26 @@ struct OnboardingStepLayout<Content: View, Secondary: View>: View {
             } label: {
                 Group {
                     if isLoading {
-                        ProgressView()
+                        ProgressView().tint(Color.onboardingBackground)
                     } else {
                         Text(primaryTitle)
                     }
                 }
-                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.glassProminent)
-            .controlSize(.large)
+            .buttonStyle(.onboardingPrimary)
             .disabled(!isPrimaryEnabled || isLoading)
             secondary
+                .buttonStyle(.onboardingSecondary)
                 .frame(maxWidth: .infinity)
         }
         .padding()
+        .animation(.spring(duration: 0.3), value: errorMessage)
+        .onboardingScreen()
+        .onChange(of: errorMessage) { _, message in
+            if message != nil {
+                feedback.play(.error)
+            }
+        }
     }
 }
 
@@ -52,6 +68,7 @@ extension OnboardingStepLayout where Secondary == EmptyView {
     init(
         title: String,
         subtitle: String? = nil,
+        mascot: MascotPose? = .guide,
         primaryTitle: String = "Suivant",
         isPrimaryEnabled: Bool = true,
         isLoading: Bool = false,
@@ -62,6 +79,7 @@ extension OnboardingStepLayout where Secondary == EmptyView {
         self.init(
             title: title,
             subtitle: subtitle,
+            mascot: mascot,
             primaryTitle: primaryTitle,
             isPrimaryEnabled: isPrimaryEnabled,
             isLoading: isLoading,

@@ -21,6 +21,14 @@ struct PostHogAnalyticsService: AnalyticsService {
         // Pas de localisation déduite de l'IP (aucune donnée personnelle).
         config.disableGeoIp = true
         PostHogSDK.shared.setup(config)
+        Self.registerSuperProperties()
+    }
+
+    /// Version du parcours d'onboarding sur chaque événement (ADR-038) : compare les parcours dans PostHog.
+    static let onboardingVersion = "v2"
+
+    private static func registerSuperProperties() {
+        PostHogSDK.shared.register(["onboarding_version": onboardingVersion])
     }
 
     func track(_ event: AnalyticsEvent) {
@@ -33,6 +41,8 @@ struct PostHogAnalyticsService: AnalyticsService {
 
     func reset() {
         PostHogSDK.shared.reset()
+        // `reset` efface aussi les super-propriétés.
+        Self.registerSuperProperties()
     }
 
     func paywallVariant() async -> PaywallVariant {

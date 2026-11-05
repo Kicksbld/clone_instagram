@@ -3,7 +3,7 @@ import Observation
 
 /// Routeur racine (ADR-010) : non connecté → bienvenue ; session sans profil → onboarding ; compte suspendu
 /// ou banni → « Compte suspendu » (ADR-005) ; sinon accueil. Fin de l'onboarding → paywall Clone Plus
-/// (ADR-012) → accueil.
+/// (ADR-012) → pré-permission des notifications si jamais demandée (ADR-038) → accueil.
 @Observable
 final class RootViewModel {
     enum Route: Equatable {
@@ -14,6 +14,8 @@ final class RootViewModel {
         case onboarding(OnboardingEntry)
         /// Paywall de fin d'onboarding (« Plus tard » mène à l'accueil).
         case paywall(Profile)
+        /// Après le paywall de fin d'onboarding, si la permission n'a jamais été demandée (ADR-038).
+        case notificationPermission(Profile)
         case home(Profile)
         /// Compte suspendu ou banni : seuls la déconnexion et la suppression du compte restent possibles.
         case suspended(Profile)
@@ -28,6 +30,11 @@ final class RootViewModel {
     private let subscriptions: any SubscriptionService
     private let appIcons: any AppIconService
     private let analytics: any AnalyticsService
+    private let notifications: any NotificationPermissionService
+    /// Permission des notifications jamais demandée : lue pendant que le paywall s'affiche.
+    private var shouldAskNotifications = false
+    /// Lecture de la permission en cours ; attendue par les tests.
+    @ObservationIgnored private(set) var notificationCheck: Task<Void, Never>?
 
     init(
         auth: any AuthService,
@@ -35,7 +42,8 @@ final class RootViewModel {
         purchases: any PurchaseService = UnavailablePurchaseService(),
         subscriptions: any SubscriptionService = UnavailableSubscriptionService(),
         appIcons: any AppIconService = SystemAppIconService(),
-        analytics: any AnalyticsService = NoopAnalyticsService()
+        analytics: any AnalyticsService = NoopAnalyticsService(),
+        notifications: any NotificationPermissionService = DecidedNotificationPermissionService()
     ) {
         self.auth = auth
         self.identity = identity
@@ -43,6 +51,7 @@ final class RootViewModel {
         self.subscriptions = subscriptions
         self.appIcons = appIcons
         self.analytics = analytics
+        self.notifications = notifications
     }
 
     func start() async {
@@ -77,7 +86,7 @@ final class RootViewModel {
     /// ouvert au compte suspendu. Sans effet hors de l'accueil et du paywall.
     func accountSuspended() async {
         switch route {
-        case .home, .paywall:
+        case .home, .paywall, .notificationPermission:
             await start()
         default:
             break
@@ -114,11 +123,22 @@ final class RootViewModel {
         analytics.identify(profileId: profile.id)
         let purchases = purchases
         Task { await purchases.logIn(profileId: profile.id) }
+        let notifications = notifications
+        notificationCheck = Task { [weak self] in
+            let status = await notifications.status()
+            self?.shouldAskNotifications = status == .notDetermined
+        }
     }
 
-    /// « Plus tard », ou abonnement confirmé : accueil.
+    /// « Plus tard », ou abonnement confirmé : pré-permission des notifications si jamais demandée, sinon accueil.
     func closePaywall() {
         guard case let .paywall(profile) = route else { return }
+        route = shouldAskNotifications ? .notificationPermission(profile) : .home(profile)
+    }
+
+    /// Permission demandée ou « Plus tard » : accueil.
+    func closeNotificationPermission() {
+        guard case let .notificationPermission(profile) = route else { return }
         route = .home(profile)
     }
 

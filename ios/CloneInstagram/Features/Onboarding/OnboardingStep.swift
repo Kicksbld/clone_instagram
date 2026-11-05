@@ -31,11 +31,28 @@ extension OnboardingStep {
         case .completed: .completed
         }
     }
+
+    /// Écran du parcours complet (ADR-038).
+    var screen: OnboardingScreen {
+        switch self {
+        case .createAccount: .createAccount
+        case .email: .email
+        case .confirmationCode: .confirmationCode
+        case .password: .password
+        case .birthDate: .birthDate
+        case .fullName: .fullName
+        case .username: .username
+        case .terms: .terms
+        case .profilePhoto: .profilePhoto
+        case .bio: .bio
+        case .completed: .completed
+        }
+    }
 }
 
 /// Point d'entrée de l'onboarding.
 enum OnboardingEntry: Hashable {
-    /// Depuis l'écran de bienvenue : « Commencer ».
+    /// Depuis l'écran de bienvenue : « Commencer » ; commence par le hook (ADR-038).
     case newAccount
     /// Session ouverte sans profil : reprise après un abandon (ADR-018).
     case resume(AuthProvider)

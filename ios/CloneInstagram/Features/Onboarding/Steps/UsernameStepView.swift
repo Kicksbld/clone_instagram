@@ -15,7 +15,7 @@ struct UsernameStepView: View {
                 "Nom d'utilisateur",
                 text: Binding(get: { viewModel.username }, set: viewModel.usernameChanged)
             )
-            .textFieldStyle(.roundedBorder)
+            .onboardingField()
             .textContentType(.username)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()

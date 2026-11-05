@@ -40,6 +40,10 @@ struct AppDependencies {
     let analytics: any AnalyticsService
     /// Refus `403 account_suspended` reçus pendant la session (ADR-005).
     let suspension: AccountSuspensionMonitor
+    /// Sons et vibrations de l'onboarding (ADR-038).
+    var feedback: any FeedbackService = SystemFeedbackService()
+    /// Permission des notifications, demandée après le paywall de fin d'onboarding (ADR-038).
+    var notifications: any NotificationPermissionService = SystemNotificationPermissionService()
 
     static func live(bundle: Bundle = .main) -> AppDependencies {
         let auth = makeAuth(bundle: bundle)
