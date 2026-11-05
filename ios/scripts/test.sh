@@ -57,7 +57,7 @@ xcodebuild test \
 status=$?
 set -e
 
-grep -E "error:|✘|recorded an issue|Test run with|\*\* TEST (SUCCEEDED|FAILED) \*\*" "$LOG" | awk '!seen[$0]++' || true
+grep -E "error:|Please submit a bug report|Stack dump:|While evaluating request|While emitting IR|Apple Swift version|✘|recorded an issue|Test run with|\*\* TEST (SUCCEEDED|FAILED) \*\*" "$LOG" | awk '!seen[$0]++' || true
 if [[ $status -ne 0 ]]; then
   # Les échecs de lancement du simulateur ne contiennent pas toujours « error: ».
   tail -80 "$LOG"

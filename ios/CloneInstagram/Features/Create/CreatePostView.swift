@@ -131,7 +131,8 @@ struct CreatePostView: View {
             Text("Récents")
                 .font(.headline)
             Spacer()
-            Toggle(isOn: Binding(get: { isSelectingMultiple }, set: setSelectingMultiple)) {
+            // Une closure explicite évite le crash IRGen de Swift 6.3.3 sur la conversion de méthode isolée.
+            Toggle(isOn: Binding(get: { isSelectingMultiple }, set: { value in setSelectingMultiple(value) })) {
                 Label("Sélectionner plusieurs", systemImage: "square.on.square")
             }
             .toggleStyle(.button)
