@@ -1,6 +1,6 @@
 # Dashboard PostHog de l'onboarding v2 (ADR-038)
 
-Le dashboard se construit dans PostHog, jamais dans le backoffice (ADR-013). Ce document liste les événements envoyés par l'app, les insights à créer, et un prompt prêt à coller dans une session Claude Code **locale** équipée de Claude in Chrome. Une session cloud ne voit pas ton navigateur.
+Le dashboard se construit dans PostHog, jamais dans le backoffice (ADR-013). Ce document liste les événements envoyés par l'app, les insights à créer, et un prompt pour les créer par le **MCP PostHog**, depuis une session Claude Code locale sur le Mac.
 
 À faire **après** avoir installé l'app v2 et fait au moins deux parcours complets : un insight ne propose que des événements déjà reçus par PostHog.
 
@@ -61,21 +61,33 @@ Le parcours Apple saute 14 à 16.
 9. **Notifications** : Trends de `notification_permission_responded` ventilé par `granted`, plus le ratio sur les vues de `notification_permission`.
 10. **Son coupé** : Trends de `onboarding_sound_toggled` ventilé par `muted`.
 
-## Prompt pour une session locale avec navigateur
+## Création par le MCP PostHog
 
-À coller dans Claude Code lancé sur le Mac, avec l'extension Claude in Chrome connectée et le projet PostHog ouvert dans le navigateur :
+Une seule fois, sur le Mac, à la racine du dépôt :
+
+```bash
+npx @posthog/wizard mcp add
+```
+
+L'assistant demande le client (choisir Claude Code) et ouvre la connexion à PostHog dans le navigateur (région EU). Relancer ensuite Claude Code : les outils `posthog` apparaissent dans `/mcp`.
+
+Pourquoi pas depuis une session cloud : le réseau de l'environnement refuse `mcp.posthog.com`. Il faudrait l'ajouter aux domaines autorisés de l'environnement, puis faire la connexion OAuth au MCP, ce qui demande un navigateur.
+
+Prompt à coller dans cette session locale :
 
 ```text
-Dans PostHog (projet de l'app Clone, déjà ouvert dans le navigateur), configure le dashboard de l'onboarding v2
-décrit dans docs/analytics/posthog-onboarding-dashboard.md de ce dépôt (lis-le d'abord en entier).
+Avec le MCP PostHog (projet de l'app Clone, région EU), configure le dashboard de l'onboarding v2 décrit dans
+docs/analytics/posthog-onboarding-dashboard.md (lis-le d'abord en entier).
 
 1. Commence par un inventaire, sans rien modifier : dashboards, insights, feature flag `paywall-presentation`,
-   expérience « Paywall presentation », réglage « Discard client IP data ». Liste ce qui existe déjà et ce qui
-   manque ou diffère du document (le README § 4 « Analytics et A/B test » décrit la configuration de T11).
+   expérience « Paywall presentation ». Vérifie que les événements du document existent dans le projet
+   (définitions d'événements et de propriétés). Liste ce qui existe déjà et ce qui manque ou diffère (le README
+   § 4 « Analytics et A/B test » décrit la configuration de T11).
 2. Montre-moi cet inventaire et attends ma validation avant toute création ou modification.
-3. Ensuite : crée le dashboard « Onboarding v2 » avec les 10 insights du document. Réutilise et épingle les
-   insights existants au lieu de les dupliquer. Ne modifie jamais l'expérience en cours ni le feature flag.
-4. Si un événement n'apparaît pas dans les listes de PostHog, ne l'invente pas : signale-le (il faut d'abord
-   faire un parcours dans l'app v2).
+3. Ensuite : crée le dashboard « Onboarding v2 » avec les 10 insights du document, filtrés sur
+   `onboarding_version = v2`. Réutilise les insights existants au lieu de les dupliquer. Ne modifie jamais
+   l'expérience en cours ni le feature flag.
+4. Si un événement n'existe pas encore, ne l'invente pas : signale-le (il faut d'abord faire un parcours dans
+   l'app v2).
 5. À la fin, donne-moi le lien du dashboard et la liste de ce qui a été créé, réutilisé ou laissé de côté.
 ```
