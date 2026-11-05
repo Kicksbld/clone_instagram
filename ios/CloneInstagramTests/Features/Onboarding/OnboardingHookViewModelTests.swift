@@ -173,7 +173,11 @@ struct OnboardingHookAnalyticsTests {
         viewModel.next()
 
         let answers = analytics.events.compactMap { event -> OnboardingQuizAnswer? in
-            if case let .onboardingQuizAnswered(answer) = event { answer } else { nil }
+            if case let .onboardingQuizAnswered(answer) = event {
+                answer
+            } else {
+                nil
+            }
         }
         #expect(answers == [.interest(.travel), .interest(.music)])
         #expect(

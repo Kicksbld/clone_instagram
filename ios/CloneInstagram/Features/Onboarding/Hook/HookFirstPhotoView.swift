@@ -72,21 +72,35 @@ struct HookFirstPhotoView: View {
     }
 
     private var title: String {
-        if viewModel.isPhotoPublished { return "Publié !" }
-        return viewModel.photo == nil ? "Ta première photo" : "Choisis un filtre"
+        if viewModel.isPhotoPublished {
+            "Publié !"
+        } else if viewModel.photo == nil {
+            "Ta première photo"
+        } else {
+            "Choisis un filtre"
+        }
     }
 
     private var subtitle: String {
-        if viewModel.isPhotoPublished { return "Voilà ton post dans le feed. Simple, non ?" }
-        return viewModel.photo == nil
-            ? "Prends ou choisis une photo : on la publie ensemble, pour de faux."
-            : "Touche un filtre pour l'essayer."
+        if viewModel.isPhotoPublished {
+            "Voilà ton post dans le feed. Simple, non ?"
+        } else if viewModel.photo == nil {
+            "Prends ou choisis une photo : on la publie ensemble, pour de faux."
+        } else {
+            "Touche un filtre pour l'essayer."
+        }
     }
 
     private var primaryTitle: String {
-        if viewModel.isPhotoPublished { return "Continuer" }
-        if viewModel.photo != nil { return "Publier" }
-        return SystemPhotoCamera.isAvailable ? "Prendre une photo" : "Choisir une photo"
+        if viewModel.isPhotoPublished {
+            "Continuer"
+        } else if viewModel.photo != nil {
+            "Publier"
+        } else if SystemPhotoCamera.isAvailable {
+            "Prendre une photo"
+        } else {
+            "Choisir une photo"
+        }
     }
 
     private func primaryAction() {

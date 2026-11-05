@@ -4,6 +4,7 @@ name: iOS
 
 on:
   push:
+    branches: [main]
     paths:
       - 'ios/**'
       - '.github/workflows/ios.yml'
@@ -43,10 +44,13 @@ jobs:
             cp "CloneInstagram/Resources/Config/$name.example.xcconfig" "CloneInstagram/Resources/Config/$name.xcconfig"
           done
 
+      # Comme la phase de build du projet : SwiftLint bloque, SwiftFormat avertit (sa version Homebrew peut
+      # être plus récente que celle du poste du lead dev et signaler du code existant).
       - name: Lint
         run: |
           swiftlint lint --quiet
-          swiftformat --lint .
+          swiftformat --lint . || echo "::warning::SwiftFormat signale des fichiers à reformater (voir ci-dessus)"
+
 
       - name: Tests
         run: |
