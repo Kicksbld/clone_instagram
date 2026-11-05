@@ -21,6 +21,8 @@ struct AppDependencies {
     let stories: any StoryService
     /// Nombre de commentaires des posts, partagé par le feed, le détail et la feuille de commentaires.
     let commentCounts: CommentCountStore
+    /// Légendes modifiées par l'auteur, partagées par le feed, le détail et les Reels.
+    let postEdits: PostEditStore
     /// Activité (notifications in-app, ADR-026) et pastille du cœur, partagée par l'accueil et l'Activité.
     let activity: any ActivityService
     let activityBadge: ActivityBadge
@@ -92,6 +94,7 @@ struct AppDependencies {
             comments: APICommentService(client: client),
             stories: APIStoryService(client: client),
             commentCounts: CommentCountStore(),
+            postEdits: PostEditStore(),
             activity: activity,
             activityBadge: badge,
             messaging: messaging,
@@ -134,6 +137,7 @@ extension AppDependencies {
             comments: UnavailableCommentService(),
             stories: UnavailableStoryService(),
             commentCounts: CommentCountStore(),
+            postEdits: PostEditStore(),
             activity: UnavailableActivityService(),
             activityBadge: ActivityBadge(service: UnavailableActivityService()),
             publishQueue: PublishQueue(

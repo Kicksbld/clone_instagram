@@ -1047,6 +1047,42 @@ paths:
           $ref: '#/components/responses/PostNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: updatePostCaption
+      tags: [posts]
+      summary: Modifier la légende d'un de mes posts
+      description: |
+        Seul l'auteur modifie la légende d'un post ou d'un reel ; `updated_at` est mis à jour. Les mentions sont recalculées dans la même transaction (ADR-025) : les nouvelles sont créées et notifiées (mêmes règles qu'à la publication), les retirées sont supprimées avec leur notification. Plus de 20 mentions distinctes renvoie `422 too_many_mentions`.
+        Post inexistant, supprimé, invisible ou d'un autre auteur → `404 post_not_found`, jamais `403` (ADR-006).
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePostCaptionRequest'
+      responses:
+        '200':
+          description: Le post à jour.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/PostNotFound'
+        '422':
+          description: Plus de 20 mentions distinctes (`too_many_mentions`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/posts/{id}/like:
     put:
       operationId: likePost
@@ -2795,6 +2831,13 @@ components:
       type: string
       description: Légende, 2 200 caractères au plus ; chaîne vide si aucune légende.
       maxLength: 2200
+    UpdatePostCaptionRequest:
+      type: object
+      additionalProperties: false
+      required: [caption]
+      properties:
+        caption:
+          $ref: '#/components/schemas/Caption'
     CreatePostRequest:
       type: object
       additionalProperties: false

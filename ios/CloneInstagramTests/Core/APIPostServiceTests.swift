@@ -202,4 +202,28 @@ struct APIPostServiceTests {
             try await service.deletePost(id: "0199a1b2-0000-7000-a000-000000000001")
         }
     }
+
+    @Test func `PATCH légende (200) → post à jour avec ses mentions`() async throws {
+        let extra = #","mentions":[{"id":"0199a1b2-5eed-7000-8000-000000000002","username":"lea","textUsername":"lea"}]}"#
+        let body = String(Self.postJSON.dropLast()).replacingOccurrences(of: "\"Salut\"", with: "\"Avec @lea\"") + extra
+        let service = try makeService(json(body))
+
+        let post = try await service.updateCaption(postId: "0199a1b2-0000-7000-a000-000000000001", caption: "Avec @lea")
+
+        #expect(post.caption == "Avec @lea")
+        #expect(post.mentions.map(\.id) == ["0199a1b2-5eed-7000-8000-000000000002"])
+    }
+
+    @Test(arguments: [
+        (404, "post_not_found", PostServiceError.postNotFound),
+        (422, "too_many_mentions", PostServiceError.tooManyMentions),
+        (400, "validation_failed", PostServiceError.invalidInput),
+    ])
+    func `erreurs de la modification de légende selon le code`(status: Int, code: String, expected: PostServiceError) async throws {
+        let service = try makeService(problem(status, code))
+
+        await #expect(throws: expected) {
+            try await service.updateCaption(postId: "0199a1b2-0000-7000-a000-000000000001", caption: "x")
+        }
+    }
 }

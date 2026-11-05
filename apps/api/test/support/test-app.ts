@@ -54,6 +54,7 @@ import { CreatePost } from '../../src/modules/posts/application/use-cases/create
 import { DeletePost } from '../../src/modules/posts/application/use-cases/delete-post.ts';
 import { GetPost } from '../../src/modules/posts/application/use-cases/get-post.ts';
 import { ListUserPosts } from '../../src/modules/posts/application/use-cases/list-user-posts.ts';
+import { UpdatePostCaption } from '../../src/modules/posts/application/use-cases/update-post-caption.ts';
 import { AcceptFollowRequest } from '../../src/modules/social/application/use-cases/accept-follow-request.ts';
 import { AddCloseFriend } from '../../src/modules/social/application/use-cases/add-close-friend.ts';
 import { BlockUser } from '../../src/modules/social/application/use-cases/block-user.ts';
@@ -347,6 +348,10 @@ export function buildTestApp() {
         deletePost: new DeletePost(new InMemoryUnitOfWork({ media, posts })),
         getPost: new GetPost(posts, relationships),
         listUserPosts: new ListUserPosts(graph, relationships, posts),
+        updatePostCaption: new UpdatePostCaption(
+          new InMemoryUnitOfWork({ posts, reader: posts, mentions, relationships, notifications }),
+          notificationDispatcher,
+        ),
       },
       feed: {
         getFeed: new GetFeed(new InMemoryFeedReader(posts, relationships)),

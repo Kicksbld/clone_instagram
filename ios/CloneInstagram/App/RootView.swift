@@ -8,6 +8,8 @@ struct RootView: View {
     @State private var onboardingProfileId: String?
     @State private var sharePostRoute: SharePostRoute?
     @State private var commentsRoute: CommentsRoute?
+    /// « Modifier » depuis le menu « … » d'un de mes posts (feed, détail).
+    @State private var editPostRoute: EditPostRoute?
     /// Tirer pour rafraîchir le feed : recharge aussi le bandeau des stories.
     @State private var feedRefreshCount = 0
     /// Splash animé joué une seule fois, au lancement.
@@ -104,6 +106,7 @@ struct RootView: View {
                         posts: dependencies.posts,
                         likes: dependencies.likes,
                         commentCounts: dependencies.commentCounts,
+                        edits: dependencies.postEdits,
                         deletions: dependencies.postDeletions,
                         prefetcher: dependencies.imagePrefetcher
                     ),
@@ -204,7 +207,8 @@ struct RootView: View {
                     viewModel: ReelsViewModel(
                         posts: dependencies.posts,
                         likes: dependencies.likes,
-                        commentCounts: dependencies.commentCounts
+                        commentCounts: dependencies.commentCounts,
+                        edits: dependencies.postEdits
                     ),
                     revision: dependencies.blocks.revision,
                     isActive: isActive && commentsRoute == nil && sharePostRoute == nil,
@@ -220,6 +224,15 @@ struct RootView: View {
                 .modifier(SocialDestinations(dependencies: dependencies, viewerId: profile.id, openComments: openComments))
             }
             .environment(\.openSharePost, OpenSharePostAction { sharePostRoute = $0 })
+            .environment(\.openEditPost, OpenEditPostAction { editPostRoute = $0 })
+            .sheet(item: $editPostRoute) { route in
+                EditPostView(viewModel: EditPostViewModel(
+                    route: route,
+                    service: dependencies.posts,
+                    edits: dependencies.postEdits
+                ))
+                .environment(\.blockedUserIds, dependencies.blocks.blockedIds)
+            }
             .sheet(item: $sharePostRoute) { route in
                 SharePostView(viewModel: SharePostViewModel(
                     postId: route.postId,
@@ -312,6 +325,7 @@ private extension RootView {
         dependencies.postDeletions.reset()
         dependencies.follows.reset()
         dependencies.commentCounts.reset()
+        dependencies.postEdits.reset()
         dependencies.blocks.reset()
         dependencies.activityBadge.reset()
         dependencies.messaging.setAccount(nil)

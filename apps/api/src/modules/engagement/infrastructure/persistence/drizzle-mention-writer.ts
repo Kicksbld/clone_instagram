@@ -1,9 +1,15 @@
 import { media, mentions, newId, profiles, type Executor } from '@clone/db';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type {
   MentionWriter,
   MentionTarget,
+  StoredMention,
 } from '../../../../shared/application/mention-writer.ts';
+
+const targetColumn = (target: MentionTarget) =>
+  target.postId !== undefined
+    ? eq(mentions.postId, target.postId)
+    : eq(mentions.commentId, target.commentId);
 
 export class DrizzleMentionWriter implements MentionWriter {
   constructor(private readonly db: Executor) {}
@@ -28,10 +34,25 @@ export class DrizzleMentionWriter implements MentionWriter {
     }));
   }
 
+  list(target: MentionTarget): Promise<StoredMention[]> {
+    return this.db
+      .select({ id: mentions.mentionedUserId, textUsername: mentions.textUsername })
+      .from(mentions)
+      .where(targetColumn(target))
+      .orderBy(mentions.createdAt, mentions.id);
+  }
+
+  async remove(target: MentionTarget, userIds: string[]): Promise<void> {
+    if (!userIds.length) return;
+    await this.db
+      .delete(mentions)
+      .where(and(targetColumn(target), inArray(mentions.mentionedUserId, userIds)));
+  }
+
   async write(input: {
     authorId: string;
     target: MentionTarget;
-    users: { id: string; textUsername: string }[];
+    users: StoredMention[];
   }): Promise<void> {
     if (!input.users.length) return;
     await this.db

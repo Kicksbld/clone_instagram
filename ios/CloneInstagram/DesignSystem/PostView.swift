@@ -8,7 +8,8 @@ import SwiftUI
 /// plein écran.
 struct PostView: View {
     let post: Post
-    /// Menu « … » → « Supprimer » ; `nil` si le post n'est pas à moi (« Signaler » et « Bloquer » à la place).
+    /// Menu « … » → « Modifier » (si `openEditPost` est fourni) et « Supprimer » ; `nil` si le post n'est pas à
+    /// moi (« Signaler » et « Bloquer » à la place).
     let onDelete: (() -> Void)?
     /// Bouton J'aime : like ou unlike.
     let onToggleLike: () -> Void
@@ -31,6 +32,7 @@ struct PostView: View {
     @Environment(\.blockedUserIds) private var blockedUserIds
     @Environment(\.openSharePost) private var openSharePost
     @Environment(\.openComments) private var openComments
+    @Environment(\.openEditPost) private var openEditPost
     @Environment(\.moderation) private var moderation
 
     init(
@@ -241,10 +243,15 @@ struct PostView: View {
     }
 
     /// Actions du post.
-    /// Mon post : « Supprimer » ; celui d'un autre : « Signaler » et « Bloquer », comme Instagram.
+    /// Mon post : « Modifier » et « Supprimer » ; celui d'un autre : « Signaler » et « Bloquer », comme Instagram.
     @ViewBuilder
     private var menuItems: some View {
         if let onDelete {
+            if let openEditPost {
+                Button("Modifier", systemImage: "pencil") {
+                    openEditPost(EditPostRoute(postId: post.id, caption: post.caption))
+                }
+            }
             Button("Supprimer", systemImage: "trash", role: .destructive, action: onDelete)
         } else if let moderation {
             let author = BlockRoute(userId: post.author.id, username: post.author.username)

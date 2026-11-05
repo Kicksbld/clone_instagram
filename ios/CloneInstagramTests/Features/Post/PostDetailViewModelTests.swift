@@ -23,6 +23,22 @@ struct PostDetailViewModelTests {
         #expect(viewModel.state == .loaded(.fixture(id: "p1")))
     }
 
+    @Test func `légende modifiée ailleurs : affichée dans le détail`() async {
+        let edits = PostEditStore()
+        let viewModel = PostDetailViewModel(
+            postId: "p1", viewerId: Self.viewer, posts: service, likes: likes, edits: edits, deletions: deletions
+        )
+        await viewModel.load()
+        guard case let .loaded(post) = viewModel.state else {
+            Issue.record("post non chargé")
+            return
+        }
+
+        edits.record(.fixture(id: "p1", caption: "Nouvelle légende"))
+
+        #expect(viewModel.displayed(post).caption == "Nouvelle légende")
+    }
+
     @Test func `post invisible ou supprimé → notFound`() async {
         service.fetchResults = [.failure(.postNotFound)]
         let viewModel = PostDetailViewModel(postId: "p1", viewerId: Self.viewer, posts: service, likes: likes, deletions: deletions)

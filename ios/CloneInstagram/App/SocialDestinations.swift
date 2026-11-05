@@ -25,6 +25,7 @@ struct SocialDestinations: ViewModifier {
                         posts: dependencies.posts,
                         likes: dependencies.likes,
                         commentCounts: dependencies.commentCounts,
+                        edits: dependencies.postEdits,
                         deletions: dependencies.postDeletions
                     )
                 )

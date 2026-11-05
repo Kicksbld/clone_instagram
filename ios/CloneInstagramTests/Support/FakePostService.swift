@@ -95,6 +95,16 @@ final class FakePostService: PostService {
         return try feedResults.removeFirst().get()
     }
 
+    /// Réponses successives de `updateCaption` ; post de test avec la nouvelle légende quand la liste est vide.
+    var updateCaptionResults: [Result<Post, PostServiceError>] = []
+    private(set) var captionUpdates: [(postId: String, caption: String)] = []
+
+    func updateCaption(postId: String, caption: String) async throws(PostServiceError) -> Post {
+        captionUpdates.append((postId, caption))
+        guard !updateCaptionResults.isEmpty else { return .fixture(id: postId, caption: caption) }
+        return try updateCaptionResults.removeFirst().get()
+    }
+
     func deletePost(id: String) async throws(PostServiceError) {
         deleted.append(id)
         if let duringDelete {

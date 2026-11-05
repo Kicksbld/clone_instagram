@@ -6,7 +6,8 @@ nonisolated enum PostKind: String, Codable { case post, reel }
 struct Post: Equatable, Identifiable {
     var kind: PostKind = .post
     let id: String
-    let caption: String
+    /// Modifiable après une modification de la légende par l'auteur (`PostEditStore`).
+    var caption: String
     let author: PostAuthor
     let media: [PostMediaItem]
     /// Modifiables pour la mise à jour optimiste du like (ADR-010).

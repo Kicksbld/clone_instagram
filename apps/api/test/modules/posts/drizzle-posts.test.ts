@@ -10,6 +10,7 @@ import { MediaAlreadyAttachedError } from '../../../src/modules/media/domain/err
 import { DrizzleMediaRepository } from '../../../src/modules/media/infrastructure/persistence/drizzle-media-repository.ts';
 import { CreatePost } from '../../../src/modules/posts/application/use-cases/create-post.ts';
 import { DeletePost } from '../../../src/modules/posts/application/use-cases/delete-post.ts';
+import { UpdatePostCaption } from '../../../src/modules/posts/application/use-cases/update-post-caption.ts';
 import { PostNotFoundError } from '../../../src/modules/posts/domain/errors.ts';
 import {
   DrizzlePostReader,
@@ -48,6 +49,17 @@ const deletePost = new DeletePost(
     media: new DrizzleMediaRepository(tx),
     posts: new DrizzlePostRepository(tx),
   })),
+);
+
+const updatePostCaption = new UpdatePostCaption(
+  new DrizzleUnitOfWork(db, (tx: Executor) => ({
+    posts: new DrizzlePostRepository(tx),
+    reader: new DrizzlePostReader(tx),
+    mentions: new DrizzleMentionWriter(tx),
+    relationships: new DrizzleRelationshipReader(tx),
+    notifications: new DrizzleNotificationWriter(tx),
+  })),
+  new InMemoryNotificationDispatcher(),
 );
 
 afterEach(async () => {
@@ -295,5 +307,80 @@ describe('mentions des publications sur Postgres', () => {
     expect(await db.select().from(notifications).where(eq(notifications.postId, post.id))).toEqual(
       [],
     );
+  });
+});
+
+describe('modification de la légende sur Postgres', () => {
+  async function usernameOf(id: string): Promise<string> {
+    const [row] = await db.select().from(profiles).where(eq(profiles.id, id));
+    if (!row) throw new Error('profil absent');
+    return row.username;
+  }
+  const mentionNotifications = (postId: string) =>
+    db
+      .select({ recipientId: notifications.recipientId })
+      .from(notifications)
+      .where(eq(notifications.postId, postId));
+
+  it('met à jour légende et updated_at, recalcule mentions et notifications', async () => {
+    const [authorId, keptId, addedId] = [
+      await givenProfile(),
+      await givenProfile(),
+      await givenProfile(),
+    ];
+    const [kept, added] = [await usernameOf(keptId), await usernameOf(addedId)];
+    const post = await createPost.execute({
+      authorId,
+      kind: 'post',
+      caption: `Avec @${kept}`,
+      mediaIds: [await givenReadyPhoto(authorId)],
+    });
+
+    const withBoth = await updatePostCaption.execute({
+      authorId,
+      postId: post.id,
+      caption: `Avec @${kept} et @${added}`,
+    });
+    expect(withBoth.caption).toBe(`Avec @${kept} et @${added}`);
+    expect(withBoth.mentions?.map((user) => user.id)).toEqual([keptId, addedId]);
+    expect((await mentionNotifications(post.id)).map((row) => row.recipientId).sort()).toEqual(
+      [keptId, addedId].sort(),
+    );
+    const [row] = await db.select().from(posts).where(eq(posts.id, post.id));
+    expect(row?.updatedAt.getTime()).toBeGreaterThan(row?.createdAt.getTime() ?? Infinity);
+
+    const withoutKept = await updatePostCaption.execute({
+      authorId,
+      postId: post.id,
+      caption: `Seulement @${added}`,
+    });
+    expect(withoutKept.mentions?.map((user) => user.id)).toEqual([addedId]);
+    expect(await mentionNotifications(post.id)).toEqual([{ recipientId: addedId }]);
+    expect(
+      await db
+        .select({ id: mentions.mentionedUserId })
+        .from(mentions)
+        .where(eq(mentions.postId, post.id)),
+    ).toEqual([{ id: addedId }]);
+  });
+
+  it('post d’un autre ou supprimé → PostNotFoundError, rien n’est modifié', async () => {
+    const [authorId, otherId] = [await givenProfile(), await givenProfile()];
+    const post = await createPost.execute({
+      authorId,
+      kind: 'post',
+      caption: 'Avant',
+      mediaIds: [await givenReadyPhoto(authorId)],
+    });
+
+    await expect(
+      updatePostCaption.execute({ authorId: otherId, postId: post.id, caption: 'Après' }),
+    ).rejects.toBeInstanceOf(PostNotFoundError);
+    await deletePost.execute({ authorId, postId: post.id });
+    await expect(
+      updatePostCaption.execute({ authorId, postId: post.id, caption: 'Après' }),
+    ).rejects.toBeInstanceOf(PostNotFoundError);
+    const [row] = await db.select().from(posts).where(eq(posts.id, post.id));
+    expect(row?.caption).toBe('Avant');
   });
 });
