@@ -14,6 +14,8 @@ Branche : `feat/ios-voiceover-accessibility`. Résultat fonctionnel visé et rec
 - Crash IRGen de Swift 6.3.3 (Xcode 26.6) sur la conversion d'une méthode `MainActor` en setter de `Binding` (sélection multiple de `CreatePostView`, nom d'utilisateur de l'onboarding) : les deux setters utilisent désormais une closure explicite. Le workflow GitHub iOS a été retiré (ADR-014 : app vérifiée en local avec `ios/scripts/test.sh`) ; la CI garde contrat, lint, typecheck, tests et build TypeScript.
 - Revue de conformité à la spec réalisée ; écarts relevés corrigés (description d’un reel remplacé, état du like, accusé « Vu », annonces des commentaires, saisie pendant l’enregistrement).
 
+- Première recette physique (5 novembre 2026) : les boutons J’aime, Commenter et Partager n’étaient pas atteignables par balayage (feed, détail ouvert depuis le profil, reels), seulement par les actions du rotor. Correction : chaque post expose désormais l’auteur, le menu, le média (photo ajustable par balayage haut/bas, actions conservées en raccourci), puis chaque bouton et texte ; dans l’onglet Reels, J’aime, Commenter et Partager ne sont plus fusionnés en un seul élément.
+
 ## Vérifications restant ouvertes
 
 - **iPhone physique** : recette VoiceOver avec rideau d’écran, sur la démo. Vérifier particulièrement les actions des cartes combinées, le retour du focus depuis commentaires/partage/édition, le premier message d’une conversation vide, l’activation de VoiceOver pendant une story et la lecture des descriptions après reprise de publication.

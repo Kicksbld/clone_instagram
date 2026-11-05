@@ -66,6 +66,10 @@ struct PostView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Publication de \(post.author.username)")
+                .accessibilityHint("Ouvre le profil")
+                .accessibilityAddTraits(.isHeader)
                 Spacer()
                 if onDelete != nil || moderation != nil {
                     Menu("Plus d'options", systemImage: "ellipsis") {
@@ -107,50 +111,32 @@ struct PostView: View {
             .padding(.horizontal)
         }
         .padding(.vertical, 8)
-        .accessibilityRepresentation { accessibleCard }
         .onChange(of: isShowingFullScreenReel) {
             _, shown in if !shown {
                 cardFocused = true
             }
         }
-        .onChange(of: page) { _, index in
-            guard post.media.indices.contains(index) else { return }
-            AccessibilityFeedback.announce("Photo \(index + 1) sur \(post.media.count). \(post.media[index].accessibilityDescription)")
-        }
     }
 
-    private var accessibleCard: some View {
-        NavigationLink(value: ProfileRoute(username: post.author.username)) {
-            Text(post.accessibilitySummary(page: page))
+    /// Raccourcis VoiceOver sur le média (balayage vers le haut ou le bas) ; les mêmes commandes restent
+    /// atteignables une à une par balayage horizontal, sous le média.
+    @ViewBuilder
+    private var mediaActions: some View {
+        Button(post.isLiked ? "Retirer la mention J’aime" : "J’aime", action: onToggleLike)
+        if openComments != nil {
+            Button("Commenter", action: showComments)
         }
-        .accessibilityFocused($cardFocused)
-        .accessibilityHint("Ouvre le profil de l’auteur. Utilisez les actions pour interagir avec la publication.")
-        .accessibilityActions {
-            Button(post.isLiked ? "Retirer la mention J’aime" : "J’aime", action: onToggleLike)
-            if openComments != nil {
-                Button("Commenter", action: showComments)
-            }
-            if let openSharePost {
-                Button("Partager") { openSharePost(SharePostRoute(postId: post.id)) }
-            }
-            if post.kind == .reel {
-                Button("Lire le reel en plein écran") { isShowingFullScreenReel = true }
-            }
-            if page > 0 {
-                Button("Photo précédente") { page -= 1 }
-            }
-            if page + 1 < post.media.count {
-                Button("Photo suivante") { page += 1 }
-            }
-            ForEach(post.mentions.filter { !blockedUserIds.contains($0.id) }, id: \.id) { mention in
-                Button("Ouvrir le profil de \(mention.username)") {
-                    if let url = URL(string: "clone-mention://profile/\(mention.username)") {
-                        openURL(url)
-                    }
+        if let openSharePost {
+            Button("Partager") { openSharePost(SharePostRoute(postId: post.id)) }
+        }
+        ForEach(post.mentions.filter { !blockedUserIds.contains($0.id) }, id: \.id) { mention in
+            Button("Ouvrir le profil de \(mention.username)") {
+                if let url = URL(string: "clone-mention://profile/\(mention.username)") {
+                    openURL(url)
                 }
             }
-            menuItems
         }
+        menuItems
     }
 
     /**
@@ -161,7 +147,7 @@ struct PostView: View {
     private func carousel(ratio: Double) -> some View {
         TabView(selection: $page) {
             ForEach(Array(post.media.enumerated()), id: \.offset) { index, media in
-                photo(media, index: index)
+                photo(media)
                     .tag(index)
             }
         }
@@ -172,7 +158,6 @@ struct PostView: View {
             onDoubleTapLike()
         }
         .overlay { DoubleTapHeart(trigger: doubleTapCount) }
-        .accessibilityAction(named: "J'aime") { onDoubleTapLike() }
         .overlay(alignment: .topTrailing) {
             if post.media.count > 1 {
                 Text("\(page + 1)/\(post.media.count)")
@@ -185,6 +170,17 @@ struct PostView: View {
                     .accessibilityHidden(true)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(post.media.indices.contains(page) ? photoLabel(page) : "Média indisponible")
+        .accessibilityHint(post.media.count > 1 ? "Balayez vers le haut ou le bas pour changer de photo" : "")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment where page + 1 < post.media.count: page += 1
+            case .decrement where page > 0: page -= 1
+            default: break
+            }
+        }
+        .accessibilityActions { mediaActions }
     }
 
     /**
@@ -203,10 +199,13 @@ struct PostView: View {
             }
             .onTapGesture { isShowingFullScreenReel = true }
             .overlay { DoubleTapHeart(trigger: doubleTapCount) }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(post.caption.isEmpty ? "Reel" : post.caption)
-            .accessibilityAction(named: "Ouvrir en plein écran") { isShowingFullScreenReel = true }
-            .accessibilityAction(named: "J'aime") { onDoubleTapLike() }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Reel. \(media.accessibilityDescription)")
+            .accessibilityAddTraits(.startsMediaSession)
+            .accessibilityAction { isShowingFullScreenReel = true }
+            .accessibilityHint("Lit le reel en plein écran")
+            .accessibilityActions { mediaActions }
+            .accessibilityFocused($cardFocused)
             .fullScreenCover(isPresented: $isShowingFullScreenReel) {
                 ReelPlayerView(media: media)
             }
@@ -214,7 +213,7 @@ struct PostView: View {
 
     /// Variante `large` (ADR-010) : la largeur de l'écran dépasse 640 px sur tous les iPhone, et le feed
     /// précharge exactement cette URL.
-    private func photo(_ media: PostMediaItem, index: Int) -> some View {
+    private func photo(_ media: PostMediaItem) -> some View {
         Color.secondary.opacity(0.1)
             .overlay {
                 GeometryReader { proxy in
@@ -227,8 +226,6 @@ struct PostView: View {
                 }
             }
             .clipped()
-            .accessibilityElement()
-            .accessibilityLabel(photoLabel(index))
     }
 
     private var captionText: Text {
@@ -245,6 +242,7 @@ struct PostView: View {
             VStack(alignment: .leading, spacing: 2) {
                 captionText
                     .lineLimit(2)
+                    .accessibilityLabel(captionText)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { captionHeights.collapsed = $0 }
                     .background(alignment: .topLeading) {
                         captionText
@@ -323,6 +321,7 @@ struct PostView: View {
             Spacer()
             Button("Enregistrer", systemImage: "bookmark") {}
                 .disabled(true)
+                .accessibilityHidden(true)
         }
         .labelStyle(.iconOnly)
         .font(.title3)
@@ -342,8 +341,7 @@ struct PostView: View {
                     .frame(width: 6, height: 6)
             }
         }
-        .accessibilityElement()
-        .accessibilityLabel("Photo \(page + 1) sur \(post.media.count)")
+        .accessibilityHidden(true)
     }
 }
 
