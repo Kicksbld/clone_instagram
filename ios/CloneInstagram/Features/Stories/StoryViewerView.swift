@@ -191,37 +191,46 @@ struct StoryViewerView: View {
     }
 
     /// Cadre 9:16 : la photo entière sur un fond flouté de ses couleurs ; appui à gauche ou à droite,
-    /// doigt appuyé pour mettre en pause.
+    /// doigt appuyé pour mettre en pause. Le cadre (`Color.clear` 9:16) fixe seul la taille : fond, photo et zones d'appui sont en overlay,
+    /// sinon le fond en `scaledToFill` agrandit le cadre au-delà de l'écran (story zoomée, en-tête coupé).
     private func canvas(_ story: Story) -> some View {
-        ZStack {
-            LazyImage(url: story.photo.variants.thumb) { state in
-                state.image?.resizable().scaledToFill().blur(radius: 40)
+        Color.clear
+            .aspectRatio(9 / 16, contentMode: .fit)
+            .overlay {
+                LazyImage(url: story.photo.variants.thumb) { state in
+                    state.image?.resizable().scaledToFill().blur(radius: 40)
+                }
+                .accessibilityHidden(true)
             }
-            .accessibilityHidden(true)
-            LazyImage(url: story.photo.variants.large) { state in
-                if let image = state.image {
-                    image.resizable().scaledToFit()
-                        .task(id: story.id) { await viewModel.photoDidAppear(storyId: story.id) }
-                } else {
-                    ProgressView().accessibilityLabel("Chargement en cours")
+            .overlay {
+                LazyImage(url: story.photo.variants.large) { state in
+                    if let image = state.image {
+                        image.resizable().scaledToFit()
+                            .task(id: story.id) { await viewModel.photoDidAppear(storyId: story.id) }
+                    } else {
+                        ProgressView().accessibilityLabel("Chargement en cours")
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(photoLabel(story))
+                .accessibilityFocused($photoFocused)
+            }
+            .overlay {
+                GeometryReader { proxy in
+                    HStack(spacing: 0) {
+                        // Comme Instagram : le tiers gauche revient en arrière, le reste passe.
+                        tapArea("Story précédente") { await viewModel.previous() }
+                            .frame(width: proxy.size.width / 3)
+                        tapArea("Story suivante") { await viewModel.next() }
+                    }
                 }
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(
-                "Story de \(story.author.username), \(viewModel.storyIndex + 1) sur \(viewModel.stories.count). \(story.photo.accessibilityDescription)"
-            )
-            .accessibilityFocused($photoFocused)
-            GeometryReader { proxy in
-                HStack(spacing: 0) {
-                    // Comme Instagram : le tiers gauche revient en arrière, le reste passe.
-                    tapArea("Story précédente") { await viewModel.previous() }
-                        .frame(width: proxy.size.width / 3)
-                    tapArea("Story suivante") { await viewModel.next() }
-                }
-            }
-        }
-        .aspectRatio(9 / 16, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func photoLabel(_ story: Story) -> String {
+        "Story de \(story.author.username), \(viewModel.storyIndex + 1) sur \(viewModel.stories.count). "
+            + story.photo.accessibilityDescription
     }
 
     private func tapArea(_ label: String, action: @escaping () async -> Void) -> some View {
