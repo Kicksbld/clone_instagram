@@ -51,7 +51,7 @@ private struct Shower {
                 drift: Double.random(in: -60 ... 60, using: &generator),
                 spin: Double.random(in: 2 ... 9, using: &generator),
                 size: Double.random(in: 6 ... 12, using: &generator),
-                color: colors[index % colors.count],
+                color: Self.colors[index % Self.colors.count],
                 isRound: index.isMultiple(of: 3)
             )
         }

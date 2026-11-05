@@ -22,7 +22,7 @@ struct SpeechBubble: View {
     }
 }
 
-private struct Triangle: Shape {
+private nonisolated struct Triangle: Shape {
     func path(in rect: CGRect) -> Path {
         Path { path in
             path.move(to: CGPoint(x: rect.midX, y: rect.minY))
