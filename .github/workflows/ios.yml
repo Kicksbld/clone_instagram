@@ -61,4 +61,18 @@ jobs:
         if: failure()
         run: |
           log="$(ls -d "$HOME"/Library/Developer/Xcode/DerivedData/CloneInstagram-*/last-test.log 2>/dev/null | head -1)"
-          [ -n "$log" ] && grep -nE "error:|warning: .*(Sendable|actor)" "$log" | head -200 || true
+          if [ -n "$log" ]; then
+            grep -nE "error:|warning: .*(Sendable|actor)" "$log" | head -200 || true
+            tail -200 "$log"
+          fi
+
+      - name: Diagnostics Xcode
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-diagnostics
+          path: |
+            ~/Library/Developer/Xcode/DerivedData/CloneInstagram-*/last-test.log
+            ~/Library/Developer/Xcode/DerivedData/CloneInstagram-*/Logs/Test/*.xcresult
+          retention-days: 7
+          if-no-files-found: warn
