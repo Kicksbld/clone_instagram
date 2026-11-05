@@ -184,8 +184,11 @@ struct ReelsView: View {
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading) {
                     friendsSummary(post)
-                    Text(post.author.username).bold()
-                    Text(MentionText.attributed(post.caption, mentions: post.mentions, blockedIds: blockedIds)).lineLimit(3)
+                    VStack(alignment: .leading) {
+                        Text(post.author.username).bold()
+                        Text(MentionText.attributed(post.caption, mentions: post.mentions, blockedIds: blockedIds)).lineLimit(3)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
                 Spacer()
                 VStack(spacing: 16) {
@@ -201,6 +204,8 @@ struct ReelsView: View {
                     } label: {
                         Label("\(post.commentCount) commentaires", systemImage: "bubble.right")
                     }
+                    .accessibilityLabel("Commenter")
+                    .accessibilityValue("\(post.commentCount) commentaires")
                     .disabled(openComments == nil)
                     Button("Partager", systemImage: "paperplane") {
                         openSharePost?(SharePostRoute(postId: post.id))
@@ -208,7 +213,6 @@ struct ReelsView: View {
                     .disabled(openSharePost == nil)
                 }
             }
-            .accessibilityElement(children: .combine)
             .padding()
             .foregroundStyle(.white)
             .background(.black.opacity(0.55))
