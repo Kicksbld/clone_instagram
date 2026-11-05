@@ -50,6 +50,8 @@ Le parcours Apple saute 14 à 16.
 
 ## Insights du dashboard « Onboarding v2 »
 
+Créé le 5 novembre 2026 par le MCP PostHog : [Onboarding v2](https://eu.posthog.com/project/283286/dashboard/1086639), projet `clone-instagram-demo`. Il contient 12 tuiles : les points 1 à 10 ci-dessous, l'entonnoir du point 1 découpé en deux (hook, puis inscription jusqu'à l'achat), et l'entonnoir historique de T11. L'expérience `paywall-presentation` n'a pas été modifiée.
+
 1. **Entonnoir écran par écran** : Funnel sur `onboarding_screen_viewed`, une étape par écran, un filtre `screen` par étape, dans l'ordre de la liste ci-dessus (`welcome` à `completed`). Puis `paywall_viewed` (`source = onboarding`), `purchase_completed`. Fenêtre de conversion : 1 jour. Filtre global : `onboarding_version = v2`.
 2. **Abandons par écran** : Trends de `onboarding_screen_viewed`, ventilé par `screen`, en utilisateurs uniques, affiché en barres. Lu dans l'ordre de la liste des écrans (`index` est envoyé en texte : PostHog le trierait « 10 » avant « 2 »), le plus grand écart entre deux écrans voisins est l'écran où les gens partent.
 3. **Temps passé par écran** : dans l'entonnoir n° 1, vue « Time to convert », ou Funnel en mode « Time to convert » entre deux écrans consécutifs (par ex. `quiz_interests` → `insight_interests`).
