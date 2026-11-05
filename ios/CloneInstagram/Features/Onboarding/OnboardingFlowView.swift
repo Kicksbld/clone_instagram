@@ -1,28 +1,51 @@
 import SwiftUI
 
-/// Parcours d'onboarding : une étape par écran dans une pile de navigation (fiche T2).
+/// Parcours d'onboarding : hook pour un nouveau compte (ADR-038), puis une étape d'inscription par écran
+/// dans une pile de navigation (fiche T2).
 struct OnboardingFlowView: View {
     @State private var viewModel: OnboardingViewModel
     private let exitTitle: String
     private let onExit: () -> Void
     private let onProfileCreated: (String?) -> Void
+    private let onInterestsChosen: ([OnboardingInterest]) -> Void
     private let onLogin: () -> Void
 
     init(
         viewModel: OnboardingViewModel,
         exitTitle: String,
         onProfileCreated: @escaping (String?) -> Void = { _ in },
+        onInterestsChosen: @escaping ([OnboardingInterest]) -> Void = { _ in },
         onExit: @escaping () -> Void,
         onLogin: @escaping () -> Void
     ) {
         _viewModel = State(initialValue: viewModel)
         self.exitTitle = exitTitle
         self.onProfileCreated = onProfileCreated
+        self.onInterestsChosen = onInterestsChosen
         self.onExit = onExit
         self.onLogin = onLogin
     }
 
     var body: some View {
+        ZStack {
+            if let hook = viewModel.hook, !viewModel.isHookDone {
+                OnboardingHookFlowView(viewModel: hook, onExit: onExit)
+                    .transition(.opacity)
+            } else {
+                registration
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(duration: 0.5, bounce: 0.2), value: viewModel.isHookDone)
+        .onChange(of: viewModel.profile?.id, initial: true) { _, id in
+            onProfileCreated(id)
+        }
+        .onChange(of: viewModel.hookResult.interests, initial: true) { _, interests in
+            onInterestsChosen(interests)
+        }
+    }
+
+    private var registration: some View {
         NavigationStack(path: $viewModel.path) {
             step(viewModel.rootStep)
                 .toolbar {
@@ -35,9 +58,8 @@ struct OnboardingFlowView: View {
                 }
                 .navigationDestination(for: OnboardingStep.self) { step($0) }
         }
-        .onChange(of: viewModel.profile?.id, initial: true) { _, id in
-            onProfileCreated(id)
-        }
+        .tint(Color.cloneLime)
+        .onChange(of: viewModel.currentStep, initial: true) { viewModel.screenViewed() }
     }
 
     @ViewBuilder

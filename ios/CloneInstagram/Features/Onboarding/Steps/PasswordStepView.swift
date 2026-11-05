@@ -35,7 +35,7 @@ struct PasswordStepView: View {
                 }
                 .labelStyle(.iconOnly)
             }
-            .textFieldStyle(.roundedBorder)
+            .onboardingField()
         }
         // Compte créé : pas de retour vers le code de confirmation.
         .navigationBarBackButtonHidden()

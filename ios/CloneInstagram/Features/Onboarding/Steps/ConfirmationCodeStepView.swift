@@ -13,7 +13,7 @@ struct ConfirmationCodeStepView: View {
             primaryAction: viewModel.submitCode
         ) {
             TextField("Code de confirmation", text: $viewModel.code)
-                .textFieldStyle(.roundedBorder)
+                .onboardingField()
                 .textContentType(.oneTimeCode)
                 .keyboardType(.numberPad)
         } secondary: {

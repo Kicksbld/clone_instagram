@@ -120,6 +120,37 @@ struct RootViewModelTests {
         #expect(purchases.calls.last == "logOut")
     }
 
+    @Test func `fin de l'onboarding, permission jamais demandée → paywall → notifications → accueil`() async {
+        let viewModel = RootViewModel(
+            auth: FakeAuthService(currentProvider: .email),
+            identity: FakeIdentityService(),
+            notifications: FakeNotificationPermissionService(current: .notDetermined)
+        )
+
+        viewModel.finishOnboarding(with: .fixture())
+        await viewModel.notificationCheck?.value
+        viewModel.closePaywall()
+        #expect(viewModel.route == .notificationPermission(.fixture()))
+
+        viewModel.closeNotificationPermission()
+        #expect(viewModel.route == .home(.fixture()))
+    }
+
+    @Test(arguments: [NotificationPermissionStatus.granted, .denied])
+    func `permission déjà décidée → paywall → accueil directement`(status: NotificationPermissionStatus) async {
+        let viewModel = RootViewModel(
+            auth: FakeAuthService(currentProvider: .email),
+            identity: FakeIdentityService(),
+            notifications: FakeNotificationPermissionService(current: status)
+        )
+
+        viewModel.finishOnboarding(with: .fixture())
+        await viewModel.notificationCheck?.value
+        viewModel.closePaywall()
+
+        #expect(viewModel.route == .home(.fixture()))
+    }
+
     @Test func `abonnement confirmé sur le paywall → accueil en plan plus`() {
         let viewModel = RootViewModel(auth: FakeAuthService(currentProvider: .email), identity: FakeIdentityService())
         viewModel.finishOnboarding(with: .fixture())

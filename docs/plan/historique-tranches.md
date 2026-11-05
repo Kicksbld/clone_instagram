@@ -178,3 +178,27 @@ Ce que chaque tranche a posé dans le code, pour retrouver où vit une fonctionn
 - iOS : menu « … » de mes posts > « Modifier » (action d'environnement `openEditPost`, `Core/Navigation/EditPostRoute`) ; feuille `Features/EditPost` (« Modifier les infos », suggestions de mentions, enregistrement qui attend l'API, erreurs en alerte avec la saisie gardée) ; `PostEditStore` (`Core/Posts`) partagé : nouvelle légende et mentions affichées dans le feed, le détail et les Reels, vidé à la déconnexion.
 - Décisions : application d'ADR-025, ADR-026, ADR-036 ; modification non optimiste (texte validé par le serveur, ADR-020).
 - Reste à valider : déployer l'API, recompiler l'app ; démo sur iPhone physique (A ajoute « @lea » : B est prévenu ; A retire la mention : la notification disparaît chez B).
+
+### Onboarding interactif v2 (#76)
+
+- Contrat, base, API, backoffice : aucun changement.
+- iOS :
+  - **Hook avant l'inscription** (`Features/Onboarding/Hook`, `OnboardingHookViewModel`), seulement depuis « Commencer » : présentation de la mascotte, promesse en 3 cartes, quiz de 3 questions avec répliques, double tap sur un faux post, première photo avec filtres publiée dans un faux feed, célébration, pont vers l'inscription ; « Passer ». `OnboardingViewModel` crée le hook (`hook`, `isHookDone`, `hookResult`) ; la photo du hook est proposée à l'étape photo de profil (`useHookPhoto`).
+  - **Inscription ADR-018 restylée** via `OnboardingStepLayout`, même ordre et même logique.
+  - **Socle** :
+    - `Core/Feedback` : `FeedbackService`, repères `FeedbackCue` (son + vibration), `SystemFeedbackService` en session `ambient`, mute mémorisé ; `\.feedback` dans l'environnement.
+    - `DesignSystem/Mascot/MascotView` : 3 poses en boucle `AVPlayerLooper`, image fixe si Reduce Motion.
+    - `DesignSystem/Onboarding` : thème noir, boutons, puces, bulle et texte mot à mot, confettis, barre de progression, champ.
+  - **Accueil et paywall** dans le même style. Le paywall reçoit le premier centre d'intérêt ; variantes A/B conservées.
+  - **Pré-permission des notifications** après le paywall : route `.notificationPermission`, `Core/Notifications`, `Features/NotificationPermission`. Aucun jeton envoyé.
+  - **Splash** : contenu de `RootView` en plein écran sous le splash. Le splash ne prend plus la taille du logo de chargement (bloc blanc au lancement à froid).
+  - **Analytics** :
+    - `onboarding_screen_viewed`, `onboarding_quiz_answered`, `onboarding_interaction_completed`, `onboarding_skipped`, `onboarding_sound_toggled`, `notification_permission_responded` (`Core/Analytics/OnboardingAnalytics.swift`) ;
+    - super-propriété `onboarding_version`.
+- Assets : `ios/design/mascot/` (sources), `ios/scripts/assets/cut-mascots.sh` et `generate-sounds.sh` (ffmpeg) → `Resources/Mascot/*.mp4`, `Assets.xcassets/Mascot*`, `Resources/Sounds/cue-*.caf`.
+- Dashboard : [docs/analytics/posthog-onboarding-dashboard.md](../analytics/posthog-onboarding-dashboard.md).
+- Décision proposée : ADR-038 (exception à la règle wireframe, hook avant l'inscription, mascotte, son et haptique, nouveaux événements).
+- Reste à valider :
+  - `ios/scripts/test.sh` sur le Mac (code écrit sans compilateur) ;
+  - iPhone physique : son on et off, Reduce Motion, « Passer », reprise d'un onboarding, achat sandbox, permission, splash à froid ;
+  - dashboard PostHog.

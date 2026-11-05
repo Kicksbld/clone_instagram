@@ -13,7 +13,7 @@ struct BioStepView: View {
             primaryAction: viewModel.submitBio
         ) {
             TextField("Bio", text: $viewModel.bio, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
+                .onboardingField()
                 .lineLimit(3 ... 6)
                 .onChange(of: viewModel.bio) { _, value in
                     if value.count > OnboardingViewModel.bioMaxLength {

@@ -43,3 +43,4 @@ Décisions d'architecture du projet, rédigées selon [Agent ADR Architecte.md](
 | [ADR-035](ADR-035-partage-post-apercu-par-lecteur.md) | Partage de post : aperçu résolu par lecteur, référence conservée après suppression | Proposé |
 | [ADR-036](ADR-036-mentions-conserver-username-du-texte.md) | Mentions : conserver le username écrit dans le texte | Proposé |
 | [ADR-037](ADR-037-modification-legende-mentions-recalculees.md) | Modification d'une légende : mentions recalculées par username écrit | Proposé |
+| [ADR-038](ADR-038-onboarding-interactif-mascotte-feedback.md) | Onboarding interactif : hook avant l'inscription, mascotte, son et haptique | Proposé |

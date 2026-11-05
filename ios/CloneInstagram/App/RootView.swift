@@ -6,6 +6,8 @@ struct RootView: View {
     @State private var viewModel: RootViewModel
     /// Feuille des commentaires ouverte depuis un post (feed, détail).
     @State private var onboardingProfileId: String?
+    /// Centres d'intérêt choisis au hook (ADR-038) : personnalisent le paywall de fin d'onboarding.
+    @State private var onboardingInterests: [OnboardingInterest] = []
     @State private var sharePostRoute: SharePostRoute?
     @State private var commentsRoute: CommentsRoute?
     /// « Modifier » depuis le menu « … » d'un de mes posts (feed, détail).
@@ -24,37 +26,42 @@ struct RootView: View {
             purchases: dependencies.purchases,
             subscriptions: dependencies.subscriptions,
             appIcons: dependencies.appIcons,
-            analytics: dependencies.analytics
+            analytics: dependencies.analytics,
+            notifications: dependencies.notifications
         ))
     }
 
     var body: some View {
-        content
-            .environment(\.mentionSearchService, dependencies.social)
-            .environment(\.mentionProfileDestination) { route in
-                if case let .home(profile) = viewModel.route {
-                    AnyView(dependencies.userProfile(route, viewerId: profile.id))
-                } else {
-                    AnyView(EmptyView())
-                }
+        // Contenu plein écran : le splash posé au-dessus couvre toute la fenêtre, même pendant le chargement
+        // (sinon il prend la taille du logo de `.loading` et laisse le fond système, blanc, autour).
+        ZStack {
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if !isSplashFinished {
+                SplashView(isReady: viewModel.route != .loading) { isSplashFinished = true }
             }
-            .overlay {
-                if !isSplashFinished {
-                    SplashView(isReady: viewModel.route != .loading) { isSplashFinished = true }
-                }
+        }
+        .environment(\.feedback, dependencies.feedback)
+        .environment(\.mentionSearchService, dependencies.social)
+        .environment(\.mentionProfileDestination) { route in
+            if case let .home(profile) = viewModel.route {
+                AnyView(dependencies.userProfile(route, viewerId: profile.id))
+            } else {
+                AnyView(EmptyView())
             }
-            .task { await viewModel.start() }
-            .task(id: realtimeSession) { dependencies.realtime?.setSession(realtimeSession) }
-            .onDisappear { dependencies.realtime?.setSession(nil) }
-            // Compte suspendu ou banni pendant la session (`403 account_suspended`, ADR-005).
-            .onChange(of: dependencies.suspension.revision) {
-                Task { await viewModel.accountSuspended() }
-            }
-            // Retour dans l'app : un compte réactivé quitte l'écran « Compte suspendu ».
-            .onChange(of: scenePhase) { _, phase in
-                guard phase == .active else { return }
-                Task { await viewModel.recheckSuspension() }
-            }
+        }
+        .task { await viewModel.start() }
+        .task(id: realtimeSession) { dependencies.realtime?.setSession(realtimeSession) }
+        .onDisappear { dependencies.realtime?.setSession(nil) }
+        // Compte suspendu ou banni pendant la session (`403 account_suspended`, ADR-005).
+        .onChange(of: dependencies.suspension.revision) {
+            Task { await viewModel.accountSuspended() }
+        }
+        // Retour dans l'app : un compte réactivé quitte l'écran « Compte suspendu ».
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await viewModel.recheckSuspension() }
+        }
     }
 
     @ViewBuilder
@@ -62,8 +69,12 @@ struct RootView: View {
         switch viewModel.route {
         case .loading:
             AppLogo()
+                .environment(\.colorScheme, .dark)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.cloneInk.ignoresSafeArea())
         case .welcome:
             WelcomeView(onSignUp: viewModel.showSignUp, onLogin: viewModel.showLogin)
+                .onAppear { dependencies.analytics.track(.onboardingScreenViewed(.welcome)) }
         case .login:
             LoginView(
                 viewModel: LoginViewModel(auth: dependencies.auth) { await viewModel.start() },
@@ -78,10 +89,12 @@ struct RootView: View {
                     identity: dependencies.identity,
                     uploads: dependencies.uploads,
                     analytics: dependencies.analytics,
+                    feedback: dependencies.feedback,
                     onFinished: viewModel.finishOnboarding(with:)
                 ),
                 exitTitle: entry == .newAccount ? "Annuler" : "Se déconnecter",
                 onProfileCreated: { onboardingProfileId = $0 },
+                onInterestsChosen: { onboardingInterests = $0 },
                 onExit: {
                     if entry == .newAccount {
                         viewModel.showWelcome()
@@ -94,6 +107,12 @@ struct RootView: View {
             .id(entry)
         case let .paywall(profile):
             paywall(for: profile, onClose: viewModel.closePaywall)
+        case .notificationPermission:
+            NotificationPermissionView(
+                notifications: dependencies.notifications,
+                analytics: dependencies.analytics,
+                onFinished: viewModel.closeNotificationPermission
+            )
         case let .home(profile):
             HomeView(
                 publishQueue: dependencies.publishQueue,
@@ -343,7 +362,8 @@ private extension RootView {
                 source: onClose == nil ? .settings : .onboarding,
                 onPlanChanged: viewModel.updatePlan
             ),
-            onClose: onClose
+            onClose: onClose,
+            featuredInterest: onClose == nil ? nil : onboardingInterests.first
         )
     }
 
@@ -389,7 +409,7 @@ private extension RootView {
     var realtimeSession: String? {
         guard scenePhase == .active else { return nil }
         switch viewModel.route {
-        case let .home(profile), let .paywall(profile): return profile.id
+        case let .home(profile), let .paywall(profile), let .notificationPermission(profile): return profile.id
         case .onboarding: return onboardingProfileId
         default: return nil
         }
