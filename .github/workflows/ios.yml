@@ -51,7 +51,6 @@ jobs:
           swiftlint lint --quiet
           swiftformat --lint . || echo "::warning::SwiftFormat signale des fichiers à reformater (voir ci-dessus)"
 
-
       - name: Tests
         run: |
           device="$(xcrun simctl list devices available | grep -Eo 'iPhone [0-9]+( Pro)?' | sort -V | tail -1)"
