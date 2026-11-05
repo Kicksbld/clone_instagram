@@ -91,6 +91,10 @@ final class OnboardingHookViewModel {
     func skip() {
         guard canSkip, !isFinished else { return }
         analytics.track(.onboardingSkipped(step.screen))
+        // Réponse déjà choisie sur la question quittée : envoyée comme à un passage normal.
+        if canContinue {
+            trackAnswers(leaving: step)
+        }
         finish()
     }
 

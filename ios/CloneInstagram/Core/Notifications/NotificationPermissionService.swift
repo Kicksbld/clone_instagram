@@ -20,6 +20,16 @@ protocol NotificationPermissionService {
 
 struct SystemNotificationPermissionService: NotificationPermissionService {
     func status() async -> NotificationPermissionStatus {
+        await Self.currentStatus()
+    }
+
+    func request() async -> Bool {
+        await Self.requestAuthorization()
+    }
+
+    /// Hors de l'acteur principal : `UNNotificationSettings` ne traverse pas la frontière d'acteur, seul
+    /// l'état converti (`Sendable`) revient.
+    private nonisolated static func currentStatus() async -> NotificationPermissionStatus {
         switch await UNUserNotificationCenter.current().notificationSettings().authorizationStatus {
         case .notDetermined: .notDetermined
         case .denied: .denied
@@ -27,7 +37,7 @@ struct SystemNotificationPermissionService: NotificationPermissionService {
         }
     }
 
-    func request() async -> Bool {
+    private nonisolated static func requestAuthorization() async -> Bool {
         (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])) ?? false
     }
 }

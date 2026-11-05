@@ -153,8 +153,8 @@ struct PaywallView: View {
             timelineStep("lock.open.fill", "Aujourd'hui", "Tous les avantages Clone Plus, tout de suite.", isLast: false)
             timelineStep(
                 "arrow.triangle.2.circlepath",
-                "Chaque \(offer.period)",
-                "\(offer.price), renouvelé automatiquement.",
+                "Ensuite",
+                "\(offer.price) par \(offer.period), renouvelé automatiquement.",
                 isLast: false
             )
             timelineStep(

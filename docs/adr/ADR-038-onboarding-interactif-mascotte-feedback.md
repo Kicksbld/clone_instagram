@@ -19,9 +19,9 @@ Contraintes :
 - **Hook avant l'inscription** (nouveaux comptes uniquement, depuis « Commencer ») : présentation de la mascotte, promesse en trois cartes, quiz de trois questions chacune suivie d'un insight, like d'un faux post, première photo avec filtres, célébration, puis pont vers l'inscription. Un bouton « Passer » mène directement à l'inscription. La reprise d'un onboarding (`.resume`) et la connexion sautent le hook.
 - **Données du hook locales** : réponses du quiz et photo gardées en mémoire dans l'app. Les réponses personnalisent les écrans suivants et le paywall, et partent en analytics (valeurs d'énumération). La photo préremplit l'étape photo de profil, envoyée après la création du profil comme aujourd'hui. Rien n'est stocké côté serveur.
 - **Inscription ADR-018 conservée et restylée** : même ordre, même ViewModel, même logique. Seule la présentation change.
-- **Exception à la règle wireframe** pour l'onboarding, l'écran de bienvenue, le paywall et l'écran de permission des notifications : fond sombre (`cloneInk`), accents `cloneLime`, typographie système arrondie, composants dans `DesignSystem/Onboarding`. Le reste de l'app reste en wireframe.
+- **Exception à la règle wireframe** pour l'onboarding, l'écran de bienvenue, le paywall et l'écran de permission des notifications : fond noir (`onboardingBackground`, identique au fond des vidéos de la mascotte), accents `cloneLime`, typographie système arrondie, composants dans `DesignSystem/Onboarding`. Le reste de l'app reste en wireframe.
 - **Mascotte** (`DesignSystem/Mascot`) en trois poses, jamais deux sur le même écran : Guide (narration), Cœur (like et paywall), Bravo (célébrations).
-  - Rendu par boucles vidéo muettes découpées dans la vidéo fournie, lues par `AVPlayerLooper`, avec mélange `screen` pour fondre le noir de la vidéo dans le fond sombre.
+  - Rendu par boucles vidéo muettes découpées dans la vidéo fournie, lues par `AVPlayerLooper`, posées sur le fond noir de l'onboarding pour que le noir de la vidéo ne se voie pas.
   - Image fixe si Reduce Motion est activé.
   - Assets produits par des scripts ffmpeg versionnés (`ios/scripts/assets/`).
 - **Son et haptique** : un service `FeedbackService` (`Core/Feedback`) joue des repères nommés, chacun combinant un son court et une vibration.

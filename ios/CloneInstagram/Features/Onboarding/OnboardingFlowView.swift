@@ -40,7 +40,7 @@ struct OnboardingFlowView: View {
         .onChange(of: viewModel.profile?.id, initial: true) { _, id in
             onProfileCreated(id)
         }
-        .onChange(of: viewModel.hookResult.interests) { _, interests in
+        .onChange(of: viewModel.hookResult.interests, initial: true) { _, interests in
             onInterestsChosen(interests)
         }
     }

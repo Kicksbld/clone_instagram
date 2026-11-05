@@ -205,6 +205,17 @@ struct OnboardingHookAnalyticsTests {
         #expect(AnalyticsEvent.onboardingSkipped(.promise).name == "onboarding_skipped")
     }
 
+    @Test func `passer sur une question déjà répondue : réponse envoyée`() {
+        let viewModel = makeViewModel()
+        viewModel.next()
+        viewModel.next()
+        viewModel.toggle(.art)
+
+        viewModel.skip()
+
+        #expect(analytics.events == [.onboardingSkipped(.quizInterests), .onboardingQuizAnswered(.interest(.art))])
+    }
+
     @Test func `son coupé : état envoyé`() {
         let viewModel = makeViewModel()
 
