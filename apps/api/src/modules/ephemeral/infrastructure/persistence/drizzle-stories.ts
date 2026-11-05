@@ -22,6 +22,15 @@ export class DrizzleStoryRepository implements StoryRepository {
     await this.db.insert(stories).values(story);
   }
 
+  async updateDescription(id: string, authorId: string, altText: string): Promise<boolean> {
+    const rows = await this.db
+      .update(stories)
+      .set({ altText })
+      .where(and(eq(stories.id, id), eq(stories.authorId, authorId), isNull(stories.deletedAt)))
+      .returning({ id: stories.id });
+    return rows.length > 0;
+  }
+
   async softDelete(id: string, authorId: string): Promise<{ mediaId: string | null } | null> {
     const [deleted] = await this.db
       .update(stories)
@@ -230,6 +239,7 @@ export class DrizzleStoryReader implements StoryReader {
       .select({
         id: stories.id,
         audience: stories.audience,
+        altText: stories.altText,
         createdAt: stories.createdAt,
         expiresAt: stories.expiresAt,
         // Clé primaire `(story_id, viewer_id)` de `story_views`.
@@ -269,7 +279,7 @@ export class DrizzleStoryReader implements StoryReader {
         createdAt: row.createdAt,
         expiresAt: row.expiresAt,
         viewerHasSeen: row.authorId === viewerId || row.viewed,
-        media: { variants, width, height },
+        media: { variants, width, height, ...(row.altText && { altText: row.altText }) },
         author: {
           id: row.authorId,
           username: row.username,

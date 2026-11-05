@@ -22,6 +22,7 @@ struct HookLikePostView: View {
                     .transition(.scale(scale: 0.3).combined(with: .opacity))
             }
         }
+        .accessibilityStatus(viewModel.hasLiked ? "Mention J’aime ajoutée. Vous pouvez continuer." : "")
         .animation(.spring(duration: 0.5, bounce: 0.55), value: viewModel.hasLiked)
         .task {
             guard !reduceMotion else { return }
@@ -44,8 +45,8 @@ struct HookLikePostView: View {
             photo
             HStack(spacing: 16) {
                 LikeButton(isLiked: viewModel.hasLiked) { viewModel.likePost(method: .button) }
-                Image(systemName: "bubble.right")
-                Image(systemName: "paperplane")
+                Image(systemName: "bubble.right").accessibilityHidden(true)
+                Image(systemName: "paperplane").accessibilityHidden(true)
                 Spacer()
             }
             .font(.title3)

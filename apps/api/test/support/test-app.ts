@@ -1,3 +1,4 @@
+import { UpdateStoryDescription } from '../../src/modules/ephemeral/application/use-cases/update-story-description.ts';
 import { InMemoryMentions } from './in-memory-mentions.ts';
 import { GetReelsFeed } from '../../src/modules/feed/application/use-cases/get-reels-feed.ts';
 import { GetFriendsReels } from '../../src/modules/feed/application/use-cases/get-friends-reels.ts';
@@ -365,6 +366,9 @@ export function buildTestApp() {
         ),
       },
       stories: {
+        updateStoryDescription: new UpdateStoryDescription(
+          new InMemoryUnitOfWork({ stories, reader: stories }),
+        ),
         listArchivedStories: new ListArchivedStories(stories, clock),
         listStoryViewers: new ListStoryViewers(stories, {
           isPlus: async (userId) => (await getPlan.execute({ userId })).plan === 'plus',

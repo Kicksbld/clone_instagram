@@ -11,6 +11,8 @@ import Observation
 final class EditPostViewModel {
     /// Légende saisie.
     var caption: String
+    var mediaAltTexts: [String]
+    private let originalAltTexts: [String]
     private(set) var isSaving = false
     /// Échec de l'enregistrement, affiché en alerte ; `nil` une fois fermée.
     var errorMessage: String?
@@ -29,13 +31,15 @@ final class EditPostViewModel {
         postId = route.postId
         original = route.caption
         caption = route.caption
+        mediaAltTexts = route.mediaAltTexts
+        originalAltTexts = route.mediaAltTexts
         self.service = service
         self.edits = edits
     }
 
     /// La légende diffère de celle d'origine (espaces de début et de fin ignorés, comme l'API).
     var hasChanges: Bool {
-        trimmed != original.trimmingCharacters(in: .whitespacesAndNewlines)
+        trimmed != original.trimmingCharacters(in: .whitespacesAndNewlines) || mediaAltTexts != originalAltTexts
     }
 
     private var trimmed: String {
@@ -45,6 +49,10 @@ final class EditPostViewModel {
     /// Enregistre la légende ; `true` si l'API l'a acceptée (l'écran peut se fermer).
     func save() async -> Bool {
         guard !isSaving else { return false }
+        guard mediaAltTexts.allSatisfy({ $0.unicodeScalars.count <= 1000 }) else {
+            errorMessage = "Chaque description est limitée à 1 000 caractères."
+            return false
+        }
         guard trimmed.unicodeScalars.count <= Self.maxLength else {
             errorMessage = "La légende ne peut pas dépasser 2 200 caractères."
             return false
@@ -56,8 +64,13 @@ final class EditPostViewModel {
         isSaving = true
         defer { isSaving = false }
         do {
-            let post = try await service.updateCaption(postId: postId, caption: trimmed)
+            let post = try await service.updateCaption(
+                postId: postId,
+                caption: trimmed,
+                mediaAltTexts: mediaAltTexts.isEmpty ? nil : mediaAltTexts
+            )
             edits.record(post)
+            AccessibilityFeedback.announce("Publication modifiée")
             errorMessage = nil
             return true
         } catch {

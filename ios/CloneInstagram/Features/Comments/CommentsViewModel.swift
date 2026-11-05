@@ -218,6 +218,7 @@ final class CommentsViewModel {
         do {
             let created = try await service.createComment(postId: postId, body: body, parentId: target?.parentId)
             replace(pending.id, with: created)
+            AccessibilityFeedback.announce(target == nil ? "Commentaire publié" : "Réponse publiée")
         } catch {
             remove(pending)
             adjustCount(by: -1)
@@ -253,6 +254,7 @@ final class CommentsViewModel {
         adjustCount(by: -removed)
         do {
             try await service.deleteComment(id: comment.id)
+            AccessibilityFeedback.announce("Commentaire supprimé")
         } catch .commentNotFound {
             // Déjà supprimé (réponse perdue, ou supprimé par l'auteur du post) : le résultat attendu est atteint.
         } catch {

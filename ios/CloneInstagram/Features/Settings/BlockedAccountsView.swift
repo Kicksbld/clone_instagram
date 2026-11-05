@@ -54,7 +54,7 @@ struct BlockedAccountsView: View {
     private var content: some View {
         switch viewModel.state {
         case .loading:
-            ProgressView()
+            ProgressView().accessibilityLabel("Chargement en cours")
         case .loaded where viewModel.users.isEmpty:
             ContentUnavailableView(
                 "Aucun compte bloqué",
@@ -72,7 +72,7 @@ struct BlockedAccountsView: View {
                         }
                 }
                 if viewModel.hasMore {
-                    ProgressView()
+                    ProgressView().accessibilityLabel("Chargement en cours")
                         .frame(maxWidth: .infinity)
                         .listRowSeparator(.hidden)
                 }

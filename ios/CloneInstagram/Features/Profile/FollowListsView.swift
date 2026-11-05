@@ -96,7 +96,7 @@ struct FollowListView: View {
     private var content: some View {
         switch viewModel.state {
         case .loading:
-            ProgressView()
+            ProgressView().accessibilityLabel("Chargement en cours")
                 .frame(maxHeight: .infinity)
         case .loaded where viewModel.users.isEmpty:
             ContentUnavailableView(
@@ -114,7 +114,7 @@ struct FollowListView: View {
                         }
                 }
                 if viewModel.isLoadingMore {
-                    ProgressView()
+                    ProgressView().accessibilityLabel("Chargement en cours")
                         .frame(maxWidth: .infinity)
                 }
             }

@@ -84,6 +84,7 @@ struct ReelPlayerView: View {
     @State private var hasFailed = false
     @State private var isReady = false
     @State private var isMuted = true
+    @State private var isPaused = false
     /// Identifie cette vue auprès du pool : son arrêt ne coupe pas un reel repris ailleurs.
     @State private var owner = UUID()
     @Environment(\.scenePhase) private var scenePhase
@@ -96,6 +97,7 @@ struct ReelPlayerView: View {
                 ReelPlayerSurface(player: player, onReady: { isReady = true }, onFailure: { hasFailed = true })
                     .id(ownedItem.map(ObjectIdentifier.init))
                     .ignoresSafeArea()
+                    .accessibilityHidden(true)
             }
             // Miniature (Nuke) en attendant la première image, et sous le message d'échec (ADR-024).
             if hasFailed || !isReady {
@@ -121,6 +123,24 @@ struct ReelPlayerView: View {
                 .padding()
                 .background(.black.opacity(0.6), in: .rect(cornerRadius: 12))
                 .padding()
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(media.accessibilityDescription)
+        .overlay(alignment: .bottomLeading) {
+            Button(isPaused ? "Reprendre la vidéo" : "Mettre la vidéo en pause", systemImage: isPaused ? "play" : "pause") {
+                isPaused.toggle()
+                if isPaused {
+                    player?.pause()
+                } else {
+                    player?.play()
+                }
+            }
+            .padding()
+        }
+        .accessibilityAction(.escape) {
+            if showsCloseButton {
+                dismiss()
             }
         }
         .overlay(alignment: .topLeading) {
@@ -160,7 +180,9 @@ struct ReelPlayerView: View {
                   item === ownedItem, item === player?.currentItem,
                   ReelPlayerPool.shared.isPlaying(owner: owner) else { return }
             player?.seek(to: .zero)
-            player?.play()
+            if !isPaused {
+                player?.play()
+            }
         }
     }
 
@@ -180,6 +202,7 @@ struct ReelPlayerView: View {
         isReady = false
         hasFailed = false
         isMuted = true
+        isPaused = false
         if let url = media.hls {
             player = ReelPlayerPool.shared.play(url, reload: retry, owner: owner)
             ownedItem = player?.currentItem

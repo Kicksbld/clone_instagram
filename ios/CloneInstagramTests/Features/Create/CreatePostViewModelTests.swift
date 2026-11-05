@@ -6,10 +6,17 @@ import Testing
 /// Faux éditeur : publications enregistrées, erreur programmable.
 final class FakePublisher: PostPublishing {
     var error: UploadError?
-    private(set) var published: [(images: [Data], caption: String, authorId: String)] = []
+    struct Publication {
+        let images: [Data]
+        let caption: String
+        let authorId: String
+        let mediaAltTexts: [String]
+    }
 
-    func publish(images: [Data], caption: String, authorId: String) async throws(UploadError) {
-        published.append((images, caption, authorId))
+    private(set) var published: [Publication] = []
+
+    func publish(images: [Data], caption: String, authorId: String, mediaAltTexts: [String]) async throws(UploadError) {
+        published.append(Publication(images: images, caption: caption, authorId: authorId, mediaAltTexts: mediaAltTexts))
         if let error {
             throw error
         }

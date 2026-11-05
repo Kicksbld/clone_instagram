@@ -32,6 +32,23 @@ struct ChatMessage: Equatable, Identifiable, Sendable {
     var isStoryReply = false
     var sharedStory: SharedStoryPreview?
 
+    var accessibilitySummary: String {
+        var parts = [String]()
+        if mediaId != nil {
+            parts.append("Photo sans description")
+        }
+        if isStoryReply {
+            parts.append(sharedStory == nil ? "Story indisponible" : "Réponse à une story")
+        }
+        if isPostShare {
+            parts.append(sharedPost.map { "Publication de \($0.author.username). \($0.caption)" } ?? "Publication indisponible")
+        }
+        if !body.isEmpty {
+            parts.append(body)
+        }
+        return parts.joined(separator: ". ")
+    }
+
     /// Inbox preview: the text, or « Photo » for a photo without text.
     var summary: String {
         if isStoryReply {

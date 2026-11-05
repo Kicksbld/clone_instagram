@@ -41,7 +41,7 @@ struct MessagePhotoView: View {
         }
         .frame(width: 220, height: 220)
         .clipShape(.rect(cornerRadius: 12))
-        .accessibilityLabel("Photo")
+        .accessibilityLabel("Photo sans description")
         .task(id: attempt) {
             let loaded = await photos.request(mediaId: mediaId, variant: .medium)
             guard !Task.isCancelled else { return }
@@ -51,7 +51,7 @@ struct MessagePhotoView: View {
     }
 
     private var placeholder: some View {
-        Rectangle().fill(.quaternary).overlay { ProgressView() }
+        Rectangle().fill(.quaternary).overlay { ProgressView().accessibilityLabel("Chargement en cours") }
     }
 
     private var retry: some View {
@@ -82,6 +82,6 @@ struct PendingPhotoView: View {
         }
         .frame(width: 220, height: 220)
         .clipShape(.rect(cornerRadius: 12))
-        .accessibilityLabel("Photo")
+        .accessibilityLabel("Photo sans description")
     }
 }

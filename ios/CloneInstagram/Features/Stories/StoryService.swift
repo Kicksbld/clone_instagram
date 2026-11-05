@@ -27,7 +27,8 @@ nonisolated enum StoryServiceError: Error, Equatable {
 /// Stories (module `ephemeral` de l'API, ADR-025).
 protocol StoryService: Sendable {
     /// `POST /v1/stories` : photo `ready` de `purpose` `story`.
-    func publish(mediaId: String, audience: StoryAudience) async throws(StoryServiceError) -> Story
+    func publish(mediaId: String, audience: StoryAudience, altText: String?) async throws(StoryServiceError) -> Story
+    func updateDescription(storyId: String, altText: String) async throws(StoryServiceError) -> Story
     /// `GET /v1/stories/tray` : dans l'ordre du bandeau.
     func tray() async throws(StoryServiceError) -> [StoryTrayItem]
     /// `GET /v1/users/{id}/stories` : de la plus ancienne à la plus récente.
@@ -44,8 +45,23 @@ protocol StoryService: Sendable {
 struct APIStoryService: StoryService {
     let client: any APIProtocol
 
-    func publish(mediaId: String, audience: StoryAudience) async throws(StoryServiceError) -> Story {
+    func updateDescription(storyId: String, altText: String) async throws(StoryServiceError) -> Story {
+        let output = try await call {
+            try await client.updateStoryDescription(path: .init(id: storyId), body: .json(.init(altText: altText)))
+        }
+        switch output {
+        case let .ok(response): return try Story(Self.unwrap { try response.body.json })
+        case let .badRequest(response): throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response): throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .notFound(response): throw Self.error(404) { try response.body.applicationProblemJson }
+        case .internalServerError: throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _): throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
+    func publish(mediaId: String, audience: StoryAudience, altText: String?) async throws(StoryServiceError) -> Story {
         let body = Components.Schemas.CreateStoryRequest(
+            altText: altText,
             mediaId: mediaId,
             audience: audience == .closeFriends ? .closeFriends : .everyone
         )
@@ -219,7 +235,7 @@ struct APIStoryService: StoryService {
 
 /// Utilisé quand l'URL de l'API est absente ou invalide.
 struct UnavailableStoryService: StoryService {
-    func publish(mediaId _: String, audience _: StoryAudience) async throws(StoryServiceError) -> Story {
+    func publish(mediaId _: String, audience _: StoryAudience, altText _: String?) async throws(StoryServiceError) -> Story {
         throw .unreachable
     }
 
@@ -261,7 +277,7 @@ private extension Story {
             id: dto.id,
             author: PostAuthor(dto.author),
             audience: dto.audience == .closeFriends ? .closeFriends : .everyone,
-            photo: PostMediaItem(variants: variants, width: dto.media.width, height: dto.media.height),
+            photo: PostMediaItem(variants: variants, width: dto.media.width, height: dto.media.height, altText: dto.media.altText),
             isSeen: dto.viewerHasSeen,
             createdAt: dto.createdAt,
             expiresAt: dto.expiresAt
@@ -283,5 +299,17 @@ private extension StoryTrayItem {
 extension StoryService {
     func markViewed(storyId: String) async throws(StoryServiceError) {
         try await markViewed(storyId: storyId, anonymous: false)
+    }
+}
+
+extension StoryService {
+    func publish(mediaId: String, audience: StoryAudience) async throws(StoryServiceError) -> Story {
+        try await publish(mediaId: mediaId, audience: audience, altText: nil)
+    }
+}
+
+extension StoryService {
+    func updateDescription(storyId _: String, altText _: String) async throws(StoryServiceError) -> Story {
+        throw .unreachable
     }
 }

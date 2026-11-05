@@ -7,6 +7,7 @@ export interface NewPost {
   kind: PostKind;
   caption: string;
   /** Médias déjà rattachés (ADR-008), dans l'ordre d'affichage. */
+  mediaAltTexts?: string[];
   mediaIds: string[];
   createdAt: Date;
 }
@@ -31,7 +32,12 @@ export interface PostRepository {
    * Remplace la légende et met à jour `updated_at`, seulement si le post est à `authorId` et non
    * supprimé (écriture conditionnelle). `false` si aucune ligne n'est touchée.
    */
-  updateCaption(id: string, authorId: string, caption: string): Promise<boolean>;
+  updateCaption(
+    id: string,
+    authorId: string,
+    caption: string,
+    mediaAltTexts?: string[],
+  ): Promise<boolean>;
 }
 
 export interface AuthorPostsQuery {

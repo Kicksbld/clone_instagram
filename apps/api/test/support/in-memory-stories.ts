@@ -41,6 +41,13 @@ export class InMemoryStories implements StoryRepository, StoryReader {
     return Promise.resolve();
   }
 
+  updateDescription(id: string, authorId: string, altText: string): Promise<boolean> {
+    const story = this.rows.get(id);
+    if (!story || story.authorId !== authorId || story.deletedAt) return Promise.resolve(false);
+    story.altText = altText;
+    return Promise.resolve(true);
+  }
+
   softDelete(id: string, authorId: string): Promise<{ mediaId: string | null } | null> {
     const row = this.rows.get(id);
     if (!row || row.authorId !== authorId || row.deletedAt) return Promise.resolve(null);
@@ -204,7 +211,11 @@ export class InMemoryStories implements StoryRepository, StoryReader {
       createdAt: row.createdAt,
       expiresAt: row.expiresAt,
       viewerHasSeen: row.authorId === viewerId || this.views.has(`${row.id}:${viewerId}`),
-      media: { variants: variants satisfies ImageVariantPaths, ...TEST_IMAGE_SIZE },
+      media: {
+        variants: variants satisfies ImageVariantPaths,
+        ...TEST_IMAGE_SIZE,
+        ...(row.altText && { altText: row.altText }),
+      },
       author: {
         id: author.id,
         username: author.username,

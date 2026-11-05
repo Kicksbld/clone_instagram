@@ -71,10 +71,12 @@ export const postMedia = pgTable(
       .notNull()
       .references(() => media.id, { onDelete: 'cascade' }),
     position: smallint('position').notNull(),
+    altText: text('alt_text').notNull().default(''),
   },
   (table) => [
     primaryKey({ name: 'post_media_pkey', columns: [table.postId, table.position] }),
     unique('post_media_media_id_key').on(table.mediaId),
+    check('post_media_alt_text_length', sql`char_length(${table.altText}) <= 1000`),
     check('post_media_position', sql`${table.position} BETWEEN 0 AND 9`),
   ],
 ).enableRLS(); // RLS sans policy : refus total hors de l'API (ADR-004).

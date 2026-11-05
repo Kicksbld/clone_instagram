@@ -34,6 +34,7 @@ nonisolated struct PendingMedia: Codable, Equatable {
     let height: Int
     /// Renseigné une fois la photo envoyée : une relance ne la renvoie pas.
     var mediaId: String?
+    var altText: String?
 }
 
 /// Stockage de la file : état en JSON et photos préparées, dans un même dossier.
@@ -73,8 +74,8 @@ nonisolated struct FilePendingPostStore: PendingPostStore {
 /// Publier une ou plusieurs photos : utilisé par l'écran de création.
 protocol PostPublishing: AnyObject {
     /// Prépare les photos et les ajoute à la file ; la suite (envoi, traitement, création) continue sans l'écran.
-    func publish(video: URL, caption: String, authorId: String) async throws(UploadError)
-    func publish(images: [Data], caption: String, authorId: String) async throws(UploadError)
+    func publish(video: URL, caption: String, authorId: String, altText: String) async throws(UploadError)
+    func publish(images: [Data], caption: String, authorId: String, mediaAltTexts: [String]) async throws(UploadError)
 }
 
 /**
@@ -125,10 +126,10 @@ final class PublishQueue: PostPublishing {
         item.kind == .reel ? nil : item.media.first.map(fileURL(of:))
     }
 
-    func publish(images: [Data], caption: String, authorId: String) async throws(UploadError) {
+    func publish(images: [Data], caption: String, authorId: String, mediaAltTexts: [String]) async throws(UploadError) {
         let generation = sessionGeneration
         var media: [PendingMedia] = []
-        for data in images {
+        for (index, data) in images.enumerated() {
             do {
                 let image = try await prepare(data, store.directory)
                 guard generation == sessionGeneration, !Task.isCancelled else {
@@ -140,7 +141,8 @@ final class PublishQueue: PostPublishing {
                     fileName: image.fileURL.lastPathComponent,
                     sizeBytes: image.sizeBytes,
                     width: image.width,
-                    height: image.height
+                    height: image.height,
+                    altText: mediaAltTexts.indices.contains(index) ? mediaAltTexts[index] : nil
                 ))
             } catch let error as UploadError {
                 removeFiles(of: media)
@@ -156,7 +158,7 @@ final class PublishQueue: PostPublishing {
         start(item.id)
     }
 
-    func publish(video: URL, caption: String, authorId: String) async throws(UploadError) {
+    func publish(video: URL, caption: String, authorId: String, altText: String) async throws(UploadError) {
         let generation = sessionGeneration
         let prepared: PreparedImage
         do { prepared = try await prepareVideo(video, store.directory) }
@@ -170,7 +172,8 @@ final class PublishQueue: PostPublishing {
             fileName: prepared.fileURL.lastPathComponent,
             sizeBytes: prepared.sizeBytes,
             width: prepared.width,
-            height: prepared.height
+            height: prepared.height,
+            altText: altText
         )
         let item = PendingPost(id: UUID(), authorId: authorId, caption: caption, kind: .reel, media: [media], step: .upload)
         items.append(item)
@@ -291,9 +294,13 @@ final class PublishQueue: PostPublishing {
         }
         do {
             if item.kind == .reel, let mediaId = mediaIds.first {
-                _ = try await posts.createReel(caption: item.caption, mediaId: mediaId)
+                _ = try await posts.createReel(caption: item.caption, mediaId: mediaId, mediaAltTexts: item.media.map { $0.altText ?? "" })
             } else {
-                _ = try await posts.createPost(caption: item.caption, mediaIds: mediaIds)
+                _ = try await posts.createPost(
+                    caption: item.caption,
+                    mediaIds: mediaIds,
+                    mediaAltTexts: item.media.map { $0.altText ?? "" }
+                )
             }
         } catch .mediaAlreadyAttached {
             // Le post a déjà été créé (réponse perdue avant la fermeture de l'app) : publication réussie.
@@ -321,10 +328,12 @@ final class PublishQueue: PostPublishing {
     private func finish(_ id: UUID) {
         discard(id)
         publishedCount += 1
+        AccessibilityFeedback.announce("Publication partagée")
     }
 
     private func fail(_ id: UUID, _ message: String) {
         update(id) { $0.failureMessage = message }
+        AccessibilityFeedback.announce("Échec de la publication. \(message)")
     }
 
     private func update(_ id: UUID, _ change: (inout PendingPost) -> Void) {
@@ -366,7 +375,17 @@ final class PublishQueue: PostPublishing {
 }
 
 extension PostPublishing {
-    func publish(video _: URL, caption _: String, authorId _: String) async throws(UploadError) {
+    func publish(video _: URL, caption _: String, authorId _: String, altText _: String) async throws(UploadError) {
         throw .unexpected
+    }
+}
+
+extension PostPublishing {
+    func publish(images: [Data], caption: String, authorId: String) async throws(UploadError) {
+        try await publish(images: images, caption: caption, authorId: authorId, mediaAltTexts: [])
+    }
+
+    func publish(video: URL, caption: String, authorId: String) async throws(UploadError) {
+        try await publish(video: video, caption: caption, authorId: authorId, altText: "")
     }
 }

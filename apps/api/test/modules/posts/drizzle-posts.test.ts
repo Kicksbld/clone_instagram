@@ -384,3 +384,30 @@ describe('modification de la légende sur Postgres', () => {
     expect(row?.caption).toBe('Avant');
   });
 });
+
+it('persiste les descriptions par position et les conserve lors d’une modification de légende seule', async () => {
+  const authorId = await givenProfile();
+  const post = await createPost.execute({
+    authorId,
+    kind: 'post',
+    caption: '',
+    mediaIds: [await givenReadyPhoto(authorId), await givenReadyPhoto(authorId)],
+    mediaAltTexts: ['Première', 'Deuxième'],
+  });
+  expect((await reader.findById(post.id, authorId))?.media.map((item) => item.altText)).toEqual([
+    'Première',
+    'Deuxième',
+  ]);
+  await updatePostCaption.execute({ authorId, postId: post.id, caption: 'Légende' });
+  expect((await reader.findById(post.id, authorId))?.media[0]?.altText).toBe('Première');
+  await updatePostCaption.execute({
+    authorId,
+    postId: post.id,
+    caption: 'Légende',
+    mediaAltTexts: ['', 'Modifiée'],
+  });
+  expect((await reader.findById(post.id, authorId))?.media.map((item) => item.altText)).toEqual([
+    undefined,
+    'Modifiée',
+  ]);
+});

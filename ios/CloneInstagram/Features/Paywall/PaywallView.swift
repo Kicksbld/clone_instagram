@@ -49,6 +49,7 @@ struct PaywallView: View {
         }
         .onChange(of: viewModel.isSubscribed) { _, isSubscribed in
             guard isSubscribed else { return }
+            AccessibilityFeedback.announce("Abonnement Clone Plus activé")
             feedback.play(.success)
             confetti += 1
         }
@@ -133,7 +134,7 @@ struct PaywallView: View {
     private var offer: some View {
         switch viewModel.offer {
         case .loading:
-            ProgressView()
+            ProgressView().accessibilityLabel("Chargement en cours")
         case let .loaded(offer):
             timeline(offer)
         case .unavailable:
@@ -219,7 +220,7 @@ struct PaywallView: View {
                 } label: {
                     Group {
                         if viewModel.isWorking {
-                            ProgressView().tint(Color.onboardingBackground)
+                            ProgressView().accessibilityLabel("Chargement en cours").tint(Color.onboardingBackground)
                         } else {
                             Text(viewModel.variant.subscribeTitle(price: offer.price, period: offer.period))
                         }

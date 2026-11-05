@@ -52,7 +52,7 @@ struct CloseFriendsView: View {
         case .idle:
             list
         case .searching:
-            ProgressView()
+            ProgressView().accessibilityLabel("Chargement en cours")
         case let .results(users) where users.isEmpty:
             ContentUnavailableView.search(text: viewModel.normalizedQuery)
         case let .results(users):
@@ -75,7 +75,7 @@ struct CloseFriendsView: View {
     private var list: some View {
         switch viewModel.state {
         case .loading:
-            ProgressView()
+            ProgressView().accessibilityLabel("Chargement en cours")
         case .loaded where viewModel.users.isEmpty:
             ContentUnavailableView(
                 "Aucun ami proche",
@@ -96,7 +96,7 @@ struct CloseFriendsView: View {
                             }
                     }
                     if viewModel.hasMore {
-                        ProgressView()
+                        ProgressView().accessibilityLabel("Chargement en cours")
                             .frame(maxWidth: .infinity)
                             .listRowSeparator(.hidden)
                     }

@@ -138,7 +138,7 @@ struct HookFirstPhotoView: View {
         VStack(alignment: .leading, spacing: 0) {
             if viewModel.isPhotoPublished {
                 HStack(spacing: 10) {
-                    Image(systemName: "person.crop.circle.fill").font(.title2)
+                    Image(systemName: "person.crop.circle.fill").font(.title2).accessibilityHidden(true)
                     Text("Toi").font(.subheadline.weight(.semibold))
                     Spacer()
                     Text("À l'instant").font(.footnote).foregroundStyle(Color.onboardingSecondaryText)
@@ -153,12 +153,12 @@ struct HookFirstPhotoView: View {
                 .frame(maxWidth: .infinity)
                 .aspectRatio(1, contentMode: .fit)
                 .clipped()
-                .accessibilityLabel("Ta photo")
+                .accessibilityLabel("Ta photo, sans description")
             if viewModel.isPhotoPublished {
                 HStack(spacing: 16) {
-                    Image(systemName: "heart")
-                    Image(systemName: "bubble.right")
-                    Image(systemName: "paperplane")
+                    Image(systemName: "heart").accessibilityHidden(true)
+                    Image(systemName: "bubble.right").accessibilityHidden(true)
+                    Image(systemName: "paperplane").accessibilityHidden(true)
                     Spacer()
                 }
                 .font(.title3)
@@ -213,6 +213,7 @@ private struct FilterThumbnail: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(filter.title)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

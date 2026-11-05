@@ -35,7 +35,7 @@ struct LoginView: View {
                 } label: {
                     Group {
                         if viewModel.isLoading {
-                            ProgressView()
+                            ProgressView().accessibilityLabel("Chargement en cours")
                         } else {
                             Text("Se connecter")
                         }
@@ -55,6 +55,7 @@ struct LoginView: View {
                 Spacer()
                 Button("Créer un compte", action: onSignUp)
             }
+            .accessibilityStatus(viewModel.errorMessage ?? "")
             .textFieldStyle(.roundedBorder)
             .padding()
             .toolbar {

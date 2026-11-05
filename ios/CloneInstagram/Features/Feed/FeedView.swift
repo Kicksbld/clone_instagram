@@ -19,6 +19,7 @@ struct FeedView<Header: View>: View {
 
     @State private var position = ScrollPosition(edge: .top)
     @State private var postToDelete: Post?
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
 
     init(
         viewModel: FeedViewModel,
@@ -38,11 +39,14 @@ struct FeedView<Header: View>: View {
 
     var body: some View {
         content
+            .accessibilityStatus(feedStatus)
             .task(id: revision) { await viewModel.appear(revision: revision) }
             .onChange(of: publishedCount) {
                 Task {
                     await viewModel.refresh()
-                    withAnimation { position.scrollTo(edge: .top) }
+                    if !voiceOverEnabled {
+                        withAnimation { position.scrollTo(edge: .top) }
+                    }
                 }
             }
             .alert(
@@ -81,11 +85,19 @@ struct FeedView<Header: View>: View {
             }
     }
 
+    private var feedStatus: String {
+        switch viewModel.state {
+        case .loading: ""
+        case let .failed(message): message
+        case .loaded: "Fil d’accueil chargé"
+        }
+    }
+
     @ViewBuilder
     private var content: some View {
         switch viewModel.state {
         case .loading where viewModel.posts.isEmpty:
-            ProgressView()
+            ProgressView().accessibilityLabel("Chargement en cours")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case let .failed(message):
             ContentUnavailableView {
@@ -120,7 +132,7 @@ struct FeedView<Header: View>: View {
                         }
                     }
                     if viewModel.isLoadingMore {
-                        ProgressView()
+                        ProgressView().accessibilityLabel("Chargement en cours")
                             .padding()
                     }
                 }

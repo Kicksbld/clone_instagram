@@ -53,7 +53,7 @@ struct UserProfileView: View {
     private var content: some View {
         switch viewModel.state {
         case .loading:
-            ProgressView()
+            ProgressView().accessibilityLabel("Chargement en cours")
         case let .loaded(profile):
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {

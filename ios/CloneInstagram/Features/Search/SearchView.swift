@@ -29,7 +29,16 @@ struct SearchView: View {
                 }
                 await viewModel.search()
             }
+            .accessibilityStatus(searchStatus)
             .onChange(of: blockedUserIds) { viewModel.hideUsers(blockedUserIds) }
+    }
+
+    private var searchStatus: String {
+        switch viewModel.state {
+        case let .results(users): "\(users.count) résultats"
+        case let .failed(message): message
+        default: ""
+        }
     }
 
     @ViewBuilder
@@ -42,7 +51,7 @@ struct SearchView: View {
                 description: Text("Par nom d'utilisateur ou par nom.")
             )
         case .searching:
-            ProgressView()
+            ProgressView().accessibilityLabel("Chargement en cours")
         case let .results(users) where users.isEmpty:
             ContentUnavailableView.search(text: viewModel.normalizedQuery)
         case let .results(users):

@@ -354,3 +354,39 @@ describe('Lectures T25 sur Postgres', () => {
     expect(await reader.findOwned(newer, author)).toMatchObject({ id: newer });
   });
 });
+
+it('persiste la description et la restitue aussi dans l’archive de l’auteur', async () => {
+  const authorId = await givenProfile();
+  const story = await publishStory.execute({
+    authorId,
+    mediaId: await givenPhoto(authorId),
+    audience: 'everyone',
+    altText: 'Un paysage enneigé',
+  });
+  expect((await reader.findActive(story.id, authorId, clock.now()))?.media.altText).toBe(
+    'Un paysage enneigé',
+  );
+  const archive = await reader.listArchived({
+    authorId,
+    now: new Date(story.expiresAt.getTime() + 1),
+    after: null,
+    limit: 10,
+  });
+  expect(archive.items[0]?.media.altText).toBe('Un paysage enneigé');
+});
+
+it('modifie la description uniquement pour l’auteur et la relit sans changer la durée', async () => {
+  const authorId = await givenProfile();
+  const otherId = await givenProfile();
+  const story = await publishStory.execute({
+    authorId,
+    mediaId: await givenPhoto(authorId),
+    audience: 'everyone',
+  });
+  const repository = new DrizzleStoryRepository(db);
+  expect(await repository.updateDescription(story.id, otherId, 'Interdit')).toBe(false);
+  expect(await repository.updateDescription(story.id, authorId, 'Description corrigée')).toBe(true);
+  const updated = await reader.findOwned(story.id, authorId);
+  expect(updated?.media.altText).toBe('Description corrigée');
+  expect(updated?.expiresAt).toEqual(story.expiresAt);
+});

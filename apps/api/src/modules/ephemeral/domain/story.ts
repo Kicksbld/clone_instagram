@@ -25,6 +25,7 @@ export interface StoryAuthor extends VisibilitySubject {
 
 export interface StoryMedia {
   variants: ImageVariantPaths;
+  altText?: string;
   width: number;
   height: number;
 }

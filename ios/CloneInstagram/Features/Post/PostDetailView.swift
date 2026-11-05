@@ -54,7 +54,7 @@ struct PostDetailView: View {
     private var content: some View {
         switch viewModel.state {
         case .loading:
-            ProgressView()
+            ProgressView().accessibilityLabel("Chargement en cours")
         case let .loaded(post):
             ScrollView {
                 PostView(

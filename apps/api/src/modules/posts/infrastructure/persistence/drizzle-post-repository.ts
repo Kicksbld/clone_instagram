@@ -25,9 +25,14 @@ export class DrizzlePostRepository implements PostRepository {
       createdAt: post.createdAt,
       updatedAt: post.createdAt,
     });
-    await this.db
-      .insert(postMedia)
-      .values(post.mediaIds.map((mediaId, position) => ({ postId: post.id, mediaId, position })));
+    await this.db.insert(postMedia).values(
+      post.mediaIds.map((mediaId, position) => ({
+        postId: post.id,
+        mediaId,
+        position,
+        altText: post.mediaAltTexts?.[position] ?? '',
+      })),
+    );
   }
 
   async incrementPostCount(authorId: string): Promise<void> {
@@ -67,12 +72,25 @@ export class DrizzlePostRepository implements PostRepository {
     return { authorId: deleted.authorId, mediaIds: rows.map((row) => row.mediaId) };
   }
 
-  async updateCaption(id: string, authorId: string, caption: string): Promise<boolean> {
+  async updateCaption(
+    id: string,
+    authorId: string,
+    caption: string,
+    mediaAltTexts?: string[],
+  ): Promise<boolean> {
     const rows = await this.db
       .update(posts)
       .set({ caption, updatedAt: sql`now()` })
       .where(and(eq(posts.id, id), eq(posts.authorId, authorId), isNull(posts.deletedAt)))
       .returning({ id: posts.id });
+    if (rows.length && mediaAltTexts !== undefined) {
+      for (const [position, altText] of mediaAltTexts.entries()) {
+        await this.db
+          .update(postMedia)
+          .set({ altText })
+          .where(and(eq(postMedia.postId, id), eq(postMedia.position, position)));
+      }
+    }
     return rows.length > 0;
   }
 
@@ -173,6 +191,7 @@ export async function selectPosts(
   const mediaRows = await db
     .select({
       postId: postMedia.postId,
+      altText: postMedia.altText,
       variants: media.variants,
       width: media.width,
       height: media.height,
@@ -197,6 +216,7 @@ export async function selectPosts(
     const items = mediaByPost.get(row.postId) ?? [];
     items.push({
       variants: row.variants,
+      ...(row.altText && { altText: row.altText }),
       width: row.width,
       height: row.height,
       ...(row.durationMs !== null && { durationMs: row.durationMs }),

@@ -31,6 +31,7 @@ export const stories = pgTable(
       .references(() => profiles.id, { onDelete: 'cascade' }),
     // Média détaché à la suppression puis purgé (ADR-008) : la story supprimée garde sa ligne.
     mediaId: uuid('media_id').references(() => media.id, { onDelete: 'set null' }),
+    altText: text('alt_text').notNull().default(''),
     audience: text('audience', { enum: STORY_AUDIENCES }).notNull(),
     viewCount: integer('view_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
@@ -42,6 +43,7 @@ export const stories = pgTable(
     // Un média ne sert qu'une fois (ADR-008).
     unique('stories_media_id_key').on(table.mediaId),
     index('stories_author_expires_idx').on(table.authorId, table.expiresAt),
+    check('stories_alt_text_length', sql`char_length(${table.altText}) <= 1000`),
     check('stories_audience', sql`${table.audience} IN ('everyone', 'close_friends')`),
     check('stories_view_count_positive', sql`${table.viewCount} >= 0`),
     check('stories_expires_after_created', sql`${table.expiresAt} > ${table.createdAt}`),

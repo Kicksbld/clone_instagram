@@ -131,7 +131,8 @@ struct CreatePostView: View {
             Text("Récents")
                 .font(.headline)
             Spacer()
-            Toggle(isOn: Binding(get: { isSelectingMultiple }, set: setSelectingMultiple)) {
+            // Une closure explicite évite le crash IRGen de Swift 6.3.3 sur la conversion de méthode isolée.
+            Toggle(isOn: Binding(get: { isSelectingMultiple }, set: { value in setSelectingMultiple(value) })) {
                 Label("Sélectionner plusieurs", systemImage: "square.on.square")
             }
             .toggleStyle(.button)
@@ -177,7 +178,7 @@ struct CreatePostView: View {
         case .empty:
             placeholder { Text("Choisissez une photo dans votre galerie.") }
         case .loading:
-            placeholder { ProgressView() }
+            placeholder { ProgressView().accessibilityLabel("Chargement en cours") }
         case let .failed(message):
             placeholder { Text(message) }
         case let .loaded(image):
@@ -192,204 +193,5 @@ struct CreatePostView: View {
             .padding()
             .frame(maxWidth: .infinity)
             .aspectRatio(1, contentMode: .fit)
-    }
-}
-
-/// Cadre de recadrage : la zone affichée est exactement celle qui sera publiée (pincer pour zoomer,
-/// glisser pour déplacer) ; le bouton en bas à gauche bascule entre carré et ratio d'origine.
-private struct CropView: View {
-    let viewModel: CreatePostViewModel
-    let image: CGImage
-    @State private var gestureZoom: Double?
-    @State private var gestureTranslation: CGSize?
-    /// Largeur du cadre à l'écran (points), pour convertir un glissement en pixels de la photo.
-    @State private var frameWidth: CGFloat = 1
-
-    var body: some View {
-        GeometryReader { proxy in
-            let frame = Self.frameSize(in: proxy.size, aspectRatio: viewModel.aspectRatio)
-            let rect = displayedRect
-            let scale = frame.width / max(rect.width, 1)
-            Image(decorative: image, scale: 1)
-                .resizable()
-                .frame(width: CGFloat(image.width) * scale, height: CGFloat(image.height) * scale)
-                .offset(x: -rect.minX * scale, y: -rect.minY * scale)
-                .frame(width: frame.width, height: frame.height, alignment: .topLeading)
-                .clipped()
-                .contentShape(Rectangle())
-                .gesture(dragGesture.simultaneously(with: magnifyGesture))
-                .frame(width: proxy.size.width, height: proxy.size.height)
-        }
-        .aspectRatio(1, contentMode: .fit)
-        .onGeometryChange(for: CGFloat.self) { [aspectRatio = viewModel.aspectRatio] proxy in
-            Self.frameSize(in: proxy.size, aspectRatio: aspectRatio).width
-        } action: { width in
-            frameWidth = width
-        }
-        .overlay(alignment: .bottomLeading) {
-            Button(
-                viewModel.isSquare ? "Ratio d'origine" : "Carré",
-                systemImage: viewModel.isSquare
-                    ? "arrow.up.left.and.arrow.down.right"
-                    : "arrow.down.right.and.arrow.up.left",
-                action: viewModel.toggleSquare
-            )
-            .labelStyle(.iconOnly)
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.circle)
-            .padding(12)
-        }
-    }
-
-    /// Cadre au ratio choisi, contenu dans la zone carrée.
-    private nonisolated static func frameSize(in bounds: CGSize, aspectRatio: Double) -> CGSize {
-        aspectRatio >= 1
-            ? CGSize(width: bounds.width, height: bounds.width / aspectRatio)
-            : CGSize(width: bounds.height * aspectRatio, height: bounds.height)
-    }
-
-    private var currentZoom: Double {
-        gestureZoom.map { viewModel.zoom * $0 } ?? viewModel.zoom
-    }
-
-    /// Zone affichée, geste en cours compris ; le contenu suit le doigt.
-    private var displayedRect: CGRect {
-        var center = viewModel.center
-        if let gestureTranslation {
-            let pixelsPerPoint = viewModel.cropRect(zoom: currentZoom, center: center).width / max(frameWidth, 1)
-            center.x -= gestureTranslation.width * pixelsPerPoint
-            center.y -= gestureTranslation.height * pixelsPerPoint
-        }
-        return viewModel.cropRect(zoom: currentZoom, center: center)
-    }
-
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { value in gestureTranslation = value.translation }
-            .onEnded { _ in commit() }
-    }
-
-    private var magnifyGesture: some Gesture {
-        MagnifyGesture()
-            .onChanged { value in gestureZoom = value.magnification }
-            .onEnded { _ in commit() }
-    }
-
-    private func commit() {
-        let rect = displayedRect
-        viewModel.commitCrop(zoom: currentZoom, center: CGPoint(x: rect.midX, y: rect.midY))
-        gestureZoom = nil
-        gestureTranslation = nil
-    }
-}
-
-/// Photos du carrousel, dans l'ordre : toucher une photo l'affiche dans le cadre de recadrage.
-private struct SelectedPhotosStrip: View {
-    let viewModel: CreatePostViewModel
-
-    var body: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 4) {
-                ForEach(Array(viewModel.photos.enumerated()), id: \.element.id) { index, photo in
-                    Button {
-                        viewModel.select(photo.id)
-                    } label: {
-                        Image(decorative: photo.image, scale: 1)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 44, height: 44)
-                            .clipped()
-                            .opacity(index == viewModel.selectedIndex ? 1 : 0.5)
-                    }
-                    .accessibilityLabel("Photo \(index + 1) sur \(viewModel.photos.count)")
-                    .accessibilityAddTraits(index == viewModel.selectedIndex ? .isSelected : [])
-                }
-            }
-            .padding(.horizontal)
-        }
-        .scrollIndicators(.hidden)
-        .padding(.vertical, 8)
-    }
-}
-
-/// Légende et partage : la publication part dans la file, l'écran se ferme.
-private struct CaptionView: View {
-    let viewModel: CreatePostViewModel
-    let onShared: () -> Void
-
-    var body: some View {
-        @Bindable var viewModel = viewModel
-        Form {
-            Section {
-                Group {
-                    if viewModel.isReel, let url = viewModel.videoURL {
-                        SelectedVideoPreview(url: url)
-                            .frame(height: 280)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                    } else {
-                        previews
-                    }
-                }.listRowInsets(EdgeInsets())
-                TextField("Ajouter une légende…", text: $viewModel.caption, axis: .vertical)
-                    .lineLimit(3 ... 12)
-                MentionSuggestions(text: $viewModel.caption)
-            }
-            Section {
-                Button {
-                    Task {
-                        if await viewModel.share() {
-                            onShared()
-                        }
-                    }
-                } label: {
-                    if viewModel.isSharing {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Text("Partager")
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(viewModel.isSharing)
-                .listRowInsets(EdgeInsets())
-            }
-        }
-        .navigationTitle("Nouvelle publication")
-        .navigationBarTitleDisplayMode(.inline)
-        .alert(
-            "Publication impossible",
-            isPresented: Binding(
-                get: { viewModel.shareErrorMessage != nil },
-                set: {
-                    if !$0 {
-                        viewModel.shareErrorMessage = nil
-                    }
-                }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel.shareErrorMessage ?? "")
-        }
-    }
-
-    /// Photos recadrées, comme elles seront publiées ; en carrousel quand il y en a plusieurs (Instagram).
-    private var previews: some View {
-        let images = viewModel.croppedPreviews
-        return ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ForEach(Array(images.enumerated()), id: \.offset) { index, image in
-                    Image(image, scale: 1, label: Text(images.count > 1 ? "Photo \(index + 1) sur \(images.count)" : "Photo"))
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: 280)
-                }
-            }
-            .padding()
-        }
-        .scrollIndicators(.hidden)
-        .frame(maxWidth: .infinity)
     }
 }

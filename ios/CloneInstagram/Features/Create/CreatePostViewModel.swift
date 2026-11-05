@@ -18,6 +18,8 @@ final class CreatePostViewModel {
         /// Élément du sélecteur de photos d'où vient la photo.
         let id: AnyHashable
         let image: CGImage
+        var altText = ""
+        var keepsEntireImage = false
         var zoom = 1.0
         /// Centre de la zone gardée, en pixels de la photo.
         var center: CGPoint
@@ -50,12 +52,16 @@ final class CreatePostViewModel {
         }
     }
 
+    var videoAltText = ""
     var isReel = false
     private var videoLoadGeneration = 0
     private(set) var isLoadingVideo = false
     private(set) var videoURL: URL?
 
     func selectVideo(_ url: URL) {
+        if videoURL != url {
+            videoAltText = ""
+        }
         videoLoadGeneration += 1
         isLoadingVideo = false
         if let previous = videoURL, previous != url {
@@ -65,6 +71,7 @@ final class CreatePostViewModel {
     }
 
     func loadVideo(_ load: () async throws -> URL?) async {
+        videoAltText = ""
         videoLoadGeneration += 1
         let generation = videoLoadGeneration
         if let previous = videoURL {
@@ -91,12 +98,16 @@ final class CreatePostViewModel {
     }
 
     func shareReel() async -> Bool {
+        guard (isReel ? [videoAltText] : photos.map(\.altText)).allSatisfy({ $0.unicodeScalars.count <= 1000 }) else {
+            shareErrorMessage = "Chaque description est limitée à 1 000 caractères."
+            return false
+        }
         guard validateMentions() else { return false }
         guard let videoURL, !isSharing else { return false }
         isSharing = true
         defer { isSharing = false }
         do {
-            try await publisher.publish(video: videoURL, caption: caption, authorId: authorId)
+            try await publisher.publish(video: videoURL, caption: caption, authorId: authorId, altText: videoAltText)
             try? FileManager.default.removeItem(at: videoURL)
             self.videoURL = nil
             return true
@@ -151,6 +162,10 @@ final class CreatePostViewModel {
         selected?.size ?? .zero
     }
 
+    var keepsEntireImage: Bool {
+        selected?.keepsEntireImage ?? false
+    }
+
     var zoom: Double {
         selected?.zoom ?? 1
     }
@@ -176,7 +191,12 @@ final class CreatePostViewModel {
 
     /// Aperçus recadrés, dans l'ordre du carrousel (écran légende).
     var croppedPreviews: [CGImage] {
-        photos.compactMap { $0.image.cropping(to: cropRect(of: $0).integral) }
+        photos.compactMap { photo in
+            if photo.keepsEntireImage {
+                return ImageCropper.fittedImage(photo.image, aspectRatio: aspectRatio)
+            }
+            return photo.image.cropping(to: cropRect(of: photo).integral)
+        }
     }
 
     /// À l'ouverture : photo la plus récente de la galerie, présélectionnée comme sur Instagram.
@@ -264,6 +284,7 @@ final class CreatePostViewModel {
     /// Fin d'un geste : zoom et centre de la photo affichée retenus, ramenés dans la photo.
     func commitCrop(zoom: Double, center: CGPoint) {
         guard photos.indices.contains(selectedIndex) else { return }
+        photos[selectedIndex].keepsEntireImage = false
         photos[selectedIndex].zoom = min(max(zoom, 1), ImageCropper.maxZoom)
         let rect = cropRect(zoom: photos[selectedIndex].zoom, center: center)
         photos[selectedIndex].center = CGPoint(x: rect.midX, y: rect.midY)
@@ -271,6 +292,10 @@ final class CreatePostViewModel {
 
     /// Recadre, prépare et ajoute les photos à la file ; `true` si l'écran peut se fermer.
     func share() async -> Bool {
+        guard (isReel ? [videoAltText] : photos.map(\.altText)).allSatisfy({ $0.unicodeScalars.count <= 1000 }) else {
+            shareErrorMessage = "Chaque description est limitée à 1 000 caractères."
+            return false
+        }
         guard validateMentions() else { return false }
         if isReel {
             return await shareReel()
@@ -281,7 +306,20 @@ final class CreatePostViewModel {
         var images: [Data] = []
         for photo in photos {
             do {
-                try await images.append(ImageCropper.jpegData(of: photo.image, croppedTo: cropRect(of: photo)))
+                let image: CGImage
+                let rect: CGRect
+                if photo.keepsEntireImage {
+                    guard let fitted = ImageCropper.fittedImage(photo.image, aspectRatio: aspectRatio) else {
+                        shareErrorMessage = UploadError.message(for: .unreadableImage)
+                        return false
+                    }
+                    image = fitted
+                    rect = CGRect(x: 0, y: 0, width: fitted.width, height: fitted.height)
+                } else {
+                    image = photo.image
+                    rect = cropRect(of: photo)
+                }
+                try await images.append(ImageCropper.jpegData(of: image, croppedTo: rect))
             } catch {
                 shareErrorMessage = UploadError.message(for: .unreadableImage)
                 return false
@@ -291,7 +329,8 @@ final class CreatePostViewModel {
             try await publisher.publish(
                 images: images,
                 caption: caption.trimmingCharacters(in: .whitespacesAndNewlines),
-                authorId: authorId
+                authorId: authorId,
+                mediaAltTexts: photos.map(\.altText)
             )
             return true
         } catch {
@@ -309,7 +348,32 @@ final class CreatePostViewModel {
         return true
     }
 
+    func altText(at index: Int) -> String {
+        photos.indices.contains(index) ? photos[index].altText : ""
+    }
+
+    func setAltText(_ text: String, at index: Int) {
+        guard photos.indices.contains(index) else { return }
+        photos[index].altText = text
+    }
+
+    func keepEntireImage() {
+        guard photos.indices.contains(selectedIndex) else { return }
+        commitCrop(zoom: 1, center: CGPoint(x: photos[selectedIndex].size.width / 2, y: photos[selectedIndex].size.height / 2))
+        photos[selectedIndex].keepsEntireImage = true
+    }
+
+    func moveCrop(horizontal: Double, vertical: Double) {
+        commitCrop(zoom: zoom, center: CGPoint(
+            x: center.x + horizontal * cropRect(zoom: zoom, center: center).width,
+            y: center.y + vertical * cropRect(zoom: zoom, center: center).height
+        ))
+    }
+
     private func cropRect(of photo: EditablePhoto) -> CGRect {
-        ImageCropper.cropRect(imageSize: photo.size, aspectRatio: aspectRatio, zoom: photo.zoom, center: photo.center)
+        if photo.keepsEntireImage {
+            return CGRect(origin: .zero, size: photo.size)
+        }
+        return ImageCropper.cropRect(imageSize: photo.size, aspectRatio: aspectRatio, zoom: photo.zoom, center: photo.center)
     }
 }

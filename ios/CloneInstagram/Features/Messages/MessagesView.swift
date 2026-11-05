@@ -39,7 +39,7 @@ struct MessagesView: View {
                             if conversation.unreadCount > 0 {
                                 Spacer()
                                 // Pastille de non-lus (wireframe : sans couleur).
-                                Circle().frame(width: 8, height: 8)
+                                Circle().frame(width: 8, height: 8).accessibilityHidden(true)
                             }
                         }
                         .accessibilityElement(children: .combine)
@@ -54,6 +54,7 @@ struct MessagesView: View {
                 }
             }
         }
+        .accessibilityStatus(viewModel.searchError ?? "")
         .navigationTitle("Messages")
         .searchable(text: $viewModel.query, prompt: "Nouveau message : rechercher un compte")
         .task(id: viewModel.query) {
@@ -94,7 +95,7 @@ struct OpenConversationView: View {
                     Button("Réessayer") { Task { await open() } }
                 }
             } else {
-                ProgressView()
+                ProgressView().accessibilityLabel("Chargement en cours")
             }
         }
         .task { await open() }
@@ -112,6 +113,7 @@ struct ConversationView: View {
     let conversation: Conversation
     let viewerId: String
     @State private var draft = ""
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @State private var photoSelection: PhotosPickerItem?
     @State private var isShowingCamera = false
     @State private var photoLoadFailed = false
@@ -150,6 +152,11 @@ struct ConversationView: View {
                                 Text("Vu").font(.caption).foregroundStyle(.secondary)
                             }
                         }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(
+                            "\(message.senderId == viewerId ? "Vous" : conversation.otherMember.username). \(message.accessibilitySummary)"
+                        )
+                        .accessibilityValue(message.id == seenId ? "Vu" : "")
                         .id(message.id)
                     }
                     ForEach(store.pending.filter { $0.conversationId == conversation.id }) { pending in
@@ -165,14 +172,23 @@ struct ConversationView: View {
                                 Text("Envoi…").foregroundStyle(.secondary)
                             }
                         }
+                        .accessibilityElement(children: .combine)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     Color.clear.frame(height: 1).id("latest")
                 }
                 .padding()
             }
-            .onChange(of: store.messages[conversation.id]?.last?.id) { proxy.scrollTo("latest", anchor: .bottom) }
-            .onChange(of: store.pending.count) { proxy.scrollTo("latest", anchor: .bottom) }
+            .onChange(of: store.messages[conversation.id]?.last?.id) { _, _ in
+                if !voiceOverEnabled {
+                    proxy.scrollTo("latest", anchor: .bottom)
+                }
+            }
+            .onChange(of: store.pending.count) {
+                if !voiceOverEnabled {
+                    proxy.scrollTo("latest", anchor: .bottom)
+                }
+            }
         }
         .navigationTitle(conversation.otherMember.username)
         .navigationBarTitleDisplayMode(.inline)
@@ -235,7 +251,14 @@ struct ConversationView: View {
         } message: {
             Text(UploadError.message(for: .unreadableImage))
         }
-        .task { await store.enter(conversation.id) }
+        .task {
+            await store.enter(conversation.id)
+            if store.errorMessage == nil, !store.unavailableConversationIds.contains(conversation.id) {
+                AccessibilityFeedback.announce("Conversation chargée")
+            }
+        }
+        .accessibilityStatus(store.pending.contains { $0.conversationId == conversation.id && $0.state == .failed }
+            ? "Un message n’a pas été envoyé. Utilisez Réessayer dans la conversation." : "")
         .onDisappear { store.leave(conversation.id) }
         .onChange(of: blockedUserIds) {
             if blockedUserIds.contains(conversation.otherMember.id) {
@@ -263,7 +286,7 @@ private extension ConversationView {
                         VStack(alignment: .leading, spacing: 4) {
                             LazyImage(url: story.thumbnail) { state in
                                 if let image = state.image {
-                                    image.resizable().scaledToFit()
+                                    image.resizable().scaledToFit().accessibilityHidden(true)
                                 } else {
                                     Rectangle().fill(.quaternary)
                                 }
@@ -286,7 +309,7 @@ private extension ConversationView {
                             if let thumbnail = post.thumbnail {
                                 LazyImage(url: thumbnail) { state in
                                     if let image = state.image {
-                                        image.resizable().scaledToFill()
+                                        image.resizable().scaledToFill().accessibilityHidden(true)
                                     } else {
                                         Rectangle().fill(.quaternary)
                                     }

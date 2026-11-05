@@ -24,6 +24,7 @@ struct PostView: View {
     let onReelVisibilityChange: (Bool) -> Void
     /// Photo affichée du carrousel.
     @State private var page = 0
+    @AccessibilityFocusState private var cardFocused: Bool
     @State private var isCaptionExpanded = false
     @State private var captionHeights = CaptionHeights()
     /// Incrémenté à chaque double tap : déclenche le cœur sur la photo.
@@ -34,6 +35,7 @@ struct PostView: View {
     @Environment(\.openComments) private var openComments
     @Environment(\.openEditPost) private var openEditPost
     @Environment(\.moderation) private var moderation
+    @Environment(\.openURL) private var openURL
 
     init(
         post: Post,
@@ -105,6 +107,50 @@ struct PostView: View {
             .padding(.horizontal)
         }
         .padding(.vertical, 8)
+        .accessibilityRepresentation { accessibleCard }
+        .onChange(of: isShowingFullScreenReel) {
+            _, shown in if !shown {
+                cardFocused = true
+            }
+        }
+        .onChange(of: page) { _, index in
+            guard post.media.indices.contains(index) else { return }
+            AccessibilityFeedback.announce("Photo \(index + 1) sur \(post.media.count). \(post.media[index].accessibilityDescription)")
+        }
+    }
+
+    private var accessibleCard: some View {
+        NavigationLink(value: ProfileRoute(username: post.author.username)) {
+            Text(post.accessibilitySummary(page: page))
+        }
+        .accessibilityFocused($cardFocused)
+        .accessibilityHint("Ouvre le profil de l’auteur. Utilisez les actions pour interagir avec la publication.")
+        .accessibilityActions {
+            Button(post.isLiked ? "Retirer la mention J’aime" : "J’aime", action: onToggleLike)
+            if openComments != nil {
+                Button("Commenter", action: showComments)
+            }
+            if let openSharePost {
+                Button("Partager") { openSharePost(SharePostRoute(postId: post.id)) }
+            }
+            if post.kind == .reel {
+                Button("Lire le reel en plein écran") { isShowingFullScreenReel = true }
+            }
+            if page > 0 {
+                Button("Photo précédente") { page -= 1 }
+            }
+            if page + 1 < post.media.count {
+                Button("Photo suivante") { page += 1 }
+            }
+            ForEach(post.mentions.filter { !blockedUserIds.contains($0.id) }, id: \.id) { mention in
+                Button("Ouvrir le profil de \(mention.username)") {
+                    if let url = URL(string: "clone-mention://profile/\(mention.username)") {
+                        openURL(url)
+                    }
+                }
+            }
+            menuItems
+        }
     }
 
     /**
@@ -221,7 +267,7 @@ struct PostView: View {
     }
 
     private func photoLabel(_ index: Int) -> String {
-        let label = post.caption.isEmpty ? "Photo" : post.caption
+        let label = post.media[index].accessibilityDescription
         return post.media.count > 1 ? "\(label), photo \(index + 1) sur \(post.media.count)" : label
     }
 
@@ -249,7 +295,7 @@ struct PostView: View {
         if let onDelete {
             if let openEditPost {
                 Button("Modifier", systemImage: "pencil") {
-                    openEditPost(EditPostRoute(postId: post.id, caption: post.caption))
+                    openEditPost(EditPostRoute(postId: post.id, caption: post.caption, mediaAltTexts: post.media.map { $0.altText ?? "" }))
                 }
             }
             Button("Supprimer", systemImage: "trash", role: .destructive, action: onDelete)

@@ -20,7 +20,7 @@ struct UserRow<Trailing: View>: View {
             Spacer(minLength: 8)
             trailing()
         }
-        .accessibilityElement(children: .contain)
+        .accessibilityElement(children: .combine)
     }
 }
 

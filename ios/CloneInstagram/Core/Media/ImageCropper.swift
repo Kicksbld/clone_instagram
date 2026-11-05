@@ -60,6 +60,27 @@ nonisolated enum ImageCropper {
         return image
     }
 
+    /// Ajoute des bandes noires pour conserver toute la photo au ratio commun du carrousel.
+    static func fittedImage(_ image: CGImage, aspectRatio: Double) -> CGImage? {
+        let width = Double(image.width)
+        let height = Double(image.height)
+        let canvasWidth = max(width, height * aspectRatio)
+        let canvasHeight = canvasWidth / aspectRatio
+        guard let context = CGContext(
+            data: nil,
+            width: Int(canvasWidth.rounded(.up)),
+            height: Int(canvasHeight.rounded(.up)),
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ) else { return nil }
+        context.setFillColor(CGColor(gray: 0, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: canvasWidth, height: canvasHeight))
+        context.draw(image, in: CGRect(x: (canvasWidth - width) / 2, y: (canvasHeight - height) / 2, width: width, height: height))
+        return context.makeImage()
+    }
+
     /// Zone recadrée encodée en JPEG de haute qualité, sans métadonnées, avant `ImagePreparer`.
     @concurrent
     static func jpegData(of image: CGImage, croppedTo rect: CGRect) async throws(ImagePreparationError) -> Data {

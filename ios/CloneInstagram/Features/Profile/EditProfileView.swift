@@ -23,7 +23,7 @@ struct EditProfileView: View {
                     avatar
                         .overlay {
                             if viewModel.isUpdatingPhoto {
-                                ProgressView()
+                                ProgressView().accessibilityLabel("Chargement en cours")
                             }
                         }
                     Button("Modifier la photo") { isPhotoMenuPresented = true }
@@ -49,12 +49,13 @@ struct EditProfileView: View {
                 }
             }
         }
+        .accessibilityStatus(viewModel.errorMessage ?? "")
         .navigationTitle("Modifier le profil")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 if viewModel.isSaving {
-                    ProgressView()
+                    ProgressView().accessibilityLabel("Chargement en cours")
                 } else {
                     Button("Terminé") { Task { await viewModel.save() } }
                         .disabled(viewModel.isBusy)

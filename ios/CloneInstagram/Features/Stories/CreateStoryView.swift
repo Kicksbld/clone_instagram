@@ -18,6 +18,8 @@ struct CreateStoryView: View {
         NavigationStack {
             VStack(spacing: 16) {
                 preview
+                AltTextField(text: $viewModel.altText)
+                    .disabled(viewModel.state == .sharing)
                 Picker("Audience", selection: $viewModel.audience) {
                     Text("Tout le monde").tag(StoryAudience.everyone)
                     Label("Amis proches", systemImage: "star.fill").tag(StoryAudience.closeFriends)
@@ -49,7 +51,7 @@ struct CreateStoryView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if viewModel.state == .sharing {
-                        ProgressView()
+                        ProgressView().accessibilityLabel("Chargement en cours")
                     } else {
                         Button(shareTitle) { Task { await viewModel.share() } }
                             .disabled(!viewModel.canShare)
@@ -57,6 +59,7 @@ struct CreateStoryView: View {
                 }
             }
             .interactiveDismissDisabled(viewModel.state == .sharing)
+            .accessibilityStatus(statusMessage)
             .onChange(of: viewModel.state) { _, state in
                 if state == .published {
                     dismiss()
@@ -89,6 +92,15 @@ struct CreateStoryView: View {
         }
     }
 
+    private var statusMessage: String {
+        switch viewModel.state {
+        case .editing: ""
+        case .sharing: "Publication de la story en cours"
+        case let .failed(message): message
+        case .published: "Story publiée"
+        }
+    }
+
     private var shareTitle: String {
         if case .failed = viewModel.state {
             return "Réessayer"
@@ -102,6 +114,7 @@ struct CreateStoryView: View {
             Rectangle().fill(.quaternary)
             if let data = viewModel.photo, let image = UIImage(data: data) {
                 Image(uiImage: image).resizable().scaledToFit()
+                    .accessibilityLabel(viewModel.altText.isEmpty ? "Aperçu de la photo sélectionnée, sans description" : viewModel.altText)
             } else {
                 Label("Choisissez une photo", systemImage: "photo")
                     .foregroundStyle(.secondary)

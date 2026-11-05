@@ -44,6 +44,9 @@ export function registerPostsRoutes(
       const post = await useCases.createPost.execute({
         authorId: authenticatedUserId(request),
         kind: request.body.kind,
+        ...(request.body.mediaAltTexts !== undefined && {
+          mediaAltTexts: request.body.mediaAltTexts,
+        }),
         caption: request.body.caption ?? '',
         mediaIds: request.body.mediaIds,
       });
@@ -71,6 +74,9 @@ export function registerPostsRoutes(
       const post = await useCases.updatePostCaption.execute({
         authorId: authenticatedUserId(request),
         postId: request.params.id,
+        ...(request.body.mediaAltTexts !== undefined && {
+          mediaAltTexts: request.body.mediaAltTexts,
+        }),
         caption: request.body.caption,
       });
       return toPost(post);

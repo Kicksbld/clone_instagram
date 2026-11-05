@@ -34,9 +34,10 @@ struct StoryViewersView: View {
                         Spacer()
                         Text(viewer.viewedAt, style: .relative).font(.caption).foregroundStyle(.secondary)
                     }
+                    .accessibilityElement(children: .combine)
                 }
                 if viewModel.isLoading {
-                    ProgressView()
+                    ProgressView().accessibilityLabel("Chargement en cours")
                 }
                 if let error = viewModel.errorMessage {
                     Text(error)
@@ -55,6 +56,7 @@ struct StoryViewersView: View {
                     Text(query.isEmpty ? "Aucune vue pour le moment." : "Aucun compte trouvé.")
                 }
             }
+            .accessibilityStatus(viewModel.errorMessage ?? "")
             .navigationTitle("Vues")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fermer") { dismiss() } } }
             .task(id: query) {

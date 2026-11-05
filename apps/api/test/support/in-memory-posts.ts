@@ -56,10 +56,15 @@ export class InMemoryPosts implements PostRepository, PostReader {
     return Promise.resolve({ authorId: row.authorId, mediaIds: row.mediaIds });
   }
 
-  updateCaption(id: string, authorId: string, caption: string): Promise<boolean> {
+  updateCaption(
+    id: string,
+    authorId: string,
+    caption: string,
+    mediaAltTexts?: string[],
+  ): Promise<boolean> {
     const row = this.rows.get(id);
     if (!row || row.authorId !== authorId || row.deletedAt) return Promise.resolve(false);
-    this.rows.set(id, { ...row, caption });
+    this.rows.set(id, { ...row, caption, ...(mediaAltTexts !== undefined && { mediaAltTexts }) });
     return Promise.resolve(true);
   }
 
@@ -128,11 +133,12 @@ export class InMemoryPosts implements PostRepository, PostReader {
         isPrivate: author.isPrivate,
         avatarVariants: author.avatar?.variants ?? null,
       },
-      media: row.mediaIds.map((mediaId) => {
+      media: row.mediaIds.map((mediaId, position) => {
         const variants = this.media.rows.get(mediaId)?.variants;
         if (!variants) throw new Error(`Média de post sans variantes : ${mediaId}`);
         return {
           variants,
+          ...(row.mediaAltTexts?.[position] && { altText: row.mediaAltTexts[position] }),
           ...TEST_IMAGE_SIZE,
           ...(this.media.rows.get(mediaId)?.durationMs != null && {
             durationMs: this.media.rows.get(mediaId)?.durationMs ?? 0,

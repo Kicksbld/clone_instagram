@@ -91,6 +91,7 @@ final class BlockStore {
             return nil
         case let .confirmed(isNowBlocked):
             apply(isNowBlocked, to: userId)
+            AccessibilityFeedback.announce(isNowBlocked ? "Compte bloqué" : "Compte débloqué")
             reloadAfterBlockAttempt(wasBlocked: shown)
             return .confirmed
         case let .failed(error, _, confirmed):

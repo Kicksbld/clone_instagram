@@ -231,6 +231,7 @@ final class ActivityViewModel {
             break
         case .confirmed, .failed(.followRequestNotFound, _, _):
             // Réponse enregistrée, ou demande annulée entre-temps (`404`) : elle ne revient pas.
+            AccessibilityFeedback.announce("Demande traitée")
             requests.removeAll { $0.id == requester.id }
             handledRequestIds.remove(requester.id)
         case let .failed(_, wanted, _):

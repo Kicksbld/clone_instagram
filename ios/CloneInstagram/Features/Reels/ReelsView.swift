@@ -9,6 +9,7 @@ struct ReelsView: View {
     let isActive: Bool
     let profileDestination: (ProfileRoute) -> AnyView
     @State private var selectedId: String?
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @State private var friendsSheet: FriendsSheet?
     @Environment(\.blockedUserIds) private var blockedIds
     @Environment(\.openComments) private var openComments
@@ -46,6 +47,15 @@ struct ReelsView: View {
             .pickerStyle(.segmented)
             .padding()
             content
+            if voiceOverEnabled, !visiblePosts.isEmpty {
+                HStack {
+                    Button("Reel précédent", systemImage: "backward.end") { moveSelection(by: -1) }
+                        .disabled(selectedId == visiblePosts.first?.id)
+                    Button("Reel suivant", systemImage: "forward.end") { moveSelection(by: 1) }
+                        .disabled(selectedId == visiblePosts.last?.id)
+                }
+                .padding()
+            }
         }
         .sheet(item: $friendsSheet) { sheet in
             FriendInteractionsView(
@@ -77,7 +87,7 @@ struct ReelsView: View {
     @ViewBuilder private var content: some View {
         switch viewModel.state {
         case .loading:
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            ProgressView().accessibilityLabel("Chargement en cours").frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed:
             ContentUnavailableView {
                 Label("Reels indisponibles", systemImage: "wifi.exclamationmark")
@@ -109,6 +119,7 @@ struct ReelsView: View {
                         reel(viewModel.displayed(post), nextURL: nextURL(after: post))
                             .frame(width: geometry.size.width, height: geometry.size.height)
                             .clipped()
+                            .accessibilityHidden(voiceOverEnabled && selectedId != post.id)
                             .id(post.id)
                     }
                 }
@@ -125,6 +136,14 @@ struct ReelsView: View {
                 }
             }
         }
+    }
+
+    private func moveSelection(by offset: Int) {
+        guard let index = visiblePosts.firstIndex(where: { $0.id == selectedId }) else { return }
+        let next = index + offset
+        guard visiblePosts.indices.contains(next) else { return }
+        selectedId = visiblePosts[next].id
+        AccessibilityFeedback.announce("Reel \(next + 1) sur \(visiblePosts.count). \(visiblePosts[next].author.username)")
     }
 
     private func nextURL(after post: Post) -> URL? {
@@ -175,6 +194,8 @@ struct ReelsView: View {
                     } label: {
                         Label("\(post.likeCount) J’aime", systemImage: post.isLiked ? "heart.fill" : "heart")
                     }
+                    .accessibilityLabel(post.isLiked ? "Retirer la mention J’aime" : "J’aime")
+                    .accessibilityValue("\(post.likeCount) mentions J’aime. \(post.isLiked ? "Aimé" : "Non aimé")")
                     Button {
                         openComments?(CommentsRoute(postId: post.id, commentCount: post.commentCount))
                     } label: {
@@ -187,6 +208,7 @@ struct ReelsView: View {
                     .disabled(openSharePost == nil)
                 }
             }
+            .accessibilityElement(children: .combine)
             .padding()
             .foregroundStyle(.white)
             .background(.black.opacity(0.55))

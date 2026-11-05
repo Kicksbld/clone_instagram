@@ -14,6 +14,7 @@ final class PostEditStore {
     private struct Edit {
         let caption: String
         let mentions: [TextMention]
+        let media: [PostMediaItem]
     }
 
     /// Dernière version enregistrée, par post.
@@ -25,12 +26,13 @@ final class PostEditStore {
         var post = post
         post.caption = edit.caption
         post.mentions = edit.mentions
+        post.media = edit.media
         return post
     }
 
     /// Post renvoyé par `PATCH /v1/posts/{id}`.
     func record(_ post: Post) {
-        edits[post.id] = Edit(caption: post.caption, mentions: post.mentions)
+        edits[post.id] = Edit(caption: post.caption, mentions: post.mentions, media: post.media)
     }
 
     /// Posts relus depuis l'API : leur légende fait foi, la version enregistrée localement est oubliée.

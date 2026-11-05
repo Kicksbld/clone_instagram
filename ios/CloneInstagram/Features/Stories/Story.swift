@@ -11,7 +11,7 @@ struct Story: Equatable, Identifiable {
     let id: String
     let author: PostAuthor
     let audience: StoryAudience
-    let photo: PostMediaItem
+    var photo: PostMediaItem
     /// Je l'ai déjà vue (toujours vrai pour mes stories).
     var isSeen: Bool
     let createdAt: Date
