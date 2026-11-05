@@ -62,6 +62,7 @@
 | D56 | Bandeau des stories (`GET /v1/stories/tray`) en une seule réponse sans curseur, 100 auteurs au plus pris dans l'ordre du bandeau (ADR-034, Proposé) | Pagination par curseur ; réponse sans plafond | Choix du lead dev en T24 : le curseur `(created_at, id)` ne suit pas l'ordre vu / non vu ; réponse bornée |
 | D57 | Partage de post : aperçu résolu pour chaque lecteur, temps réel compris ; référence sans FK conservée après purge (ADR-035, Proposé) | Aperçu figé ou commun aux membres ; FK bloquant la purge | Application de la visibilité de T29 / ADR-023 à tous les canaux, sans perdre les messages |
 | D58 | Mentions : conserver le username écrit à la création avec le compte résolu (`text_username`, ADR-036, Proposé) | Username actuel uniquement ; positions de toutes les occurrences | Préserver le lien après renommage sans transformer une occurrence initialement inconnue en mention ; proposition T34, validation du lead dev à venir |
+| D59 | Modification d'une légende : mention conservée si son username écrit reste dans le texte, réécrite sans nouvelle notification pour un compte renommé, sinon retirée avec sa notification (ADR-037, Proposé) | Nouvelle résolution de tous les usernames ; recalcul seulement si la liste des usernames change | Une retouche ne fait ni disparaître ni renotifier une mention inchangée ; proposition T35, validation du lead dev à venir |
 
 ## 2. Risques
 

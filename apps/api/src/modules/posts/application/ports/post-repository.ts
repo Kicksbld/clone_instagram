@@ -27,6 +27,11 @@ export interface PostRepository {
    */
   softDeleteByModeration(id: string): Promise<{ authorId: string; mediaIds: string[] } | null>;
   decrementPostCount(authorId: string): Promise<void>;
+  /**
+   * Remplace la légende et met à jour `updated_at`, seulement si le post est à `authorId` et non
+   * supprimé (écriture conditionnelle). `false` si aucune ligne n'est touchée.
+   */
+  updateCaption(id: string, authorId: string, caption: string): Promise<boolean>;
 }
 
 export interface AuthorPostsQuery {

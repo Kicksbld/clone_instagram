@@ -10,6 +10,7 @@ import type { CreatePost } from '../../application/use-cases/create-post.ts';
 import type { DeletePost } from '../../application/use-cases/delete-post.ts';
 import type { GetPost } from '../../application/use-cases/get-post.ts';
 import type { ListUserPosts } from '../../application/use-cases/list-user-posts.ts';
+import type { UpdatePostCaption } from '../../application/use-cases/update-post-caption.ts';
 import type { Post } from '../../domain/post.ts';
 import { type PostResponse, toPostResponse } from './post-response.ts';
 
@@ -18,9 +19,12 @@ export interface PostsUseCases {
   deletePost: DeletePost;
   getPost: GetPost;
   listUserPosts: ListUserPosts;
+  updatePostCaption: UpdatePostCaption;
 }
 
 type CreatePostRequest = operations['createPost']['requestBody']['content']['application/json'];
+type UpdatePostCaptionRequest =
+  operations['updatePostCaption']['requestBody']['content']['application/json'];
 
 /** Limite de publication par utilisateur (ADR-005). */
 const CREATE_POST_RATE_LIMIT = { max: 20, timeWindow: '1 hour' } as const;
@@ -55,6 +59,19 @@ export function registerPostsRoutes(
       const post = await useCases.getPost.execute({
         viewerId: authenticatedUserId(request),
         postId: request.params.id,
+      });
+      return toPost(post);
+    },
+  );
+
+  app.patch<{ Params: { id: string }; Body: UpdatePostCaptionRequest }>(
+    '/v1/posts/:id',
+    { schema: routeSchemaFor('updatePostCaption') },
+    async (request): Promise<PostResponse> => {
+      const post = await useCases.updatePostCaption.execute({
+        authorId: authenticatedUserId(request),
+        postId: request.params.id,
+        caption: request.body.caption,
       });
       return toPost(post);
     },

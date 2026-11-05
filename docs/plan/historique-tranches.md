@@ -169,3 +169,12 @@ Ce que chaque tranche a posé dans le code, pour retrouver où vit une fonctionn
 - iOS : mentions cliquables dans les légendes (photos et reels) et commentaires, navigation vers le profil ; suggestions utilisant la recherche existante, délai de 300 ms, insertion du username et nouvel essai après erreur ; messages pour `too_many_mentions` ; affichage des notifications de mention dans l'Activité.
 - Décision proposée : ADR-036 conserve le username écrit (`text_username`, migration `0025_demonic_fabian_cortez`, champ `TextMention.textUsername`) pour préserver les liens après renommage, sans rendre cliquables les occurrences initialement inconnues.
 - Reste à valider : déployer la migration et l'API, recompiler l'app, tester sur iPhone physique sur la démo (mention de légende et commentaire, notification unique au propriétaire, compte privé et blocage).
+
+### T35 — Je modifie la légende de mon post (#46)
+
+- Contrat : `PATCH /v1/posts/{id}` `UpdatePostCaptionRequest { caption }` → `Post` ; `404 post_not_found` (inexistant, supprimé ou d'un autre), `422 too_many_mentions`. Clients régénérés.
+- Base : aucune migration (`posts.updated_at` existait).
+- API, module `posts` : `UpdatePostCaption` (transaction `UpdatePostCaptionTransaction` : `PostRepository.updateCaption` conditionnel, `MentionWriter`, `NotificationWriter`). `writeTextMentions` (`shared/application`) accepte les mentions existantes (`previous`) : une mention dont le username écrit (`textUsername`) reste dans le texte est conservée sans nouvelle notification, même après un renommage (ADR-036) ; les autres sont supprimées avec leur notification (`MentionWriter.remove`, `NotificationWriter.retract`) ; les nouvelles sont créées et notifiées. `MentionWriter.list` / `remove` dans `DrizzleMentionWriter`.
+- iOS : menu « … » de mes posts > « Modifier » (action d'environnement `openEditPost`, `Core/Navigation/EditPostRoute`) ; feuille `Features/EditPost` (« Modifier les infos », suggestions de mentions, enregistrement qui attend l'API, erreurs en alerte avec la saisie gardée) ; `PostEditStore` (`Core/Posts`) partagé : nouvelle légende et mentions affichées dans le feed, le détail et les Reels, vidé à la déconnexion.
+- Décisions : application d'ADR-025, ADR-026, ADR-036 ; modification non optimiste (texte validé par le serveur, ADR-020).
+- Reste à valider : déployer l'API, recompiler l'app ; démo sur iPhone physique (A ajoute « @lea » : B est prévenu ; A retire la mention : la notification disparaît chez B).

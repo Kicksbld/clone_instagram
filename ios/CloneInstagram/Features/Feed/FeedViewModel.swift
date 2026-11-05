@@ -32,6 +32,7 @@ final class FeedViewModel {
     private let service: any PostService
     private let likes: LikeSynchronizer
     private let commentCounts: CommentCountStore
+    private let edits: PostEditStore
     private let deletions: PostDeletionStore
     private let prefetcher: any ImagePrefetching
     private let now: () -> Date
@@ -46,6 +47,7 @@ final class FeedViewModel {
         posts: any PostService,
         likes: LikeSynchronizer,
         commentCounts: CommentCountStore = CommentCountStore(),
+        edits: PostEditStore = PostEditStore(),
         deletions: PostDeletionStore,
         prefetcher: any ImagePrefetching,
         now: @escaping () -> Date = Date.init
@@ -54,6 +56,7 @@ final class FeedViewModel {
         service = posts
         self.likes = likes
         self.commentCounts = commentCounts
+        self.edits = edits
         self.deletions = deletions
         self.prefetcher = prefetcher
         self.now = now
@@ -139,6 +142,7 @@ final class FeedViewModel {
             let page = try await service.listFeed(cursor: nil)
             likes.record(page.items)
             commentCounts.record(page.items)
+            edits.refreshed(page.items)
             loadedPosts = page.items
             nextCursor = page.nextCursor
             loadMoreFailed = false
@@ -160,6 +164,7 @@ final class FeedViewModel {
             let page = try await service.listFeed(cursor: cursor)
             likes.record(page.items)
             commentCounts.record(page.items)
+            edits.refreshed(page.items)
             let known = Set(loadedPosts.map(\.id))
             loadedPosts += page.items.filter { !known.contains($0.id) }
             nextCursor = page.nextCursor
@@ -194,9 +199,10 @@ final class FeedViewModel {
         await deletions.delete(postId: post.id)
     }
 
-    /// Le post avec son dernier état de like et son nombre de commentaires, partagés avec les autres écrans.
+    /// Le post avec son dernier état de like, son nombre de commentaires et sa dernière légende, partagés avec
+    /// les autres écrans.
     func displayed(_ post: Post) -> Post {
-        commentCounts.displayed(likes.displayed(post))
+        edits.displayed(commentCounts.displayed(likes.displayed(post)))
     }
 
     /// Bouton J'aime : like ou unlike, affiché tout de suite (optimiste).

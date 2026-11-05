@@ -54,6 +54,8 @@ protocol PostService: Sendable {
     func listReelFriendInteractions(reelId: String) async throws(PostServiceError) -> [FriendInteraction]
     /// `DELETE /v1/posts/{id}` : un de mes posts ; déjà supprimé ou d'un autre → `postNotFound`.
     func deletePost(id: String) async throws(PostServiceError)
+    /// `PATCH /v1/posts/{id}` : nouvelle légende d'un de mes posts ou reels ; mentions recalculées par l'API.
+    func updateCaption(postId: String, caption: String) async throws(PostServiceError) -> Post
 }
 
 /// `PostService` sur le client généré (ADR-003) : convertit DTO et erreurs en modèles de l'app.
@@ -240,6 +242,29 @@ struct APIPostService: PostService {
         }
     }
 
+    func updateCaption(postId: String, caption: String) async throws(PostServiceError) -> Post {
+        let body = Components.Schemas.UpdatePostCaptionRequest(caption: caption)
+        let output = try await call {
+            try await client.updatePostCaption(path: .init(id: postId), body: .json(body))
+        }
+        switch output {
+        case let .ok(response):
+            return try Post(Self.unwrap { try response.body.json })
+        case let .badRequest(response):
+            throw Self.error(400) { try response.body.applicationProblemJson }
+        case let .unauthorized(response):
+            throw Self.error(401) { try response.body.applicationProblemJson }
+        case let .notFound(response):
+            throw Self.error(404) { try response.body.applicationProblemJson }
+        case let .unprocessableContent(response):
+            throw Self.error(422) { try response.body.applicationProblemJson }
+        case .internalServerError:
+            throw .unexpectedResponse(statusCode: 500)
+        case let .undocumented(statusCode, _):
+            throw .unexpectedResponse(statusCode: statusCode)
+        }
+    }
+
     /// Erreur réseau ou corps non conforme au contrat → `unreachable`.
     private func call<Output>(_ operation: () async throws -> Output) async throws(PostServiceError) -> Output {
         do {
@@ -300,6 +325,10 @@ struct UnavailablePostService: PostService {
     }
 
     func deletePost(id _: String) async throws(PostServiceError) {
+        throw .unreachable
+    }
+
+    func updateCaption(postId _: String, caption _: String) async throws(PostServiceError) -> Post {
         throw .unreachable
     }
 }

@@ -56,6 +56,13 @@ export class InMemoryPosts implements PostRepository, PostReader {
     return Promise.resolve({ authorId: row.authorId, mediaIds: row.mediaIds });
   }
 
+  updateCaption(id: string, authorId: string, caption: string): Promise<boolean> {
+    const row = this.rows.get(id);
+    if (!row || row.authorId !== authorId || row.deletedAt) return Promise.resolve(false);
+    this.rows.set(id, { ...row, caption });
+    return Promise.resolve(true);
+  }
+
   decrementPostCount(authorId: string): Promise<void> {
     const profile = this.profiles.rows.get(authorId);
     if (profile) this.profiles.rows.set(authorId, { ...profile, postCount: profile.postCount - 1 });

@@ -615,7 +615,12 @@ export interface paths {
         delete: operations["deletePost"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Modifier la légende d'un de mes posts
+         * @description Seul l'auteur modifie la légende d'un post ou d'un reel ; `updated_at` est mis à jour. Les mentions sont recalculées dans la même transaction (ADR-025) : les nouvelles sont créées et notifiées (mêmes règles qu'à la publication), les retirées sont supprimées avec leur notification. Plus de 20 mentions distinctes renvoie `422 too_many_mentions`.
+         *     Post inexistant, supprimé, invisible ou d'un autre auteur → `404 post_not_found`, jamais `403` (ADR-006).
+         */
+        patch: operations["updatePostCaption"];
         trace?: never;
     };
     "/v1/posts/{id}/like": {
@@ -1722,6 +1727,9 @@ export interface components {
         PostKind: "post" | "reel";
         /** @description Légende, 2 200 caractères au plus ; chaîne vide si aucune légende. */
         Caption: string;
+        UpdatePostCaptionRequest: {
+            caption: components["schemas"]["Caption"];
+        };
         CreatePostRequest: {
             kind: components["schemas"]["PostKind"];
             caption?: components["schemas"]["Caption"];
@@ -3471,6 +3479,45 @@ export interface operations {
             400: components["responses"]["ValidationFailed"];
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["PostNotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updatePostCaption: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePostCaptionRequest"];
+            };
+        };
+        responses: {
+            /** @description Le post à jour. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Post"];
+                };
+            };
+            400: components["responses"]["ValidationFailed"];
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["PostNotFound"];
+            /** @description Plus de 20 mentions distinctes (`too_many_mentions`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };

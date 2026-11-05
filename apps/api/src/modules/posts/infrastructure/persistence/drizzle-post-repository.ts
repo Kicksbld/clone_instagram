@@ -67,6 +67,15 @@ export class DrizzlePostRepository implements PostRepository {
     return { authorId: deleted.authorId, mediaIds: rows.map((row) => row.mediaId) };
   }
 
+  async updateCaption(id: string, authorId: string, caption: string): Promise<boolean> {
+    const rows = await this.db
+      .update(posts)
+      .set({ caption, updatedAt: sql`now()` })
+      .where(and(eq(posts.id, id), eq(posts.authorId, authorId), isNull(posts.deletedAt)))
+      .returning({ id: posts.id });
+    return rows.length > 0;
+  }
+
   async decrementPostCount(authorId: string): Promise<void> {
     await this.db
       .update(profiles)

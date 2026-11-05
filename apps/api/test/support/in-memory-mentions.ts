@@ -1,4 +1,11 @@
-import type { MentionWriter, MentionTarget } from '../../src/shared/application/mention-writer.ts';
+import type {
+  MentionWriter,
+  MentionTarget,
+  StoredMention,
+} from '../../src/shared/application/mention-writer.ts';
+
+const keyOf = (target: MentionTarget) =>
+  target.commentId ? `comment:${target.commentId}` : `post:${target.postId}`;
 import type { Mention } from '../../src/shared/domain/mention.ts';
 import type { InMemoryProfileRepository } from './in-memory-profile-repository.ts';
 import type { InMemoryRelationshipReader } from './in-memory-relationship-reader.ts';
@@ -30,14 +37,23 @@ export class InMemoryMentions implements MentionWriter {
         })),
     );
   }
-  write(input: {
-    authorId: string;
-    target: MentionTarget;
-    users: { id: string; textUsername: string }[];
-  }): Promise<void> {
+  list(target: MentionTarget): Promise<StoredMention[]> {
+    return Promise.resolve([...(this.rows.get(keyOf(target)) ?? [])]);
+  }
+  write(input: { authorId: string; target: MentionTarget; users: StoredMention[] }): Promise<void> {
+    const key = keyOf(input.target);
+    const rows = this.rows.get(key) ?? [];
+    this.rows.set(key, [
+      ...rows,
+      ...input.users.filter((user) => !rows.some((row) => row.id === user.id)),
+    ]);
+    return Promise.resolve();
+  }
+  remove(target: MentionTarget, userIds: string[]): Promise<void> {
+    const key = keyOf(target);
     this.rows.set(
-      input.target.commentId ? `comment:${input.target.commentId}` : `post:${input.target.postId}`,
-      input.users,
+      key,
+      (this.rows.get(key) ?? []).filter((row) => !userIds.includes(row.id)),
     );
     return Promise.resolve();
   }

@@ -427,3 +427,135 @@ describe('mentions dans les légendes', () => {
     expect(context.media.rows.get(PHOTO)?.attachedAt).toBeNull();
   });
 });
+
+describe('PATCH /v1/posts/{id}', () => {
+  const edit = (id: string, caption: unknown, as = auth) =>
+    context.app.inject({
+      method: 'PATCH',
+      url: `/v1/posts/${id}`,
+      headers: as,
+      payload: { caption },
+    });
+
+  it('modifie la légende de mon post → 200 avec le post à jour, partout', async () => {
+    const id = await givenPost(ME, 'Avant');
+
+    const response = await edit(id, '  Après  ');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ id, caption: 'Après', mentions: [] });
+    expect((await get(`/v1/posts/${id}`)).json()).toMatchObject({ caption: 'Après' });
+  });
+
+  const mentionsOf = (postId: string) =>
+    [...context.notifications.rows.values()]
+      .filter((row) => row.type === 'mention' && 'postId' in row && row.postId === postId)
+      .map((row) => row.recipientId);
+
+  it('mention ajoutée : créée et notifiée ; retirée : supprimée avec sa notification', async () => {
+    context.profiles.add({ id: OTHER, username: 'lea' });
+    const id = await givenPost(ME, 'Sans mention');
+
+    const added = await edit(id, 'Avec @lea');
+    expect(added.json()).toMatchObject({ mentions: [{ id: OTHER, textUsername: 'lea' }] });
+    expect(mentionsOf(id)).toEqual([OTHER]);
+    expect(context.notificationDispatcher.dispatched).toMatchObject([
+      { type: 'mention', recipientId: OTHER, postId: id },
+    ]);
+
+    const removed = await edit(id, 'Finalement sans');
+    expect(removed.json()).toMatchObject({ mentions: [] });
+    expect(mentionsOf(id)).toEqual([]);
+  });
+
+  it('mention conservée : pas de nouvelle notification, même après un renommage', async () => {
+    context.profiles.add({ id: OTHER, username: 'lea' });
+    const id = await givenPost(ME, 'Avec @lea');
+    const sent = context.notificationDispatcher.dispatched.length;
+    const lea = context.profiles.rows.get(OTHER);
+    if (!lea) throw new Error('profil absent');
+    context.profiles.rows.set(OTHER, { ...lea, username: 'lea_2' });
+
+    const response = await edit(id, 'Toujours avec @lea, retouché');
+
+    expect(response.json()).toMatchObject({
+      mentions: [{ id: OTHER, username: 'lea_2', textUsername: 'lea' }],
+    });
+    expect(context.notificationDispatcher.dispatched).toHaveLength(sent);
+    expect(mentionsOf(id)).toEqual([OTHER]);
+  });
+
+  it('compte renommé réécrit sous son nouveau nom : même mention, ni retrait ni nouvelle notification', async () => {
+    context.profiles.add({ id: OTHER, username: 'lea' });
+    const id = await givenPost(ME, 'Avec @lea');
+    const sent = context.notificationDispatcher.dispatched.length;
+    const lea = context.profiles.rows.get(OTHER);
+    if (!lea) throw new Error('profil absent');
+    context.profiles.rows.set(OTHER, { ...lea, username: 'lea_2' });
+
+    const response = await edit(id, 'Avec @lea_2');
+
+    expect(response.json()).toMatchObject({
+      mentions: [{ id: OTHER, username: 'lea_2', textUsername: 'lea_2' }],
+    });
+    expect(context.notificationDispatcher.dispatched).toHaveLength(sent);
+    expect(mentionsOf(id)).toEqual([OTHER]);
+  });
+
+  it('post d’un autre → 404 post_not_found, légende inchangée', async () => {
+    context.profiles.add({ id: OTHER, username: 'lea' });
+    const id = await givenPost(OTHER, 'À moi');
+
+    const response = await edit(id, 'Piratée');
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ code: 'post_not_found' });
+    expect(context.posts.rows.get(id)?.caption).toBe('À moi');
+  });
+
+  it('post supprimé → 404 post_not_found', async () => {
+    const id = await givenPost(ME, 'Avant');
+    expect((await remove(id)).statusCode).toBe(204);
+
+    const response = await edit(id, 'Après');
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ code: 'post_not_found' });
+  });
+
+  it('légende de plus de 2 200 caractères → 400 validation_failed', async () => {
+    const id = await givenPost(ME, 'Avant');
+
+    const response = await edit(id, 'a'.repeat(2201));
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: 'validation_failed' });
+  });
+
+  it('21 mentions → 422 too_many_mentions, légende inchangée', async () => {
+    const id = await givenPost(ME, 'Avant');
+
+    const response = await edit(
+      id,
+      Array.from({ length: 21 }, (_, index) => `@user${index}`).join(' '),
+    );
+
+    expect(response.statusCode).toBe(422);
+    expect(response.json()).toMatchObject({ code: 'too_many_mentions' });
+    expect(context.posts.rows.get(id)?.caption).toBe('Avant');
+  });
+
+  it('champ inconnu ou légende absente → 400 validation_failed', async () => {
+    const id = await givenPost(ME, 'Avant');
+
+    const response = await context.app.inject({
+      method: 'PATCH',
+      url: `/v1/posts/${id}`,
+      headers: auth,
+      payload: { caption: 'Après', audience: 'everyone' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: 'validation_failed' });
+  });
+});

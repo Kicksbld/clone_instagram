@@ -21,6 +21,7 @@ final class PostDetailViewModel {
     private let posts: any PostService
     private let likes: LikeSynchronizer
     private let commentCounts: CommentCountStore
+    private let edits: PostEditStore
     private let deletions: PostDeletionStore
 
     init(
@@ -29,6 +30,7 @@ final class PostDetailViewModel {
         posts: any PostService,
         likes: LikeSynchronizer,
         commentCounts: CommentCountStore = CommentCountStore(),
+        edits: PostEditStore = PostEditStore(),
         deletions: PostDeletionStore
     ) {
         self.postId = postId
@@ -36,10 +38,11 @@ final class PostDetailViewModel {
         self.posts = posts
         self.likes = likes
         self.commentCounts = commentCounts
+        self.edits = edits
         self.deletions = deletions
     }
 
-    /// Menu « … » : « Supprimer » seulement sur mes posts.
+    /// Menu « … » : « Modifier » et « Supprimer » seulement sur mes posts.
     var canDelete: Bool {
         if case let .loaded(post) = state {
             post.author.id == viewerId
@@ -55,9 +58,10 @@ final class PostDetailViewModel {
         await deletions.delete(postId: postId)
     }
 
-    /// Le post avec son dernier état de like et son nombre de commentaires, partagés avec les autres écrans.
+    /// Le post avec son dernier état de like, son nombre de commentaires et sa dernière légende, partagés avec
+    /// les autres écrans.
     func displayed(_ post: Post) -> Post {
-        commentCounts.displayed(likes.displayed(post))
+        edits.displayed(commentCounts.displayed(likes.displayed(post)))
     }
 
     /// Bouton J'aime : like ou unlike, affiché tout de suite (optimiste).
@@ -91,6 +95,7 @@ final class PostDetailViewModel {
             let post = try await posts.fetchPost(id: postId)
             likes.record([post])
             commentCounts.record([post])
+            edits.refreshed([post])
             state = .loaded(post)
         } catch .postNotFound {
             state = .notFound

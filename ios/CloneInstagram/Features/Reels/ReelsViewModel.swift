@@ -28,11 +28,18 @@ final class ReelsViewModel {
     private let service: any PostService
     private let likes: LikeSynchronizer
     private let commentCounts: CommentCountStore
+    private let edits: PostEditStore
 
-    init(posts: any PostService, likes: LikeSynchronizer, commentCounts: CommentCountStore) {
+    init(
+        posts: any PostService,
+        likes: LikeSynchronizer,
+        commentCounts: CommentCountStore,
+        edits: PostEditStore = PostEditStore()
+    ) {
         service = posts
         self.likes = likes
         self.commentCounts = commentCounts
+        self.edits = edits
     }
 
     var hasMore: Bool {
@@ -101,7 +108,7 @@ final class ReelsViewModel {
     }
 
     func displayed(_ post: Post) -> Post {
-        commentCounts.displayed(likes.displayed(post))
+        edits.displayed(commentCounts.displayed(likes.displayed(post)))
     }
 
     func toggleLike(_ post: Post) async {
@@ -122,6 +129,7 @@ final class ReelsViewModel {
     private func record(_ page: PostPage) {
         likes.record(page.items)
         commentCounts.record(page.items)
+        edits.refreshed(page.items)
         nextCursor = page.nextCursor
     }
 }

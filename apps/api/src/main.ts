@@ -98,6 +98,7 @@ import { CreatePost } from './modules/posts/application/use-cases/create-post.ts
 import { DeletePost } from './modules/posts/application/use-cases/delete-post.ts';
 import { GetPost } from './modules/posts/application/use-cases/get-post.ts';
 import { ListUserPosts } from './modules/posts/application/use-cases/list-user-posts.ts';
+import { UpdatePostCaption } from './modules/posts/application/use-cases/update-post-caption.ts';
 import {
   DrizzlePostReader,
   DrizzlePostRepository,
@@ -234,6 +235,13 @@ const createPostTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) 
   relationships: new DrizzleRelationshipReader(tx),
   accounts: new DrizzleAccountReader(tx),
   media: new DrizzleMediaRepository(tx),
+  posts: new DrizzlePostRepository(tx),
+  reader: new DrizzlePostReader(tx),
+}));
+const updatePostCaptionTransaction = new DrizzleUnitOfWork(database.db, (tx: Executor) => ({
+  mentions: new DrizzleMentionWriter(tx),
+  notifications: new DrizzleNotificationWriter(tx),
+  relationships: new DrizzleRelationshipReader(tx),
   posts: new DrizzlePostRepository(tx),
   reader: new DrizzlePostReader(tx),
 }));
@@ -391,6 +399,10 @@ const app = buildApp({
       deletePost: new DeletePost(deletePostTransaction),
       getPost: new GetPost(postReader, relationships),
       listUserPosts: new ListUserPosts(accounts, relationships, postReader),
+      updatePostCaption: new UpdatePostCaption(
+        updatePostCaptionTransaction,
+        notificationDispatcher,
+      ),
     },
     feed: {
       getFeed: new GetFeed(new DrizzleFeedReader(database.db)),
