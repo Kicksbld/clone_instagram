@@ -288,7 +288,7 @@ export interface paths {
          * Obtenir un Jeton de Participant du Live commun
          * @description Jeton demandé par le SDK Live (echimine/live-sdk) à chaque connexion au serveur Live commun. Sans corps.
          *
-         *     JWT HS256 valable 5 minutes, signé avec le secret de l'App membre `clone-instagram` : `iss` = identifiant de l'App membre, `sub` = id de mon profil, `name` = mon nom d'utilisateur (30 caractères visibles au plus), `picture` = URL `https` de mon avatar si j'en ai un.
+         *     JWT HS256 valable 5 minutes, signé avec le secret de l'App membre `instagram` : `iss` = identifiant de l'App membre, `sub` = id de mon profil, `name` = mon nom d'utilisateur (30 caractères visibles au plus), `picture` = URL `https` de mon avatar si j'en ai un.
          *
          *     Serveur Live non configuré sur cette API : `404 live_unavailable`.
          */
