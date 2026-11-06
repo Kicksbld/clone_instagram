@@ -63,6 +63,10 @@ packages:
   posthog-ios:
     url: https://github.com/PostHog/posthog-ios
     exactVersion: 3.92.0
+  # Live commun aux clones (echimine/live-sdk, public).
+  LiveSDK:
+    url: https://github.com/echimine/live-sdk.git
+    exactVersion: 0.1.0
 
 targets:
   CloneInstagram:
@@ -101,8 +105,8 @@ targets:
         # « All interface orientations must be supported… » (UIRequiresFullScreen est obsolète depuis iOS 26).
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         # Création d'un post : la photo la plus récente est présélectionnée, comme Instagram (ADR-010).
-        INFOPLIST_KEY_NSCameraUsageDescription: Clone utilise la caméra pour filmer vos reels et photographier vos stories.
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: Clone utilise le microphone pour filmer vos reels avec le son.
+        INFOPLIST_KEY_NSCameraUsageDescription: Clone utilise la caméra pour filmer vos reels, photographier vos stories et vous filmer pendant un Live.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: Clone utilise le microphone pour filmer vos reels avec le son et vous faire entendre pendant un Live.
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Clone affiche vos photos pour que vous puissiez les publier.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Icônes alternatives, avantage Clone Plus (ADR-012) : `AppIcon` de `Core/Billing/AppIconService`.
@@ -134,6 +138,10 @@ targets:
         product: RevenueCat
       - package: posthog-ios
         product: PostHog
+      - package: LiveSDK
+        product: LiveSDK
+      - package: LiveSDK
+        product: LiveSDKUI
     preBuildScripts:
       - name: SwiftLint et SwiftFormat
         basedOnDependencyAnalysis: false

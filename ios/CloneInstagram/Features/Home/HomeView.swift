@@ -5,7 +5,7 @@ import SwiftUI
 /// importe pas une autre. `feed` et `profileTab` reçoivent l'action qui ouvre l'onglet Recherche ;
 /// `createPost` reçoit l'action qui ferme la création et revient à l'accueil. L'Activité s'ouvre par le
 /// cœur de la barre du haut, comme Instagram (pas d'onglet dédié, ADR-026).
-struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View, Activity: View, Messages: View, Reels: View>: View {
+struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View, Activity: View, Messages: View, Reels: View, Live: View>: View {
     enum TabID: Hashable {
         case home
         case reels
@@ -28,9 +28,12 @@ struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View,
 
     @ViewBuilder let reels: (_ isActive: Bool) -> Reels
     @ViewBuilder let messages: () -> Messages
+    /// Lives communs aux clones (live-sdk), ouverts par la barre du haut ; reçoit l'action qui les ferme.
+    @ViewBuilder let live: (_ close: @escaping () -> Void) -> Live
 
     @State private var selection = TabID.home
     @State private var isCreating = false
+    @State private var isWatchingLives = false
 
     var body: some View {
         TabView(selection: $selection) {
@@ -43,6 +46,9 @@ struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View,
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             Button("Créer", systemImage: "plus") { isCreating = true }
+                        }
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Lives", systemImage: "dot.radiowaves.left.and.right") { isWatchingLives = true }
                         }
                         ToolbarItem(placement: .topBarTrailing) {
                             NavigationLink(destination: activity) {
@@ -85,6 +91,9 @@ struct HomeView<Feed: View, ProfileTab: View, SearchTab: View, CreatePost: View,
                 isCreating = false
                 selection = .home
             }
+        }
+        .fullScreenCover(isPresented: $isWatchingLives) {
+            live { isWatchingLives = false }
         }
     }
 }

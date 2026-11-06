@@ -241,6 +241,8 @@ struct RootView: View {
                     viewerId: profile.id
                 )
                 .modifier(SocialDestinations(dependencies: dependencies, viewerId: profile.id, openComments: openComments))
+            } live: { close in
+                LiveHubView(onClose: close)
             }
             .environment(\.openSharePost, OpenSharePostAction { sharePostRoute = $0 })
             .environment(\.openEditPost, OpenEditPostAction { editPostRoute = $0 })
