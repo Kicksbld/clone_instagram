@@ -45,7 +45,7 @@ struct AppDependencies {
     /// Permission des notifications, demandée après le paywall de fin d'onboarding (ADR-038).
     var notifications: any NotificationPermissionService = SystemNotificationPermissionService()
     /// Jeton du Live commun (live-sdk), `nil` sans URL d'API.
-    var liveToken: LiveParticipantTokenClient?
+    var liveToken: (any LiveTokenService)?
 
     static func live(bundle: Bundle = .main) -> AppDependencies {
         let auth = makeAuth(bundle: bundle)
@@ -117,10 +117,7 @@ struct AppDependencies {
             appIcons: SystemAppIconService(),
             analytics: analytics,
             suspension: suspension,
-            liveToken: LiveParticipantTokenClient(
-                apiBaseURL: configuration.baseURL,
-                accessToken: { await auth.accessToken() }
-            )
+            liveToken: APILiveTokenService(client: client)
         )
     }
 }

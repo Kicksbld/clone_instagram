@@ -70,6 +70,10 @@
       "description": "Activité de l'utilisateur authentifié (notifications in-app, ADR-026)"
     },
     {
+      "name": "live",
+      "description": "Live commun aux clones (echimine/live-sdk) ; l'API signe seulement le Jeton de Participant"
+    },
+    {
       "name": "admin",
       "description": "Administration depuis le backoffice (ADR-011) ; rôle `admin` requis, chaque action écrite dans le journal d'audit"
     }
@@ -6184,6 +6188,263 @@
           },
           "404": {
             "description": "Onboarding non terminé (`profile_not_found`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Trop de requêtes (`rate_limited`) ; réessayer après `Retry-After` secondes.",
+            "headers": {
+              "Retry-After": {
+                "description": "Délai avant de réessayer, en secondes.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur inattendue (`internal_error`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/live/participant-token": {
+      "post": {
+        "operationId": "createLiveParticipantToken",
+        "tags": [
+          "live"
+        ],
+        "summary": "Obtenir un Jeton de Participant du Live commun",
+        "description": "Jeton demandé par le SDK Live (echimine/live-sdk) à chaque connexion au serveur Live commun. Sans corps.\n\nJWT HS256 valable 5 minutes, signé avec le secret de l'App membre `clone-instagram` : `iss` = identifiant de l'App membre, `sub` = id de mon profil, `name` = mon nom d'utilisateur (30 caractères visibles au plus), `picture` = URL `https` de mon avatar si j'en ai un.\n\nServeur Live non configuré sur cette API : `404 live_unavailable`.\n",
+        "responses": {
+          "200": {
+            "description": "Jeton de Participant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Jeton de Participant du Live commun.",
+                  "required": [
+                    "token"
+                  ],
+                  "properties": {
+                    "token": {
+                      "type": "string",
+                      "description": "JWT HS256 valable 5 minutes."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JWT absent ou invalide (`unauthenticated`).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Erreur au format Problem Details (RFC 9457).",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri-reference",
+                      "description": "Identifiant du type de problème (`about:blank` par défaut).",
+                      "examples": [
+                        "about:blank"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Résumé lisible du statut HTTP.",
+                      "examples": [
+                        "Not Found"
+                      ]
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599,
+                      "examples": [
+                        404
+                      ]
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Explication lisible de cette occurrence."
+                    },
+                    "code": {
+                      "type": "string",
+                      "description": "Code stable, destiné au client (ex. `validation_failed`, `username_taken`).",
+                      "examples": [
+                        "route_not_found"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Onboarding non terminé (`profile_not_found`) ou Live non configuré (`live_unavailable`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -31315,6 +31576,19 @@
             "type": "string",
             "format": "date-time",
             "description": "Fin de la période payée ; absente si le plan est `free`."
+          }
+        }
+      },
+      "LiveParticipantToken": {
+        "type": "object",
+        "description": "Jeton de Participant du Live commun.",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "JWT HS256 valable 5 minutes."
           }
         }
       },

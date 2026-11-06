@@ -92,6 +92,8 @@ tags:
     description: Signalements de contenus et de comptes
   - name: activity
     description: Activité de l'utilisateur authentifié (notifications in-app, ADR-026)
+  - name: live
+    description: Live commun aux clones (echimine/live-sdk) ; l'API signe seulement le Jeton de Participant
   - name: admin
     description: Administration depuis le backoffice (ADR-011) ; rôle `admin` requis, chaque action écrite dans le journal d'audit
 paths:
@@ -545,6 +547,36 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '404':
           $ref: '#/components/responses/ProfileNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/live/participant-token:
+    post:
+      operationId: createLiveParticipantToken
+      tags: [live]
+      summary: Obtenir un Jeton de Participant du Live commun
+      description: |
+        Jeton demandé par le SDK Live (echimine/live-sdk) à chaque connexion au serveur Live commun. Sans corps.
+
+        JWT HS256 valable 5 minutes, signé avec le secret de l'App membre `clone-instagram` : `iss` = identifiant de l'App membre, `sub` = id de mon profil, `name` = mon nom d'utilisateur (30 caractères visibles au plus), `picture` = URL `https` de mon avatar si j'en ai un.
+
+        Serveur Live non configuré sur cette API : `404 live_unavailable`.
+      responses:
+        '200':
+          description: Jeton de Participant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveParticipantToken'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: Onboarding non terminé (`profile_not_found`) ou Live non configuré (`live_unavailable`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
@@ -2551,6 +2583,14 @@ components:
           type: string
           format: date-time
           description: Fin de la période payée ; absente si le plan est `free`.
+    LiveParticipantToken:
+      type: object
+      description: Jeton de Participant du Live commun.
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: JWT HS256 valable 5 minutes.
     CompleteOnboardingRequest:
       type: object
       additionalProperties: false

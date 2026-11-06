@@ -16,6 +16,10 @@ import {
   registerBillingRoutes,
 } from './modules/billing/infrastructure/http/billing-routes.ts';
 import {
+  type LiveUseCases,
+  registerLiveRoutes,
+} from './modules/live/infrastructure/http/live-routes.ts';
+import {
   type EngagementUseCases,
   registerEngagementRoutes,
 } from './modules/engagement/infrastructure/http/engagement-routes.ts';
@@ -83,6 +87,8 @@ export interface AppDependencies {
   stories: StoriesUseCases;
   engagement: EngagementUseCases;
   billing: BillingUseCases;
+  /** Jeton de Participant du Live commun (echimine/live-sdk). */
+  live?: LiveUseCases;
   moderation: ModerationUseCases;
   /** Activité : notifications in-app regroupées (ADR-026). */
   activity: ActivityUseCases;
@@ -141,6 +147,7 @@ export function buildApp({ logLevel, dependencies }: AppOptions) {
     registerStoriesRoutes(v1, dependencies.stories, dependencies.mediaUrls);
     registerEngagementRoutes(v1, dependencies.engagement, dependencies.mediaUrls);
     registerBillingRoutes(v1, dependencies.billing);
+    if (dependencies.live) registerLiveRoutes(v1, dependencies.live);
     registerModerationRoutes(v1, dependencies.moderation);
     registerActivityRoutes(v1, dependencies.activity, dependencies.mediaUrls);
     registerAdminUsersRoutes(v1, dependencies.admin, dependencies.mediaUrls);

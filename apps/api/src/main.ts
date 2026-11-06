@@ -30,6 +30,8 @@ import {
 import { DrizzleNotificationWriter } from './modules/activity/infrastructure/persistence/drizzle-notification-writer.ts';
 import { GetPlan } from './modules/billing/application/use-cases/get-plan.ts';
 import { RefreshSubscription } from './modules/billing/application/use-cases/refresh-subscription.ts';
+import { CreateLiveParticipantToken } from './modules/live/application/use-cases/create-live-participant-token.ts';
+import { JoseParticipantTokenSigner } from './modules/live/infrastructure/jwt/jose-participant-token-signer.ts';
 import { DrizzleSubscriptionRepository } from './modules/billing/infrastructure/persistence/drizzle-subscription-repository.ts';
 import { RevenueCatSubscriptionProvider } from './modules/billing/infrastructure/revenuecat/revenuecat-subscription-provider.ts';
 import { CreateComment } from './modules/engagement/application/use-cases/create-comment.ts';
@@ -465,6 +467,23 @@ const app = buildApp({
         }),
         systemClock,
         analytics,
+      ),
+    },
+    live: {
+      createParticipantToken: new CreateLiveParticipantToken(
+        {
+          find: async (userId) => {
+            const profile = await profiles.findById(userId);
+            if (!profile) return null;
+            const avatar =
+              profile.avatar &&
+              publicMediaUrls(config.PUBLIC_MEDIA_BASE_URL).of(profile.avatar.variants);
+            return { id: profile.id, username: profile.username, avatarUrl: avatar?.thumb ?? null };
+          },
+        },
+        config.LIVE_TOKEN_SECRET
+          ? new JoseParticipantTokenSigner(config.LIVE_APP_ID, config.LIVE_TOKEN_SECRET)
+          : null,
       ),
     },
     moderation: {

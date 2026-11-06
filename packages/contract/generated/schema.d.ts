@@ -275,6 +275,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/live/participant-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Obtenir un Jeton de Participant du Live commun
+         * @description Jeton demandé par le SDK Live (echimine/live-sdk) à chaque connexion au serveur Live commun. Sans corps.
+         *
+         *     JWT HS256 valable 5 minutes, signé avec le secret de l'App membre `clone-instagram` : `iss` = identifiant de l'App membre, `sub` = id de mon profil, `name` = mon nom d'utilisateur (30 caractères visibles au plus), `picture` = URL `https` de mon avatar si j'en ai un.
+         *
+         *     Serveur Live non configuré sur cette API : `404 live_unavailable`.
+         */
+        post: operations["createLiveParticipantToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/onboarding": {
         parameters: {
             query?: never;
@@ -1547,6 +1571,11 @@ export interface components {
              * @description Fin de la période payée ; absente si le plan est `free`.
              */
             expiresAt?: string;
+        };
+        /** @description Jeton de Participant du Live commun. */
+        LiveParticipantToken: {
+            /** @description JWT HS256 valable 5 minutes. */
+            token: string;
         };
         CompleteOnboardingRequest: {
             username: components["schemas"]["Username"];
@@ -2930,6 +2959,38 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["ProfileNotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createLiveParticipantToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Jeton de Participant. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveParticipantToken"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            /** @description Onboarding non terminé (`profile_not_found`) ou Live non configuré (`live_unavailable`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
         };

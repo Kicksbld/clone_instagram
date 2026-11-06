@@ -19,8 +19,8 @@ struct CloneInstagramApp: App {
     /// Live commun aux clones : jeton de Participant demandé à l'API à chaque connexion.
     private func configureLive() async {
         guard let liveToken = dependencies.liveToken else { return }
-        await LiveSDK.shared.configure(serverURL: LiveParticipantTokenClient.serverURL) {
-            try await liveToken.fetch()
+        await LiveSDK.shared.configure(serverURL: LiveServer.url) {
+            try await liveToken.participantToken()
         }
     }
 }

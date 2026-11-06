@@ -22,6 +22,10 @@ const configSchema = z.object({
   // T11 : événements serveur PostHog (ADR-013). Optionnel : sans clé, aucun envoi.
   POSTHOG_PROJECT_API_KEY: z.string().min(1).optional(),
   POSTHOG_HOST: z.url({ protocol: /^https?$/ }).default('https://eu.i.posthog.com'),
+  // Live commun aux clones (echimine/live-sdk) : App membre et secret HS256 transmis par echimine.
+  // Optionnels : sans eux, `POST /v1/live/participant-token` répond `404 live_unavailable`.
+  LIVE_APP_ID: z.string().min(1).default('clone-instagram'),
+  LIVE_TOKEN_SECRET: z.string().min(32).optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;
