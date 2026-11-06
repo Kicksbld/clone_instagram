@@ -20,6 +20,7 @@ describe('configuration', () => {
       API_PORT: 3000,
       LOG_LEVEL: 'info',
       POSTHOG_HOST: 'https://eu.i.posthog.com',
+      LIVE_APP_ID: 'instagram',
     });
   });
 
